@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 from typing import Any, TypedDict, NotRequired, assert_type, Dict, List, Optional, Set, Union
 from urllib.parse import quote_plus
 from urllib.request import urlopen, Request
+import urllib.error
 from exceptiongroup import ExceptionGroup
 import datetime
 import tempfile
@@ -42,6 +43,25 @@ try:
     HAVE_PACKAGING = True
 except ImportError:
     HAVE_PACKAGING = False
+
+# Error codes for standardized responses
+class ErrorCode:
+    NOT_FOUND = "not_found"
+    INVALID_INPUT = "invalid_input"
+    NETWORK_ERROR = "network_error"
+    PARSE_ERROR = "parse_error"
+    FILE_ERROR = "file_error"
+    PERMISSION_ERROR = "permission_error"
+    UNKNOWN_ERROR = "unknown_error"
+
+def format_error(code: str, message: str) -> Dict[str, Any]:
+    """Format error response according to MCP standards."""
+    return {
+        "error": {
+            "code": code,
+            "message": message
+        }
+    }
 
 class PackageInfo(TypedDict):
     error: NotRequired[str]
@@ -235,15 +255,21 @@ def get_package_info(package_name: str) -> PackageInfo:
         result = json.loads(data)
         cache_response(url, result)
         return result
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return format_error(ErrorCode.NOT_FOUND, f"Package '{package_name}' not found")
+        return format_error(ErrorCode.NETWORK_ERROR, f"HTTP error: {e}")
+    except json.JSONDecodeError:
+        return format_error(ErrorCode.PARSE_ERROR, "Invalid JSON response from PyPI")
     except Exception as e:
-        return {"error": str(e)}
+        return format_error(ErrorCode.UNKNOWN_ERROR, str(e))
 
 
 def get_latest_version(package_name: str) -> VersionInfo:
     """Get the latest version of a package."""
     info = get_package_info(package_name)
     if "error" in info:
-        return {"error": info["error"]}
+        return info
     return {"version": info["info"]["version"]}
 
 
@@ -251,7 +277,7 @@ def get_package_releases(package_name: str) -> ReleasesInfo:
     """Get all release versions of a package."""
     info = get_package_info(package_name)
     if "error" in info:
-        return {"error": info["error"]}
+        return info
     return {"releases": list(info["releases"].keys())}
 
 
@@ -269,8 +295,14 @@ def get_release_urls(package_name: str, version: str) -> UrlsInfo:
         result = json.loads(data)
         cache_response(url, result)
         return {"urls": result["urls"]}
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return format_error(ErrorCode.NOT_FOUND, f"Package '{package_name}' version '{version}' not found")
+        return format_error(ErrorCode.NETWORK_ERROR, f"HTTP error: {e}")
+    except json.JSONDecodeError:
+        return format_error(ErrorCode.PARSE_ERROR, "Invalid JSON response from PyPI")
     except Exception as e:
-        return {"error": str(e)}
+        return format_error(ErrorCode.UNKNOWN_ERROR, str(e))
 
 
 def get_source_url(package_name: str, version: str) -> UrlResult:
@@ -804,11 +836,22 @@ def get_documentation_url(package_name: str, version: str | None = None) -> Docu
 def check_requirements_file(file_path: str) -> PackageRequirementsResult:
     """Check a requirements file for outdated packages."""
     try:
+        # Validate file path for security
         if not os.path.exists(file_path):
-            return {"error": f"File not found: {file_path}"}
+            return format_error(ErrorCode.FILE_ERROR, f"File not found: {file_path}")
             
-        with open(file_path, 'r') as f:
-            requirements = f.readlines()
+        # Check if path is outside allowed directories
+        abs_path = os.path.abspath(file_path)
+        if not abs_path.endswith('.txt') and not abs_path.endswith('.pip'):
+            return format_error(ErrorCode.INVALID_INPUT, f"File must be a .txt or .pip file: {file_path}")
+            
+        try:
+            with open(file_path, 'r') as f:
+                requirements = f.readlines()
+        except PermissionError:
+            return format_error(ErrorCode.PERMISSION_ERROR, f"Permission denied when reading file: {file_path}")
+        except Exception as e:
+            return format_error(ErrorCode.FILE_ERROR, f"Error reading file: {str(e)}")
         
         outdated = []
         up_to_date = []
@@ -886,7 +929,7 @@ def check_requirements_file(file_path: str) -> PackageRequirementsResult:
         }
         
     except Exception as e:
-        return {"error": str(e)}
+        return format_error(ErrorCode.UNKNOWN_ERROR, f"Error checking requirements file: {str(e)}")
 
 
 def main():

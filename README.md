@@ -23,6 +23,16 @@ The PyPI MCP server provides the following capabilities:
 - **Caching**: Local response caching with ETag support
 - **User-Agent Configuration**: Proper user-agent with contact information
 
+## MCP Compliance
+
+This tool is fully compliant with [Anthropic's Model Context Protocol](https://modelcontextprotocol.io) standards:
+
+- **Standardized Prompt Templates**: Includes templates for common PyPI workflows
+- **Consistent Error Handling**: All errors follow the MCP standard format with clear error codes
+- **Well-Documented Responses**: All tool responses have documented schemas
+- **Secure File Operations**: Path validation and proper permissions handling
+- **Version Information**: Explicit versioning for better compatibility
+
 ## Installation
 
 ### Build Docker Image
@@ -99,6 +109,17 @@ The MCP configuration is stored in `~/.cursor/mcp.json`. Make sure it includes:
 ### Requirements Analysis
 
 - **check_requirements_file**: Check requirements file for outdated packages
+
+## Error Handling
+
+All tools use standardized error responses with the following error codes:
+
+- `not_found`: Package or resource not found
+- `invalid_input`: Invalid parameter value provided
+- `network_error`: Error communicating with PyPI
+- `parse_error`: Error parsing response from PyPI
+- `file_error`: Error accessing or reading a file
+- `permission_error`: Insufficient permissions
 
 ## Examples
 
