@@ -1,10 +1,25 @@
-# PyPI MCP Server
+# PyPI MCP Client (mcp-pypi)
 
-An MCP (Model Controlled Program) server that provides tools for interacting with the Python Package Index (PyPI). This tool integrates with Claude, Gordon, Cursor, or any other AI assistant that supports the MCP protocol.
+A powerful Python client and CLI tool for interacting with the Python Package Index (PyPI). This tool integrates with Claude, Gordon, Cursor, or any other AI assistant that supports the MCP protocol.
+
+## Major Improvements
+
+This is a complete rewrite of the original PyPI MCP server, with many improvements:
+
+- **Modular Architecture**: Organized into logical components for better maintainability
+- **True Asynchronous HTTP**: Uses `aiohttp` for efficient, non-blocking requests
+- **Improved Caching**: Thread-safe async cache with proper pruning
+- **Dependency Injection**: Components can be replaced or mocked for testing
+- **Proper Error Handling**: Consistent error handling with descriptive messages
+- **Real Package Statistics**: Fetches real download statistics from PyPI
+- **Modern CLI**: Rich command-line interface with Typer and Rich
+- **Extensive Testing**: Comprehensive test suite for all components
+- **Type Safety**: Complete type annotations throughout the codebase
+- **Security Challenge Handling**: Gracefully handles PyPI security challenges
 
 ## Features
 
-The PyPI MCP server provides the following capabilities:
+The PyPI MCP client provides the following capabilities:
 
 ### Core Features
 
@@ -16,114 +31,130 @@ The PyPI MCP server provides the following capabilities:
 
 ### Enhanced Features
 
-- **Package Statistics**: Get download statistics for packages
+- **Package Statistics**: Get real download statistics for packages
 - **Dependency Visualization**: Generate and visualize dependency trees
 - **Documentation Discovery**: Find documentation URLs for packages
 - **Requirements Analysis**: Check requirements files for outdated packages
-- **Caching**: Local response caching with ETag support
+- **Caching**: Efficient local response caching with ETag support
 - **User-Agent Configuration**: Proper user-agent with contact information
-
-## MCP Compliance
-
-This tool is fully compliant with [Anthropic's Model Context Protocol](https://modelcontextprotocol.io) standards:
-
-- **Standardized Prompt Templates**: Includes templates for common PyPI workflows
-- **Consistent Error Handling**: All errors follow the MCP standard format with clear error codes
-- **Well-Documented Responses**: All tool responses have documented schemas
-- **Secure File Operations**: Path validation and proper permissions handling
-- **Version Information**: Explicit versioning for better compatibility
 
 ## Installation
 
-### Build Docker Image
+### From PyPI (recommended)
 
 ```bash
-docker build -t pypi-mcp .
+pip install mcp-pypi
 ```
 
-### Set Up MCP Server
-
-To run the PyPI MCP server and register it with the MCP Docker server:
+### From Source
 
 ```bash
-docker run --rm -i --pull always -q --init \
-  --name pypi-mcp-server \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  --mount type=volume,source=docker-prompts,target=/prompts \
-  -v $(pwd)/pypi.md:/pypi.md \
-  -p 8812:8812 \
-  mcp/docker:latest serve --mcp --port 8812 --register file:///pypi.md
+git clone https://github.com/kimasplund/mcp-pypi.git
+cd mcp-pypi
+pip install .
 ```
 
-### Run Directly (Without Docker)
-
-You can also run the PyPI tools directly from your local directory:
+For development:
 
 ```bash
-# Install dependencies
-pip install requests beautifulsoup4 packaging exceptiongroup plotly
-
-# Run a specific command
-python pypi_tools.py get_package_info requests
-python pypi_tools.py get_documentation_url package_name=flask
-python pypi_tools.py get_dependency_tree package_name=django depth=2
+pip install -e ".[dev]"
 ```
 
-### Configure Cursor
+### Optional Dependencies
 
-The MCP configuration is stored in `~/.cursor/mcp.json`. Make sure it includes:
+Install optional visualization features:
 
-```json
-{
-  "mcpServers": {
-    "PYPI_MCP": {
-      "command": "docker",
-      "args": ["run", "-i", "--rm", "alpine/socat", "STDIO", "TCP:host.docker.internal:8812"]
-    }
-  }
-}
+```bash
+pip install "mcp-pypi[viz]"
 ```
 
-## Available Tools
+For improved search functionality:
 
-### Package Information
+```bash
+pip install "mcp-pypi[search]"
+```
 
-- **get_package_info**: Get detailed package information
-- **get_latest_version**: Get the latest version of a package
-- **get_package_releases**: Get all releases of a package
-- **get_release_urls**: Get download URLs for a release
-- **check_package_exists**: Check if a package exists
-- **get_package_metadata**: Get detailed package metadata
+## CLI Usage
 
-### Download URLs
+The client includes a rich command-line interface:
 
-- **get_source_url**: Generate source package URL
-- **get_wheel_url**: Generate wheel package URL
+```bash
+# Get package information
+pypi-mcp package info requests
 
-### RSS Feeds
+# Get the latest version of a package
+pypi-mcp package version flask
 
-- **get_newest_packages**: Get newest packages feed
-- **get_latest_updates**: Get latest updates feed
-- **get_project_releases**: Get releases feed for a specific project
+# Search for packages
+pypi-mcp search fastapi
 
-### Search and Comparison
+# Check a requirements file for outdated packages
+pypi-mcp check-requirements requirements.txt
 
-- **search_packages**: Search for packages
-- **compare_versions**: Compare two versions
+# See download statistics for a package
+pypi-mcp stats downloads numpy
 
-### Dependencies
+# Show newest packages on PyPI
+pypi-mcp feed newest
 
-- **get_dependencies**: Get package dependencies
-- **get_dependency_tree**: Get dependency tree with visualization
+# Compare versions
+pypi-mcp package compare requests 2.28.1 2.28.2
 
-### Documentation and Statistics
+# Clear the cache
+pypi-mcp cache clear
+```
 
-- **get_documentation_url**: Get documentation URL and summary
-- **get_package_stats**: Get package download statistics
+## Python API Usage
 
-### Requirements Analysis
+```python
+import asyncio
+from mcp_pypi.core import PyPIClient
+from mcp_pypi.core.models import PyPIClientConfig
 
-- **check_requirements_file**: Check requirements file for outdated packages
+async def get_package_info():
+    # Create a client with custom configuration
+    config = PyPIClientConfig(cache_ttl=3600, max_retries=3)
+    client = PyPIClient(config)
+    
+    try:
+        # Get package information
+        info = await client.get_package_info("requests")
+        print(f"Latest version: {info['info']['version']}")
+        
+        # Get download statistics
+        stats = await client.get_package_stats("requests")
+        print(f"Last month downloads: {stats.get('last_month', 0):,}")
+        
+        # Check dependencies
+        deps = await client.get_dependencies("requests")
+        print("Dependencies:")
+        for dep in deps.get("dependencies", []):
+            print(f"  {dep['name']} {dep['version_spec']}")
+            
+        # Example of searching with proper error handling
+        search_result = await client.search_packages("fastapi")
+        
+        if isinstance(search_result, str) and "Client Challenge" in search_result:
+            print("PyPI returned a security challenge page.")
+            print("Try using a web browser to search directly.")
+        elif isinstance(search_result, dict):
+            if "error" in search_result:
+                print(f"Search error: {search_result['error']['message']}")
+            elif "message" in search_result:
+                print(search_result['message'])
+            elif "results" in search_result:
+                results = search_result["results"]
+                print(f"Found {len(results)} packages")
+                for pkg in results[:3]:  # Just show first 3
+                    print(f"  {pkg.get('name')} - {pkg.get('description', '')[:60]}...")
+                    
+    finally:
+        # Always close the client to release resources
+        await client.close()
+
+# Run the async function
+asyncio.run(get_package_info())
+```
 
 ## Error Handling
 
@@ -135,27 +166,73 @@ All tools use standardized error responses with the following error codes:
 - `parse_error`: Error parsing response from PyPI
 - `file_error`: Error accessing or reading a file
 - `permission_error`: Insufficient permissions
+- `rate_limit_error`: Exceeded PyPI rate limits
+- `timeout_error`: Request timed out
 
-## Examples
+### Handling Errors
 
-### Get Package Information
-```
-get_package_info package_name=requests
+```python
+# Example of proper error handling
+async def example_with_error_handling():
+    client = PyPIClient()
+    try:
+        # Try to get info for a package that doesn't exist
+        info = await client.get_package_info("this-package-does-not-exist")
+        
+        # Check for error
+        if "error" in info:
+            error_code = info["error"]["code"]
+            error_message = info["error"]["message"]
+            
+            if error_code == "not_found":
+                print(f"Package not found: {error_message}")
+            elif error_code == "network_error":
+                print(f"Network issue: {error_message}")
+            else:
+                print(f"Error ({error_code}): {error_message}")
+        else:
+            # Process normal response
+            print(f"Package found: {info['info']['name']}")
+            
+    finally:
+        await client.close()
 ```
 
-### Get Package Statistics
-```
-get_package_stats package_name=django
+### Security Challenges
+
+PyPI implements security measures to prevent scraping and abuse. In some cases, PyPI may return a "Client Challenge" page instead of the expected response. The MCP-PyPI client handles these cases in the following ways:
+
+1. For search requests, the client detects the challenge page and returns a structured response with a helpful message.
+2. For API endpoints, the client uses proper caching and respects rate limits to minimize the chances of triggering security measures.
+
+When you encounter a security challenge during searches:
+
+```python
+search_result = await client.search_packages("flask")
+
+# Handle different response types
+if isinstance(search_result, str) and "Client Challenge" in search_result:
+    print("Security challenge detected - try direct browser search")
+elif isinstance(search_result, dict):
+    if "message" in search_result:
+        print(search_result["message"])
+    elif "results" in search_result:
+        # Process normal results
+        for pkg in search_result["results"]:
+            print(f"{pkg['name']} - {pkg['description']}")
 ```
 
-### Get Dependency Tree
-```
-get_dependency_tree package_name=flask depth=2
-```
+## Running Tests
 
-### Check Requirements File
-```
-check_requirements_file file_path=/path/to/requirements.txt
+```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov=mcp_pypi
 ```
 
 ## License
@@ -164,4 +241,6 @@ MIT
 
 ## Author
 
-Kim Asplund (kim.asplund@gmail.com) 
+Kim Asplund (kim.asplund@gmail.com)
+GitHub: https://github.com/kimasplund
+Website: https://asplund.kim 
