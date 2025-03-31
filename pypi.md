@@ -1,15 +1,8 @@
 ---
-tools:
-  - name: pypi
-    description: Tools for interacting with the Python Package Index (PyPI)
-    container:
-      image: pypi-mcp:latest
-      dockerfile: ./Dockerfile
-      
 mcp:
-  - name: PyPI
+  - name: PYPI_MCP
     description: Tools for interacting with the Python Package Index (PyPI), enabling package information retrieval, version checking, download URL generation, and RSS feed access.
-    ref: file://pypi.md
+    port: 8812
     icon: https://upload.wikimedia.org/wikipedia/commons/0/04/PyPI-Logo-notext.svg
     version: 1.0.0
 prompts:

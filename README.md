@@ -47,11 +47,26 @@ To run the PyPI MCP server and register it with the MCP Docker server:
 
 ```bash
 docker run --rm -i --pull always -q --init \
+  --name pypi-mcp-server \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --mount type=volume,source=docker-prompts,target=/prompts \
   -v $(pwd)/pypi.md:/pypi.md \
   -p 8812:8812 \
   mcp/docker:latest serve --mcp --port 8812 --register file:///pypi.md
+```
+
+### Run Directly (Without Docker)
+
+You can also run the PyPI tools directly from your local directory:
+
+```bash
+# Install dependencies
+pip install requests beautifulsoup4 packaging exceptiongroup plotly
+
+# Run a specific command
+python pypi_tools.py get_package_info requests
+python pypi_tools.py get_documentation_url package_name=flask
+python pypi_tools.py get_dependency_tree package_name=django depth=2
 ```
 
 ### Configure Cursor
