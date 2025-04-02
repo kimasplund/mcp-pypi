@@ -1,10 +1,58 @@
 ---
 mcp:
   - name: PYPI_MCP
-    description: Tools for interacting with the Python Package Index (PyPI), enabling package information retrieval, version checking, download URL generation, and RSS feed access.
-    port: 8812
+    description: Tools for interacting with the Python Package Index (PyPI), enabling package information retrieval, version checking, download URL generation, and dependency analysis.
     icon: https://upload.wikimedia.org/wikipedia/commons/0/04/PyPI-Logo-notext.svg
-    version: 1.0.0
+    version: 2.0.0
+    tools:
+      - name: get_package_info
+        description: Get detailed information about a Python package from PyPI
+        parameters:
+          - name: package_name
+            description: The name of the package to get information about
+            type: string
+            required: true
+      - name: get_latest_version
+        description: Get the latest version of a package from PyPI
+        parameters:
+          - name: package_name
+            description: The name of the package to get the version for
+            type: string
+            required: true
+      - name: get_dependency_tree
+        description: Get the dependency tree for a package
+        parameters:
+          - name: package_name
+            description: The name of the package to get dependencies for
+            type: string
+            required: true
+          - name: version
+            description: The specific version to check (defaults to latest)
+            type: string
+            required: false
+          - name: depth
+            description: How deep to traverse the dependency tree
+            type: integer
+            required: false
+            default: 1
+      - name: search_packages
+        description: Search for packages on PyPI
+        parameters:
+          - name: query
+            description: The search query
+            type: string
+            required: true
+      - name: get_package_stats
+        description: Get download statistics for a package
+        parameters:
+          - name: package_name
+            description: The name of the package to get statistics for
+            type: string
+            required: true
+          - name: version
+            description: The specific version to check (defaults to latest)
+            type: string
+            required: false
 prompts:
   - name: find_dependencies
     description: Find all dependencies for a Python package
@@ -34,296 +82,189 @@ prompts:
   - name: search_package_functionality
     description: Find packages that provide specific functionality
     prompt: |
-      I'm looking for a Python package that can {{functionality}}.
+      I need a Python package that can {{functionality}}.
       Please:
-      1. Search for relevant packages
-      2. Compare the popularity and maintenance status of the options
-      3. Recommend the best package for my needs based on documentation, stability, and community support
+      1. Search for packages that might provide this functionality
+      2. Compare the top options
+      3. Recommend which one I should use based on popularity, maintenance status, and features
+      4. Show a basic usage example of the recommended package
 ---
 
 # PyPI MCP Server
 
 This MCP server provides tools to interact with the Python Package Index (PyPI) API.
 
+## Overview
+
+The PyPI MCP server enables AI assistants to interact with the Python Package Index (PyPI) to gather information about Python packages, check versions, analyze dependencies, and more.
+
+## Installation
+
+You can install the client using pip:
+
+```bash
+pip install mcp-pypi
+```
+
+For improved search functionality:
+
+```bash
+pip install "mcp-pypi[search]"
+```
+
+## Setup
+
+Add the PyPI MCP server to your MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "PYPI_MCP": {
+      "command": "pypi-mcp",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
 ## Tools
 
 ### get_package_info
-Gets detailed information about a Python package from PyPI's JSON API.
+
+Get detailed information about a Python package from PyPI.
 
 **Parameters:**
-- `package_name`: The name of the package to get information for
+- `package_name` (string): The name of the package to get information about
 
-**Returns:**
-- `info`: Object containing package metadata
-- `releases`: Object mapping version strings to release information
-- `urls`: Array of download URLs for the latest version
-
-**Example:**
-```
-get_package_info package_name=requests
+**Example Response:**
+```json
+{
+  "info": {
+    "name": "requests",
+    "version": "2.28.1",
+    "summary": "Python HTTP for Humans.",
+    "description": "...",
+    "author": "Kenneth Reitz",
+    "author_email": "me@kennethreitz.org",
+    "license": "Apache 2.0",
+    "project_urls": {
+      "Homepage": "https://requests.readthedocs.io",
+      "Documentation": "https://requests.readthedocs.io",
+      "Source": "https://github.com/psf/requests"
+    },
+    "requires_python": ">=3.7, <4"
+  },
+  "releases": {
+    "2.28.1": [
+      {
+        "filename": "requests-2.28.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/...",
+        "size": 61768,
+        "hashes": {
+          "sha256": "..."
+        },
+        "requires_python": ">=3.7, <4"
+      }
+    ]
+  }
+}
 ```
 
 ### get_latest_version
-Gets the latest version of a Python package.
+
+Get the latest version of a package from PyPI.
 
 **Parameters:**
-- `package_name`: The name of the package to get the latest version for
+- `package_name` (string): The name of the package to get the version for
 
-**Returns:**
-- `version`: String containing the latest version number
-
-**Example:**
-```
-get_latest_version package_name=requests
-```
-
-### get_package_releases
-Gets all release versions of a Python package.
-
-**Parameters:**
-- `package_name`: The name of the package to get releases for
-
-**Returns:**
-- `releases`: Array of version strings representing all published releases
-
-**Example:**
-```
-get_package_releases package_name=requests
-```
-
-### get_release_urls
-Gets download URLs for a specific release of a Python package.
-
-**Parameters:**
-- `package_name`: The name of the package
-- `version`: The version to get URLs for
-
-**Returns:**
-- `urls`: Array of objects containing download URLs and metadata
-
-**Example:**
-```
-get_release_urls package_name=requests version=2.28.1
-```
-
-### get_source_url
-Generates a predictable source package URL according to PyPI's convention.
-
-**Parameters:**
-- `package_name`: The name of the package
-- `version`: The version of the package
-
-**Returns:**
-- `url`: String containing the source package URL
-
-**Example:**
-```
-get_source_url package_name=virtualenv version=15.2.0
-```
-
-### get_wheel_url
-Generates a predictable wheel package URL according to PyPI's convention.
-
-**Parameters:**
-- `package_name`: The name of the package
-- `version`: The version of the package
-- `python_tag`: The Python implementation and version tag (e.g., py3)
-- `abi_tag`: The ABI tag (e.g., none)
-- `platform_tag`: The platform tag (e.g., any)
-- `build_tag`: Optional build tag
-
-**Returns:**
-- `url`: String containing the wheel package URL
-
-**Example:**
-```
-get_wheel_url package_name=requests version=2.28.1 python_tag=py3 abi_tag=none platform_tag=any
-```
-
-### get_newest_packages
-Gets the newest packages feed from PyPI.
-
-**Returns:**
-- `items`: Array of objects containing information about new packages
-
-**Example:**
-```
-get_newest_packages
-```
-
-### get_latest_updates
-Gets the latest updates feed from PyPI.
-
-**Returns:**
-- `items`: Array of objects containing information about recently updated packages
-
-**Example:**
-```
-get_latest_updates
-```
-
-### get_project_releases
-Gets the releases feed for a specific project.
-
-**Parameters:**
-- `package_name`: The name of the package to get releases for
-
-**Returns:**
-- `items`: Array of objects containing information about project releases
-
-**Example:**
-```
-get_project_releases package_name=requests
-```
-
-### search_packages
-Searches for packages on PyPI.
-
-**Parameters:**
-- `query`: The search query
-- `page`: Optional page number (default: 1)
-
-**Returns:**
-- `results`: Array of objects containing search results
-- `search_url`: URL used for the search
-
-**Example:**
-```
-search_packages query=http client
-```
-
-### compare_versions
-Compares two version numbers of a package.
-
-**Parameters:**
-- `package_name`: The name of the package
-- `version1`: First version to compare
-- `version2`: Second version to compare
-
-**Returns:**
-- `version1`: First version string
-- `version2`: Second version string
-- `is_version1_greater`: Boolean indicating if version1 > version2
-- `is_version2_greater`: Boolean indicating if version2 > version1
-- `are_equal`: Boolean indicating if versions are equal
-
-**Example:**
-```
-compare_versions package_name=requests version1=2.28.1 version2=2.27.0
-```
-
-### get_dependencies
-Gets the dependencies for a package.
-
-**Parameters:**
-- `package_name`: The name of the package
-- `version`: Optional specific version
-
-**Returns:**
-- `dependencies`: Array of dependency objects with name and version specification
-- `extras`: Object mapping extra names to arrays of dependencies
-
-**Example:**
-```
-get_dependencies package_name=requests version=2.28.1
-```
-
-### check_package_exists
-Checks if a package exists on PyPI.
-
-**Parameters:**
-- `package_name`: The name of the package to check
-
-**Returns:**
-- `exists`: Boolean indicating if the package exists
-
-**Example:**
-```
-check_package_exists package_name=requests
-```
-
-### get_package_metadata
-Gets detailed metadata for a package.
-
-**Parameters:**
-- `package_name`: The name of the package
-- `version`: Optional specific version
-
-**Returns:**
-- `metadata`: Object containing package metadata including name, version, summary, author, etc.
-
-**Example:**
-```
-get_package_metadata package_name=requests version=2.28.1
-```
-
-### get_package_stats
-Gets download statistics for a package.
-
-**Parameters:**
-- `package_name`: The name of the package
-- `version`: Optional specific version
-
-**Returns:**
-- `downloads`: Object containing download statistics including total, monthly, and daily counts
-
-**Example:**
-```
-get_package_stats package_name=requests version=2.28.1
+**Example Response:**
+```json
+{
+  "version": "2.28.1"
+}
 ```
 
 ### get_dependency_tree
-Gets the dependency tree for a package with recursive dependencies.
+
+Get the dependency tree for a package.
 
 **Parameters:**
-- `package_name`: The name of the package
-- `version`: Optional specific version
-- `depth`: Maximum depth of the dependency tree (default: 3)
+- `package_name` (string): The name of the package to get dependencies for
+- `version` (string, optional): The specific version to check (defaults to latest)
+- `depth` (integer, optional): How deep to traverse the dependency tree (default: 1)
 
-**Returns:**
-- `tree`: Object representing the dependency tree structure
-- `flat_list`: Array of all dependencies as strings
-- `visualization_url`: Optional URL to HTML visualization of the dependency tree
-
-**Example:**
+**Example Response:**
+```json
+{
+  "name": "requests",
+  "version": "2.28.1",
+  "dependencies": [
+    {
+      "name": "charset-normalizer",
+      "version": "2.0.12",
+      "dependencies": []
+    },
+    {
+      "name": "idna",
+      "version": "3.3",
+      "dependencies": []
+    }
+  ]
+}
 ```
-get_dependency_tree package_name=django version=4.2.0 depth=2
-```
 
-### get_documentation_url
-Gets documentation URL and summary for a package.
+### search_packages
+
+Search for packages on PyPI.
 
 **Parameters:**
-- `package_name`: The name of the package
-- `version`: Optional specific version
+- `query` (string): The search query
 
-**Returns:**
-- `docs_url`: URL to package documentation
-- `summary`: Brief description of the package
-
-**Example:**
+**Example Response:**
+```json
+{
+  "results": [
+    {
+      "name": "requests",
+      "version": "2.28.1",
+      "description": "Python HTTP for Humans.",
+      "url": "https://pypi.org/project/requests/"
+    },
+    {
+      "name": "requests-aws",
+      "version": "0.1.8",
+      "description": "AWS authentication for Requests",
+      "url": "https://pypi.org/project/requests-aws/"
+    }
+  ]
+}
 ```
-get_documentation_url package_name=requests version=2.28.1
-```
 
-### check_requirements_file
-Checks a requirements.txt file for outdated packages.
+### get_package_stats
+
+Get download statistics for a package.
 
 **Parameters:**
-- `file_path`: Path to requirements.txt file
+- `package_name` (string): The name of the package to get statistics for
+- `version` (string, optional): The specific version to check (defaults to latest)
 
-**Returns:**
-- `outdated`: Array of objects with outdated packages (package, current_version, latest_version)
-- `up_to_date`: Array of objects with up-to-date packages (package, version)
-
-**Example:**
+**Example Response:**
+```json
+{
+  "last_day": 7813294,
+  "last_week": 49642387,
+  "last_month": 195841592,
+  "downloads": {
+    "2023-01": 178431659,
+    "2023-02": 164298345,
+    "2023-03": 195841592
+  }
+}
 ```
-check_requirements_file file_path=/path/to/requirements.txt
-```
 
-## Error Responses
+## Error Handling
 
-All tools return standardized error responses when issues occur:
+All tools return standardized error responses:
 
 ```json
 {

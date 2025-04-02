@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import logging
+import sys
 from typing import Optional, List, Dict, Any
 
 import typer
@@ -18,9 +19,24 @@ from rich.syntax import Syntax
 from mcp_pypi.core.models import PyPIClientConfig
 from mcp_pypi.core import PyPIClient
 from mcp_pypi.utils import configure_logging
+from mcp_pypi.server import PyPIMCPServer
 
-# Set up console
+# Import the mcp-server command
+from mcp_pypi.cli.mcp_server import app as mcp_server_app
+
+# Set up consoles
 console = Console()
+stderr_console = Console(stderr=True)
+
+# Define version callback first
+def version_callback(value: bool):
+    """Show the version and exit."""
+    if value:
+        from mcp_pypi import __version__
+        print(f"MCP-PyPI version: {__version__}")
+        raise typer.Exit()
+
+# Create the CLI app
 app = typer.Typer(
     name="pypi-mcp",
     help="PyPI-MCP-Tool: A client for interacting with PyPI (Python Package Index)",
@@ -39,6 +55,12 @@ app.add_typer(stats_app)
 
 feed_app = typer.Typer(name="feed", help="PyPI feed commands")
 app.add_typer(feed_app)
+
+server_app = typer.Typer(name="server", help="MCP server commands")
+app.add_typer(server_app)
+
+# Add the MCP server app
+app.add_typer(mcp_server_app)
 
 # Global options
 class GlobalOptions:
@@ -94,6 +116,14 @@ def main(
         None, "--log-file", 
         help="Log file path"
     ),
+    version: bool = typer.Option(
+        None, 
+        "--version", 
+        "-V", 
+        is_flag=True, 
+        callback=version_callback, 
+        help="Show version and exit"
+    )
 ):
     """PyPI-MCP-Tool: A client for interacting with PyPI (Python Package Index)"""
     # Store options
@@ -624,5 +654,299 @@ def cache_stats(
     
     asyncio.run(run())
 
+@app.command("serve")
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host to bind to"),
+    port: int = typer.Option(8000, "--port", "-p", help="Port to listen on (will auto-scan for available ports if busy)"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
+    log_file: Optional[str] = typer.Option(None, "--log-file", help="Log file path"),
+    cache_dir: Optional[str] = typer.Option(None, "--cache-dir", help="Cache directory path"),
+    cache_ttl: int = typer.Option(3600, "--cache-ttl", help="Cache TTL in seconds"),
+    stdin_mode: bool = typer.Option(False, "--stdin", help="Read JSON-RPC requests from stdin"),
+    legacy_mode: bool = typer.Option(False, "--legacy", help="Use legacy JSON-RPC server instead of MCP SDK")
+):
+    """Start the JSON-RPC server for MCP-PyPI.
+    
+    This command starts a JSON-RPC 2.0 compliant server that exposes all PyPI client functionality.
+    The server can operate in several modes:
+    
+    1. HTTP Server Mode (default): Exposes the API over HTTP on the specified host and port
+    2. STDIN Mode (--stdin): Reads JSON-RPC requests from standard input (for MCP integration)
+    3. Legacy Mode (--legacy): Uses the legacy JSON-RPC implementation instead of the MCP SDK
+    
+    Features:
+    - Automatic port selection if the specified port is busy
+    - Tool discovery via the "describe" method
+    - Full JSON-RPC 2.0 compliance
+    - Proper error handling with standard error codes
+    
+    Example usage:
+    
+        pypi-mcp serve
+        pypi-mcp serve --port 8001
+        pypi-mcp serve --stdin
+        pypi-mcp serve --verbose
+    
+    For integrating with MCP tools, use the --stdin mode.
+    """
+    # Configure logging
+    log_level = logging.DEBUG if verbose else logging.INFO
+    
+    # Ensure log_file is None or a valid string
+    safe_log_file = None
+    if log_file and isinstance(log_file, str):
+        safe_log_file = log_file
+    
+    # Configure logging with safe parameters
+    configure_logging(log_level, file_path=safe_log_file)
+    
+    # Create config with local options (overriding global ones)
+    config = PyPIClientConfig()
+    if cache_dir:
+        config.cache_dir = cache_dir
+    elif global_options.cache_dir:
+        config.cache_dir = global_options.cache_dir
+        
+    if cache_ttl:
+        config.cache_ttl = cache_ttl
+    elif global_options.cache_ttl:
+        config.cache_ttl = global_options.cache_ttl
+    
+    stderr_console.print(f"[bold blue]Using cache directory: {config.cache_dir}[/bold blue]")
+    
+    # Decide which server implementation to use
+    if legacy_mode:
+        # Use the legacy server implementation
+        stderr_console.print("[bold yellow]Starting legacy JSON-RPC server...[/bold yellow]")
+        try:
+            if stdin_mode:
+                from mcp_pypi.cli.server import process_mcp_stdin
+                asyncio.run(process_mcp_stdin(verbose))
+            else:
+                from mcp_pypi.cli.server import start_server
+                asyncio.run(start_server(host, port))
+        except KeyboardInterrupt:
+            stderr_console.print("[yellow]Server stopped.[/yellow]")
+    else:
+        # Use the MCP SDK server implementation
+        server = PyPIMCPServer(config)
+        
+        if stdin_mode:
+            stderr_console.print("[bold green]Starting MCP stdin mode...[/bold green]")
+            try:
+                asyncio.run(server.process_stdin())
+            except KeyboardInterrupt:
+                stderr_console.print("[yellow]Server stopped.[/yellow]")
+        else:
+            stderr_console.print(f"[bold green]Starting MCP HTTP server on {host}:{port}...[/bold green]")
+            try:
+                asyncio.run(server.start_http_server(host, port))
+            except KeyboardInterrupt:
+                stderr_console.print("[yellow]Server stopped.[/yellow]")
+
+async def handle_execute_request(request_data, pypi_client):
+    tool_name = request_data.get("params", {}).get("name")
+    args = request_data.get("params", {}).get("arguments", {})
+    request_id = request_data.get("id")
+    
+    response = {"id": request_id}
+    
+    try:
+        if tool_name == "get_package_info":
+            package_name = args.get("package_name")
+            logging.debug(f"Getting package info for: {package_name}")
+            result = await pypi_client.get_package_info(package_name)
+            if not result or (isinstance(result, dict) and "info" not in result and "error" not in result):
+                logging.warn(f"Empty result for package_info: {result}")
+                response["result"] = {"error": {"code": "empty_result", "message": "No data returned from PyPI"}}
+            else:
+                response["result"] = result
+            
+        elif tool_name == "get_latest_version":
+            package_name = args.get("package_name")
+            logging.debug(f"Getting latest version for: {package_name}")
+            result = await pypi_client.get_latest_version(package_name)
+            if isinstance(result, dict) and "version" in result:
+                response["result"] = {"version": result["version"]}
+            elif isinstance(result, str):
+                response["result"] = {"version": result}
+            else:
+                response["result"] = result
+            
+        elif tool_name == "get_dependency_tree":
+            package_name = args.get("package_name")
+            version = args.get("version")
+            depth = args.get("depth", 1)
+            logging.debug(f"Getting dependency tree for: {package_name} (version: {version}, depth: {depth})")
+            result = await pypi_client.get_dependency_tree(package_name, version, depth)
+            response["result"] = result
+            
+        elif tool_name == "search_packages":
+            query = args.get("query")
+            logging.debug(f"Searching for packages: {query}")
+            result = await pypi_client.search_packages(query)
+            # Handle security challenge case
+            if isinstance(result, dict) and "error" in result:
+                response["result"] = result
+            elif isinstance(result, dict) and "results" in result:
+                response["result"] = result
+            elif isinstance(result, list):
+                response["result"] = {"results": result}
+            else:
+                response["result"] = {"error": {"code": "unexpected_format", "message": "Unexpected search result format"}}
+            
+        elif tool_name == "get_package_stats":
+            package_name = args.get("package_name")
+            version = args.get("version")
+            logging.debug(f"Getting package stats for: {package_name} (version: {version})")
+            result = await pypi_client.get_package_stats(package_name, version)
+            response["result"] = result
+        else:
+            logging.error(f"Unknown tool: {tool_name}")
+            response["error"] = {"code": -32601, "message": f"Tool not found: {tool_name}"}
+        
+        logging.debug(f"Tool execution successful")
+        logging.debug(f"Result: {response.get('result')}")
+    except Exception as e:
+        logging.error(f"Error executing tool: {str(e)}")
+        response["error"] = {"code": -32000, "message": str(e)}
+    
+    logging.debug(f"Response type: {type(response)}")
+    if "result" in response:
+        logging.debug(f"Result type: {type(response.get('result'))}")
+    
+    write_response(response)
+
+def write_response(response: Dict[str, Any]):
+    """Write a response to stdout and flush immediately."""
+    try:
+        # Check if result is empty string and convert to dict if needed
+        if "result" in response and response["result"] == "":
+            response["result"] = {"message": "Empty result from API"}
+        
+        # Debug output before serializing
+        stderr_console.print(f"[dim blue]Response type: {type(response)}[/dim blue]")
+        if "result" in response:
+            stderr_console.print(f"[dim blue]Result type: {type(response['result'])}[/dim blue]")
+        
+        stderr_console.print(f"[dim blue]Sending response: {str(response)[:80]}...[/dim blue]")
+        response_json = json.dumps(response)
+        print(response_json, flush=True)
+        stderr_console.print(f"[green]Response sent[/green]")
+    except Exception as e:
+        stderr_console.print(f"[red]Error sending response: {e}[/red]")
+        # Try to send a simpler error response
+        simple_response = {
+            "id": response.get("id", 0),
+            "error": {
+                "code": -32603,
+                "message": f"Error serializing response: {str(e)}"
+            }
+        }
+        print(json.dumps(simple_response), flush=True)
+
+def get_mcp_schema():
+    """Return the MCP schema for tool discovery."""
+    return {
+        "name": "PYPI_MCP",
+        "version": "2.0.0",
+        "description": "Tools for interacting with the Python Package Index (PyPI)",
+        "tools": [
+            {
+                "name": "get_package_info",
+                "description": "Get detailed information about a Python package from PyPI",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "package_name": {
+                            "type": "string",
+                            "description": "The name of the package to get information about"
+                        }
+                    },
+                    "required": ["package_name"]
+                }
+            },
+            {
+                "name": "get_latest_version",
+                "description": "Get the latest version of a package from PyPI",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "package_name": {
+                            "type": "string",
+                            "description": "The name of the package to get the version for"
+                        }
+                    },
+                    "required": ["package_name"]
+                }
+            },
+            {
+                "name": "get_dependency_tree",
+                "description": "Get the dependency tree for a package",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "package_name": {
+                            "type": "string",
+                            "description": "The name of the package to get dependencies for"
+                        },
+                        "version": {
+                            "type": "string",
+                            "description": "The specific version to check (defaults to latest)"
+                        },
+                        "depth": {
+                            "type": "integer",
+                            "description": "How deep to traverse the dependency tree",
+                            "default": 1
+                        }
+                    },
+                    "required": ["package_name"]
+                }
+            },
+            {
+                "name": "search_packages",
+                "description": "Search for packages on PyPI",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search query"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "get_package_stats",
+                "description": "Get download statistics for a package",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "package_name": {
+                            "type": "string",
+                            "description": "The name of the package to get statistics for"
+                        },
+                        "version": {
+                            "type": "string",
+                            "description": "The specific version to check (defaults to latest)"
+                        }
+                    },
+                    "required": ["package_name"]
+                }
+            }
+        ]
+    }
+
+def entry_point():
+    """Entry point for the CLI."""
+    try:
+        app()
+    except Exception as e:
+        stderr_console.print(f"[bold red]Error:[/bold red] {str(e)}")
+        if "--verbose" in sys.argv or "-v" in sys.argv:
+            stderr_console.print_exception()
+        sys.exit(1)
+
 if __name__ == "__main__":
-    app() 
+    entry_point() 

@@ -9,6 +9,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import quote_plus
 from typing import Dict, List, Any, Optional, Tuple, Union, cast
+import json
+import datetime
 
 from packaging.version import Version
 from packaging.requirements import Requirement
@@ -78,9 +80,33 @@ class PyPIClient:
             
             result = await self.http.fetch(url)
             
-            if "error" in result:
+            # Check for error in result
+            if isinstance(result, dict) and "error" in result:
                 return cast(PackageInfo, result)
             
+            # Handle the new format where raw data might be returned
+            if isinstance(result, dict) and "raw_data" in result:
+                content_type = result.get("content_type", "")
+                raw_data = result["raw_data"]
+                
+                # Handle empty response
+                if not raw_data:
+                    logger.warning(f"Received empty response for {url}")
+                    return cast(PackageInfo, format_error(ErrorCode.PARSE_ERROR, "Received empty response"))
+                
+                # If we got JSON content, parse it
+                if "application/json" in content_type and isinstance(raw_data, str):
+                    try:
+                        parsed_data = json.loads(raw_data)
+                        return cast(PackageInfo, parsed_data)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error decoding JSON from raw_data: {e}")
+                        return cast(PackageInfo, format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"))
+                else:
+                    logger.warning(f"Received non-JSON content: {content_type}")
+                    return cast(PackageInfo, format_error(ErrorCode.PARSE_ERROR, f"Unexpected content type: {content_type}"))
+            
+            # Already parsed JSON data
             return cast(PackageInfo, result)
         except ValueError as e:
             return cast(PackageInfo, format_error(ErrorCode.INVALID_INPUT, str(e)))
@@ -90,19 +116,81 @@ class PyPIClient:
     
     async def get_latest_version(self, package_name: str) -> VersionInfo:
         """Get the latest version of a package."""
-        info = await self.get_package_info(package_name)
-        if "error" in info:
-            return cast(VersionInfo, format_error(info["error"]["code"], info["error"]["message"]))
-        
-        return {"version": info["info"]["version"]}
+        try:
+            sanitized_name = sanitize_package_name(package_name)
+            url = f"https://pypi.org/pypi/{sanitized_name}/json"
+            
+            data = await self.http.fetch(url)
+            
+            # Check for error in result
+            if isinstance(data, dict) and "error" in data:
+                return cast(VersionInfo, data)
+            
+            # Handle the new format where raw data might be returned
+            if isinstance(data, dict) and "raw_data" in data:
+                content_type = data.get("content_type", "")
+                raw_data = data["raw_data"]
+                
+                # If we got JSON content, parse it
+                if "application/json" in content_type and isinstance(raw_data, str):
+                    try:
+                        parsed_data = json.loads(raw_data)
+                        version = parsed_data.get("info", {}).get("version", "")
+                        return {"version": version}
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error decoding JSON from raw_data: {e}")
+                        return cast(VersionInfo, format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"))
+                else:
+                    logger.warning(f"Received non-JSON content: {content_type}")
+                    return cast(VersionInfo, format_error(ErrorCode.PARSE_ERROR, f"Unexpected content type: {content_type}"))
+            
+            # Already parsed JSON data
+            version = data.get("info", {}).get("version", "")
+            return {"version": version}
+        except ValueError as e:
+            return cast(VersionInfo, format_error(ErrorCode.INVALID_INPUT, str(e)))
+        except Exception as e:
+            logger.exception(f"Unexpected error getting latest version: {e}")
+            return cast(VersionInfo, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
     
     async def get_package_releases(self, package_name: str) -> ReleasesInfo:
-        """Get all release versions of a package."""
-        info = await self.get_package_info(package_name)
-        if "error" in info:
-            return cast(ReleasesInfo, format_error(info["error"]["code"], info["error"]["message"]))
-        
-        return {"releases": list(info["releases"].keys())}
+        """Get all releases for a package."""
+        try:
+            sanitized_name = sanitize_package_name(package_name)
+            url = f"https://pypi.org/pypi/{sanitized_name}/json"
+            
+            data = await self.http.fetch(url)
+            
+            # Check for error in result
+            if isinstance(data, dict) and "error" in data:
+                return cast(ReleasesInfo, data)
+            
+            # Handle the new format where raw data might be returned
+            if isinstance(data, dict) and "raw_data" in data:
+                content_type = data.get("content_type", "")
+                raw_data = data["raw_data"]
+                
+                # If we got JSON content, parse it
+                if "application/json" in content_type and isinstance(raw_data, str):
+                    try:
+                        parsed_data = json.loads(raw_data)
+                        releases = list(parsed_data.get("releases", {}).keys())
+                        return {"releases": releases}
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error decoding JSON from raw_data: {e}")
+                        return cast(ReleasesInfo, format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"))
+                else:
+                    logger.warning(f"Received non-JSON content: {content_type}")
+                    return cast(ReleasesInfo, format_error(ErrorCode.PARSE_ERROR, f"Unexpected content type: {content_type}"))
+            
+            # Already parsed JSON data
+            releases = list(data.get("releases", {}).keys())
+            return {"releases": releases}
+        except ValueError as e:
+            return cast(ReleasesInfo, format_error(ErrorCode.INVALID_INPUT, str(e)))
+        except Exception as e:
+            logger.exception(f"Unexpected error getting package releases: {e}")
+            return cast(ReleasesInfo, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
     
     async def get_release_urls(self, package_name: str, version: str) -> UrlsInfo:
         """Get download URLs for a specific release version."""
@@ -113,9 +201,28 @@ class PyPIClient:
             
             result = await self.http.fetch(url)
             
-            if "error" in result:
+            # Check for error in result
+            if isinstance(result, dict) and "error" in result:
                 return cast(UrlsInfo, result)
             
+            # Handle the new format where raw data might be returned
+            if isinstance(result, dict) and "raw_data" in result:
+                content_type = result.get("content_type", "")
+                raw_data = result["raw_data"]
+                
+                # If we got JSON content, parse it
+                if "application/json" in content_type and isinstance(raw_data, str):
+                    try:
+                        parsed_data = json.loads(raw_data)
+                        return {"urls": parsed_data["urls"]}
+                    except (json.JSONDecodeError, KeyError) as e:
+                        logger.error(f"Error processing JSON from raw_data: {e}")
+                        return cast(UrlsInfo, format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"))
+                else:
+                    logger.warning(f"Received non-JSON content: {content_type}")
+                    return cast(UrlsInfo, format_error(ErrorCode.PARSE_ERROR, f"Unexpected content type: {content_type}"))
+            
+            # Already parsed JSON data
             return {"urls": result["urls"]}
         except ValueError as e:
             return cast(UrlsInfo, format_error(ErrorCode.INVALID_INPUT, str(e)))
@@ -187,16 +294,31 @@ class PyPIClient:
         try:
             data = await self.http.fetch(url)
             
-            if "error" in data:
+            # Check for error in result
+            if isinstance(data, dict) and "error" in data:
                 return cast(PackagesFeed, data)
             
-            # Parse XML data
-            if isinstance(data, (str, bytes)):
+            # Handle the new format where raw data might be returned
+            if isinstance(data, dict) and "raw_data" in data:
+                raw_data = data["raw_data"]
+                # Continue with XML parsing using raw_data
+                if isinstance(raw_data, bytes):
+                    data_str = raw_data.decode('utf-8')
+                elif isinstance(raw_data, str):
+                    data_str = raw_data
+                else:
+                    return format_error(ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(raw_data)}")
+            elif isinstance(data, (str, bytes)):
+                # Legacy format
                 if isinstance(data, bytes):
                     data_str = data.decode('utf-8')
                 else:
                     data_str = data
-                
+            else:
+                return format_error(ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(data)}")
+            
+            # Parse the XML string
+            try:
                 root = ET.fromstring(data_str)
                 
                 packages: List[FeedItem] = []
@@ -215,8 +337,9 @@ class PyPIClient:
                         })
                 
                 return {"packages": packages}
-            
-            return format_error(ErrorCode.PARSE_ERROR, "Invalid response format from PyPI feed")
+            except ET.ParseError as e:
+                logger.error(f"XML parse error: {e}")
+                return format_error(ErrorCode.PARSE_ERROR, f"Invalid XML response: {e}")
         except Exception as e:
             logger.exception(f"Error parsing newest packages feed: {e}")
             return cast(PackagesFeed, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
@@ -228,16 +351,31 @@ class PyPIClient:
         try:
             data = await self.http.fetch(url)
             
-            if "error" in data:
+            # Check for error in result
+            if isinstance(data, dict) and "error" in data:
                 return cast(UpdatesFeed, data)
             
-            # Parse XML data
-            if isinstance(data, (str, bytes)):
+            # Handle the new format where raw data might be returned
+            if isinstance(data, dict) and "raw_data" in data:
+                raw_data = data["raw_data"]
+                # Continue with XML parsing using raw_data
+                if isinstance(raw_data, bytes):
+                    data_str = raw_data.decode('utf-8')
+                elif isinstance(raw_data, str):
+                    data_str = raw_data
+                else:
+                    return format_error(ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(raw_data)}")
+            elif isinstance(data, (str, bytes)):
+                # Legacy format
                 if isinstance(data, bytes):
                     data_str = data.decode('utf-8')
                 else:
                     data_str = data
-                
+            else:
+                return format_error(ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(data)}")
+            
+            # Parse the XML string
+            try:
                 root = ET.fromstring(data_str)
                 
                 updates: List[FeedItem] = []
@@ -256,30 +394,46 @@ class PyPIClient:
                         })
                 
                 return {"updates": updates}
-            
-            return format_error(ErrorCode.PARSE_ERROR, "Invalid response format from PyPI feed")
+            except ET.ParseError as e:
+                logger.error(f"XML parse error: {e}")
+                return format_error(ErrorCode.PARSE_ERROR, f"Invalid XML response: {e}")
         except Exception as e:
             logger.exception(f"Error parsing latest updates feed: {e}")
             return cast(UpdatesFeed, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
     
     async def get_project_releases(self, package_name: str) -> ReleasesFeed:
-        """Get the releases feed for a specific project."""
+        """Get the releases feed for a project."""
         try:
             sanitized_name = sanitize_package_name(package_name)
             url = f"https://pypi.org/rss/project/{sanitized_name}/releases.xml"
             
             data = await self.http.fetch(url)
             
-            if "error" in data:
+            # Check for error in result
+            if isinstance(data, dict) and "error" in data:
                 return cast(ReleasesFeed, data)
             
-            # Parse XML data
-            if isinstance(data, (str, bytes)):
+            # Handle the new format where raw data might be returned
+            if isinstance(data, dict) and "raw_data" in data:
+                raw_data = data["raw_data"]
+                # Continue with XML parsing using raw_data
+                if isinstance(raw_data, bytes):
+                    data_str = raw_data.decode('utf-8')
+                elif isinstance(raw_data, str):
+                    data_str = raw_data
+                else:
+                    return format_error(ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(raw_data)}")
+            elif isinstance(data, (str, bytes)):
+                # Legacy format
                 if isinstance(data, bytes):
                     data_str = data.decode('utf-8')
                 else:
                     data_str = data
-                
+            else:
+                return format_error(ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(data)}")
+            
+            # Parse the XML string
+            try:
                 root = ET.fromstring(data_str)
                 
                 releases: List[FeedItem] = []
@@ -298,10 +452,9 @@ class PyPIClient:
                         })
                 
                 return {"releases": releases}
-            
-            return format_error(ErrorCode.PARSE_ERROR, "Invalid response format from PyPI feed")
-        except ValueError as e:
-            return cast(ReleasesFeed, format_error(ErrorCode.INVALID_INPUT, str(e)))
+            except ET.ParseError as e:
+                logger.error(f"XML parse error: {e}")
+                return format_error(ErrorCode.PARSE_ERROR, f"Invalid XML response: {e}")
         except Exception as e:
             logger.exception(f"Error parsing project releases feed: {e}")
             return cast(ReleasesFeed, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
@@ -314,11 +467,32 @@ class PyPIClient:
         try:
             data = await self.http.fetch(url)
             
-            if "error" in data:
+            # Check for error in result
+            if isinstance(data, dict) and "error" in data:
                 return cast(SearchResult, data)
             
+            # Process the raw_data if in the new format
+            html_content = None
+            if isinstance(data, dict) and "raw_data" in data:
+                raw_data = data["raw_data"]
+                
+                if isinstance(raw_data, bytes):
+                    html_content = raw_data.decode('utf-8', errors='ignore')
+                elif isinstance(raw_data, str):
+                    html_content = raw_data
+                else:
+                    return format_error(ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(raw_data)}")
+            elif isinstance(data, (str, bytes)):
+                # Legacy format
+                if isinstance(data, bytes):
+                    html_content = data.decode('utf-8', errors='ignore')
+                else:
+                    html_content = data
+            else:
+                return format_error(ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(data)}")
+            
             # Handle case when we receive a Client Challenge page instead of search results
-            if isinstance(data, str) and "Client Challenge" in data:
+            if "Client Challenge" in html_content:
                 logger.warning("Received a security challenge page from PyPI instead of search results")
                 return {
                     "search_url": url,
@@ -330,61 +504,47 @@ class PyPIClient:
             if self._has_bs4:
                 from bs4 import BeautifulSoup
                 
-                if isinstance(data, (str, bytes)):
-                    if isinstance(data, bytes):
-                        data_str = data.decode('utf-8')
-                    else:
-                        data_str = data
-                        
-                    soup = BeautifulSoup(data_str, 'html.parser')
-                    results = []
+                soup = BeautifulSoup(html_content, 'html.parser')
+                results = []
+                
+                # Extract packages from search results
+                for package in soup.select('.package-snippet'):
+                    name_elem = package.select_one('.package-snippet__name')
+                    version_elem = package.select_one('.package-snippet__version')
+                    desc_elem = package.select_one('.package-snippet__description')
                     
-                    # Extract packages from search results
-                    for package in soup.select('.package-snippet'):
-                        name_elem = package.select_one('.package-snippet__name')
-                        version_elem = package.select_one('.package-snippet__version')
-                        desc_elem = package.select_one('.package-snippet__description')
+                    if name_elem and version_elem:
+                        name = name_elem.text.strip()
+                        version = version_elem.text.strip()
+                        description = desc_elem.text.strip() if desc_elem else ""
                         
-                        if name_elem and version_elem:
-                            name = name_elem.text.strip()
-                            version = version_elem.text.strip()
-                            description = desc_elem.text.strip() if desc_elem else ""
-                            
-                            results.append({
-                                "name": name,
-                                "version": version,
-                                "description": description,
-                                "url": f"https://pypi.org/project/{name}/"
-                            })
-                    
-                    # Check if we found any results
-                    if results:
-                        return {
-                            "search_url": url,
-                            "results": results
-                        }
-                    else:
-                        # We have BeautifulSoup but couldn't find any packages
-                        # This could be a format change or we're not getting the expected HTML
-                        return {
-                            "search_url": url,
-                            "message": "No packages found or PyPI search page format has changed",
-                            "results": []
-                        }
+                        results.append({
+                            "name": name,
+                            "version": version,
+                            "description": description,
+                            "url": f"https://pypi.org/project/{name}/"
+                        })
+                
+                # Check if we found any results
+                if results:
+                    return {
+                        "search_url": url,
+                        "results": results
+                    }
+                else:
+                    # We have BeautifulSoup but couldn't find any packages
+                    # This could be a format change or we're not getting the expected HTML
+                    return {
+                        "search_url": url,
+                        "message": "No packages found or PyPI search page format has changed",
+                        "results": []
+                    }
             
             # Fallback if BeautifulSoup is not available
-            # Don't return raw HTML, instead return a structured response
-            if isinstance(data, (str, bytes)):
-                return {
-                    "search_url": url,
-                    "message": "For better search results, install Beautiful Soup: pip install beautifulsoup4",
-                    "results": []  # Return empty results rather than raw HTML
-                }
-            
             return {
                 "search_url": url,
                 "message": "For better search results, install Beautiful Soup: pip install beautifulsoup4",
-                "results": []
+                "results": []  # Return empty results rather than raw HTML
             }
         except Exception as e:
             logger.exception(f"Error searching packages: {e}")
@@ -427,10 +587,31 @@ class PyPIClient:
             
             result = await self.http.fetch(url)
             
-            if "error" in result:
+            # Check for error in result
+            if isinstance(result, dict) and "error" in result:
                 return cast(DependenciesResult, result)
             
-            requires_dist = result["info"].get("requires_dist", []) or []
+            # Handle the new format where raw data might be returned
+            if isinstance(result, dict) and "raw_data" in result:
+                content_type = result.get("content_type", "")
+                raw_data = result["raw_data"]
+                
+                # If we got JSON content, parse it
+                if "application/json" in content_type and isinstance(raw_data, str):
+                    try:
+                        parsed_data = json.loads(raw_data)
+                        parsed_result = parsed_data
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error decoding JSON from raw_data: {e}")
+                        return cast(DependenciesResult, format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"))
+                else:
+                    logger.warning(f"Received non-JSON content: {content_type}")
+                    return cast(DependenciesResult, format_error(ErrorCode.PARSE_ERROR, f"Unexpected content type: {content_type}"))
+            else:
+                # Already parsed JSON data
+                parsed_result = result
+            
+            requires_dist = parsed_result["info"].get("requires_dist", []) or []
             dependencies = []
             
             # Parse using packaging.requirements for better accuracy
@@ -476,10 +657,16 @@ class PyPIClient:
             
             result = await self.http.fetch(url)
             
-            if "error" in result:
+            # Check for error in result
+            if isinstance(result, dict) and "error" in result:
                 if result["error"]["code"] == ErrorCode.NOT_FOUND:
                     return {"exists": False}
                 return cast(ExistsResult, result)
+            
+            # If we got a raw_data response, parse it if needed
+            if isinstance(result, dict) and "raw_data" in result:
+                # Simply the fact that we got a response means the package exists
+                return {"exists": True}
             
             return {"exists": True}
         except ValueError as e:
@@ -501,25 +688,49 @@ class PyPIClient:
             
             result = await self.http.fetch(url)
             
-            if "error" in result:
+            # Check for error in result
+            if isinstance(result, dict) and "error" in result:
                 return cast(MetadataResult, result)
             
-            info = result["info"]
+            # Handle the new format where raw data might be returned
+            if isinstance(result, dict) and "raw_data" in result:
+                content_type = result.get("content_type", "")
+                raw_data = result["raw_data"]
+                
+                # If we got JSON content, parse it
+                if "application/json" in content_type and isinstance(raw_data, str):
+                    try:
+                        parsed_data = json.loads(raw_data)
+                        info = parsed_data.get("info", {})
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error decoding JSON from raw_data: {e}")
+                        return cast(MetadataResult, format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"))
+                else:
+                    logger.warning(f"Received non-JSON content: {content_type}")
+                    return cast(MetadataResult, format_error(ErrorCode.PARSE_ERROR, f"Unexpected content type: {content_type}"))
+            else:
+                # Already parsed JSON data
+                info = result.get("info", {})
             
-            # Extract metadata
             metadata = {
-                "name": info.get("name"),
-                "version": info.get("version"),
-                "summary": info.get("summary"),
-                "description": info.get("description"),
-                "author": info.get("author"),
-                "author_email": info.get("author_email"),
-                "license": info.get("license"),
-                "project_url": info.get("project_url"),
-                "homepage": info.get("home_page"),
-                "requires_python": info.get("requires_python"),
+                "name": info.get("name", ""),
+                "version": info.get("version", ""),
+                "summary": info.get("summary", ""),
+                "description": info.get("description", ""),
+                "author": info.get("author", ""),
+                "author_email": info.get("author_email", ""),
+                "maintainer": info.get("maintainer", ""),
+                "maintainer_email": info.get("maintainer_email", ""),
+                "license": info.get("license", ""),
+                "keywords": info.get("keywords", ""),
                 "classifiers": info.get("classifiers", []),
-                "keywords": info.get("keywords", "").split() if info.get("keywords") else []
+                "platform": info.get("platform", ""),
+                "home_page": info.get("home_page", ""),
+                "download_url": info.get("download_url", ""),
+                "requires_python": info.get("requires_python", ""),
+                "requires_dist": info.get("requires_dist", []),
+                "project_urls": info.get("project_urls", {}),
+                "package_url": info.get("package_url", "")
             }
             
             return {"metadata": metadata}
@@ -537,7 +748,7 @@ class PyPIClient:
             
             # Check if package exists first
             exists_result = await self.check_package_exists(sanitized_name)
-            if "error" in exists_result:
+            if isinstance(exists_result, dict) and "error" in exists_result:
                 return cast(StatsResult, exists_result)
             
             if not exists_result.get("exists", False):
@@ -566,7 +777,7 @@ class PyPIClient:
             else:
                 # Get latest version if not specified
                 version_info = await self.get_latest_version(sanitized_name)
-                if "error" in version_info:
+                if isinstance(version_info, dict) and "error" in version_info:
                     return cast(DependencyTreeResult, version_info)
                 sanitized_version = version_info["version"]
             
@@ -636,6 +847,10 @@ class PyPIClient:
                     # Get dependencies if not at max depth
                     if level < depth:
                         deps_result = await self.get_dependencies(pkg_name, pkg_version)
+                        
+                        if isinstance(deps_result, dict) and "error" in deps_result:
+                            # Skip this dependency if there was an error
+                            continue
                         
                         if "dependencies" in deps_result:
                             for dep in deps_result["dependencies"]:

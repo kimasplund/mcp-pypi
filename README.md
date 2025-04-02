@@ -235,6 +235,79 @@ pytest
 pytest --cov=mcp_pypi
 ```
 
+## MCP Server Integration
+
+You can integrate the PyPI client as an MCP server in your workflow:
+
+### JSON-RPC 2.0 Server
+
+The PyPI MCP client includes a full JSON-RPC 2.0 compliant server that can be started in two modes:
+
+1. **HTTP Server Mode**: Exposes the API over HTTP
+2. **STDIN Mode**: Reads JSON-RPC requests from standard input (for use with the MCP protocol)
+
+For detailed documentation on the server, see [Server Documentation](docs/server.md).
+
+#### Starting the Server
+
+```bash
+# Start the HTTP server on the default port (8000)
+pypi-mcp serve
+
+# Start the server on a custom port
+pypi-mcp serve --port 8001
+
+# Start the server with verbose logging
+pypi-mcp serve --verbose
+
+# Start in STDIN mode for MCP integration
+pypi-mcp serve --stdin
+```
+
+#### Server Features
+
+- **Automatic Port Selection**: If the specified port is in use, the server automatically scans for an available port
+- **Tool Discovery**: The server implements the JSON-RPC "describe" method for tool discovery
+- **JSON-RPC 2.0 Compliance**: All responses follow the JSON-RPC 2.0 specification
+- **Error Handling**: Proper error responses with standard error codes
+- **Caching**: Server responses are cached for improved performance
+
+#### Making Requests to the Server
+
+Example using `curl`:
+
+```bash
+# Make a ping request to check if the server is running
+curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "ping", "id": 1}'
+
+# Check if a package exists
+curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "check_package_exists", "params": {"package_name": "requests"}, "id": 2}'
+
+# Get the latest version of a package
+curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "get_latest_version", "params": {"package_name": "flask"}, "id": 3}'
+
+# Discover available tools
+curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "describe", "id": 4}'
+```
+
+#### Server Endpoints
+
+The server exposes the following JSON-RPC methods:
+
+- `ping`: Simple connectivity check
+- `describe`: Get information about available tools
+- `search_packages`: Search for packages on PyPI
+- `get_dependencies`: Get dependencies for a package
+- `check_package_exists`: Check if a package exists
+- `get_package_metadata`: Get package metadata
+- `get_package_stats`: Get download statistics
+- `get_dependency_tree`: Get a dependency tree
+- `get_package_info`: Get detailed package information
+- `get_latest_version`: Get the latest version of a package
+- And more...
+
+Each method accepts parameters as defined in the tool schema, which can be retrieved using the `describe` method.
+
 ## License
 
 MIT

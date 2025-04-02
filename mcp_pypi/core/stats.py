@@ -51,20 +51,64 @@ class PackageStatsService:
             # Fetch the overall stats
             overall_result = await self.http_client.fetch(overall_url)
             
-            if "error" in overall_result:
+            # Check for error in result
+            if isinstance(overall_result, dict) and "error" in overall_result:
                 return overall_result
+            
+            # Handle the new format where raw data might be returned
+            overall_data_parsed = None
+            if isinstance(overall_result, dict) and "raw_data" in overall_result:
+                content_type = overall_result.get("content_type", "")
+                raw_data = overall_result["raw_data"]
+                
+                # If we got JSON content, parse it
+                if "application/json" in content_type and isinstance(raw_data, str):
+                    try:
+                        import json
+                        overall_data_parsed = json.loads(raw_data)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error decoding JSON from raw_data: {e}")
+                        return format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}")
+                else:
+                    logger.warning(f"Received non-JSON content: {content_type}")
+                    return format_error(ErrorCode.PARSE_ERROR, f"Unexpected content type: {content_type}")
+            else:
+                # Already parsed JSON data
+                overall_data_parsed = overall_result
             
             # Fetch the detailed stats
             detailed_result = await self.http_client.fetch(stats_url)
             
-            if "error" in detailed_result:
+            # Check for error in result
+            if isinstance(detailed_result, dict) and "error" in detailed_result:
                 return detailed_result
+            
+            # Handle the new format where raw data might be returned
+            detailed_data_parsed = None
+            if isinstance(detailed_result, dict) and "raw_data" in detailed_result:
+                content_type = detailed_result.get("content_type", "")
+                raw_data = detailed_result["raw_data"]
+                
+                # If we got JSON content, parse it
+                if "application/json" in content_type and isinstance(raw_data, str):
+                    try:
+                        import json
+                        detailed_data_parsed = json.loads(raw_data)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error decoding JSON from raw_data: {e}")
+                        return format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}")
+                else:
+                    logger.warning(f"Received non-JSON content: {content_type}")
+                    return format_error(ErrorCode.PARSE_ERROR, f"Unexpected content type: {content_type}")
+            else:
+                # Already parsed JSON data
+                detailed_data_parsed = detailed_result
             
             # Process the results
             try:
                 # Extract data from the API response
-                if isinstance(overall_result, dict) and "data" in overall_result:
-                    overall_data = overall_result["data"]
+                if isinstance(overall_data_parsed, dict) and "data" in overall_data_parsed:
+                    overall_data = overall_data_parsed["data"]
                     
                     # Calculate totals
                     last_day = 0
@@ -77,8 +121,8 @@ class PackageStatsService:
                     today = datetime.date.today()
                     
                     # Try to get monthly data from the response
-                    if isinstance(detailed_result, dict) and "data" in detailed_result:
-                        detailed_data = detailed_result["data"]
+                    if isinstance(detailed_data_parsed, dict) and "data" in detailed_data_parsed:
+                        detailed_data = detailed_data_parsed["data"]
                         
                         # Group downloads by month
                         for entry in detailed_data:

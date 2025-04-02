@@ -30,14 +30,16 @@ def configure_logging(
     console_handler.setFormatter(logging.Formatter(format_str))
     handlers.append(console_handler)
     
-    # Add file handler if file_path is provided
-    if file_path:
+    # Add file handler if file_path is provided and is a valid string
+    if file_path and isinstance(file_path, str):
         try:
             file_handler = logging.FileHandler(file_path)
             file_handler.setFormatter(logging.Formatter(format_str))
             handlers.append(file_handler)
         except Exception as e:
-            logger.warning(f"Failed to create file handler: {e}")
+            # Use print to stderr directly since logger might not be configured yet
+            import sys
+            print(f"Failed to create file handler for {file_path}: {e}", file=sys.stderr)
     
     # Configure the logger
     logger.setLevel(level)

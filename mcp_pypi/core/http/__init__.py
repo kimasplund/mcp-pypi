@@ -91,11 +91,48 @@ class AsyncHTTPClient:
                 # Apply rate limiting
                 await self._apply_rate_limit()
                 
+                logger.debug(f"Sending {method} request to {url}")
                 async with session.request(method, url, headers=headers) as response:
+                    logger.debug(f"Received response with status {response.status} and content type {response.headers.get('Content-Type', 'unknown')}")
+                    
                     # Handle HTTP status codes
                     if response.status == 304 and cached_data:  # Not Modified
                         logger.debug(f"Not modified (304) for {url}, using cache")
                         return cached_data
+                    elif response.status == 304:
+                        logger.warning(f"Received 304 Not Modified but no cached data available for {url}")
+                        # Make a new request without any ETag or cache
+                        logger.debug(f"Retrying request without cache headers")
+                        retry_headers = {"User-Agent": self.config.user_agent}
+                        async with session.request(method, url, headers=retry_headers) as retry_response:
+                            logger.debug(f"Retry response status: {retry_response.status}")
+                            
+                            if retry_response.status >= 400:
+                                error_message = f"HTTP error {retry_response.status}: {retry_response.reason}"
+                                return format_error(ErrorCode.NETWORK_ERROR, error_message)
+                            
+                            content_type = retry_response.headers.get('Content-Type', '')
+                            new_etag = retry_response.headers.get('ETag')
+                            
+                            if 'application/json' in content_type:
+                                try:
+                                    result = await retry_response.json()
+                                    if isinstance(result, dict):
+                                        await self.cache_manager.set(url, result, new_etag)
+                                    return result
+                                except json.JSONDecodeError as e:
+                                    return format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response from {url}: {e}")
+                            else:
+                                # For non-JSON responses
+                                data = await retry_response.read()
+                                if 'application/xml' in content_type or 'text/xml' in content_type:
+                                    return {"raw_data": data, "content_type": content_type}
+                                
+                                try:
+                                    text_result = data.decode('utf-8')
+                                    return {"raw_data": text_result, "content_type": content_type}
+                                except UnicodeDecodeError:
+                                    return {"raw_data": data, "content_type": content_type}
                     
                     if response.status == 429:  # Too Many Requests
                         retry_after = response.headers.get('Retry-After')
@@ -137,26 +174,45 @@ class AsyncHTTPClient:
                     content_type = response.headers.get('Content-Type', '')
                     new_etag = response.headers.get('ETag')
                     
+                    logger.debug(f"Processing response with content type: {content_type}")
+                    
                     if 'application/json' in content_type:
-                        result = await response.json()
+                        try:
+                            result = await response.json()
+                            logger.debug(f"Successfully parsed JSON response with keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+                            
+                            # Cache successful JSON responses
+                            if isinstance(result, dict):
+                                logger.debug(f"Caching result for {url}")
+                                await self.cache_manager.set(url, result, new_etag)
+                            
+                            return result
+                        except json.JSONDecodeError as e:
+                            logger.error(f"JSON decode error for {url}: {e}")
+                            return format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response from {url}: {e}")
                     else:
                         # Return raw data for non-JSON responses
-                        result = await response.read()
-                        
-                        # For XML responses, keep it as bytes for the XML parser
-                        if not ('application/xml' in content_type or 'text/xml' in content_type):
+                        try:
+                            data = await response.read()
+                            logger.debug(f"Read raw data of length {len(data)} bytes")
+                            
+                            # For XML responses, keep it as bytes for the XML parser
+                            if 'application/xml' in content_type or 'text/xml' in content_type:
+                                logger.debug(f"Returning XML data as bytes")
+                                return {"raw_data": data, "content_type": content_type}
+                            
                             # Convert bytes to UTF-8 string for text responses
                             try:
-                                result = result.decode('utf-8')
+                                text_result = data.decode('utf-8')
+                                logger.debug(f"Decoded as UTF-8 text of length {len(text_result)} chars")
+                                return {"raw_data": text_result, "content_type": content_type}
                             except UnicodeDecodeError:
-                                # If it can't be decoded as UTF-8, leave as bytes
-                                pass
-                    
-                    # Cache successful JSON responses
-                    if isinstance(result, dict):
-                        await self.cache_manager.set(url, result, new_etag)
-                    
-                    return result
+                                # If it can't be decoded as UTF-8, return as bytes
+                                logger.debug(f"Could not decode as UTF-8, returning as bytes")
+                                return {"raw_data": data, "content_type": content_type}
+                        except Exception as e:
+                            logger.error(f"Error reading response data: {e}")
+                            return format_error(ErrorCode.PARSE_ERROR, f"Error reading response data: {e}")
             
             except aiohttp.ClientConnectorError as e:
                 last_error = str(e)

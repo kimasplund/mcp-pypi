@@ -39,6 +39,7 @@ setup(
         "packaging>=23.0",
         "typer>=0.9.0",
         "rich>=13.0.0",
+        "mcp>=1.6.0",
     ],
     extras_require={
         "dev": [
@@ -59,7 +60,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "pypi-mcp=mcp_pypi.cli.main:main",
+            "pypi-mcp=mcp_pypi.cli.main:app",
         ],
     },
 ) 

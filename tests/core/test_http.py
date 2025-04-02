@@ -4,6 +4,7 @@ import asyncio
 import json
 from unittest.mock import patch, MagicMock, AsyncMock, Mock
 import pytest
+import pytest_asyncio
 import aiohttp
 from aiohttp import ClientSession, ClientResponse, ClientConnectionError
 
@@ -52,10 +53,14 @@ def mock_cache():
     mock.get_etag.return_value = None
     return mock
 
-@pytest.fixture
-def http_client(config, mock_cache):
+@pytest_asyncio.fixture
+async def http_client(config, mock_cache):
     """Create an HTTP client with mocked dependencies."""
-    return AsyncHTTPClient(config, mock_cache)
+    client = AsyncHTTPClient(config, mock_cache)
+    try:
+        yield client
+    finally:
+        await client.close()
 
 @pytest.mark.asyncio
 async def test_fetch_success(http_client):
