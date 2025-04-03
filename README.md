@@ -2,6 +2,8 @@
 
 A powerful Python client and CLI tool for interacting with the Python Package Index (PyPI). This tool integrates with Claude, Gordon, Cursor, or any other AI assistant that supports the MCP protocol.
 
+
+
 ## Major Improvements
 
 This is a complete rewrite of the original PyPI MCP server, with many improvements:
@@ -340,6 +342,16 @@ The server exposes the following JSON-RPC methods:
 
 Each method accepts parameters as defined in the tool schema, which can be retrieved using the `describe` method.
 
+# No more outdated packages in Cursor.
+## MCP Package Version Management Rules
+
+> ### Example Rule
+> 
+> - When adding Python packages to requirements.txt or pyproject.toml:
+>   - ALWAYS query the MCP-PyPI server to fetch the latest version
+>   - Default to the latest version returned by the MCP-PyPI server
+>   - Do not specify version constraints unless explicitly instructed to do so
+>   - If asked to check requirements.txt or pyproject.toml use the tool check_requirements_file to check the entire file
 ## License
 
 MIT
