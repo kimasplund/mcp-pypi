@@ -128,6 +128,7 @@ jobs:
         # Run only utils tests which are most likely to succeed
         python -m pytest tests/utils/test_utils.py -vvs --asyncio-mode=auto
     - name: Verify version
+      if: github.event_name != 'workflow_dispatch'  # Skip for manual triggers
       run: |
         # Get the version from the tag
         TAG_VERSION=${GITHUB_REF#refs/tags/v}
@@ -148,6 +149,7 @@ jobs:
     
     # Optional: Deploy to TestPyPI first
     - name: Publish to TestPyPI
+      if: github.event_name == 'release'  # Only run on release events
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         user: __token__
@@ -157,6 +159,7 @@ jobs:
     
     # Deploy to PyPI
     - name: Publish to PyPI
+      if: github.event_name == 'release'  # Only run on release events
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         user: __token__
