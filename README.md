@@ -245,7 +245,12 @@ pytest --cov=mcp_pypi
 
 For development and debugging purposes, the project includes Docker-based tests that verify compatibility across multiple Python versions (3.10, 3.11, 3.12, 3.13). These tests are excluded from CI/CD workflows and are meant for local development only.
 
+To enable Docker testing, install the additional dependencies:
+
 ```bash
+# Install Docker testing dependencies
+pip install -e ".[docker-test]"
+
 # Run Docker tests (requires Docker and Docker Compose)
 pytest tests/test_docker.py --run-docker
 

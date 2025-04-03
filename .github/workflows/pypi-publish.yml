@@ -30,7 +30,8 @@ jobs:
       continue-on-error: ${{ matrix.python-version != '3.13' }}
       run: |
         # Note: Docker tests are excluded as they are for local debugging only
-        pytest --ignore=tests/test_docker.py
+        # Explicitly disable the pytest-docker plugin to prevent hanging in CI
+        pytest -p no:docker --ignore=tests/test_docker.py
 
   # This job will run regardless of test job status
   build-and-publish:
@@ -54,7 +55,8 @@ jobs:
         python -m pip install pytest pytest-asyncio
         pip install -e ".[dev]"
         # Note: Docker tests are excluded as they are for local debugging only
-        pytest --ignore=tests/test_docker.py
+        # Explicitly disable the pytest-docker plugin to prevent hanging in CI
+        pytest -p no:docker --ignore=tests/test_docker.py
         if [ $? -ne 0 ]; then
           echo "Tests on Python 3.13 failed. Aborting publication."
           exit 1
