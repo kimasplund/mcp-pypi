@@ -116,7 +116,57 @@ The server exposes the following JSON-RPC methods:
 | Method | Description | Parameters |
 |--------|-------------|------------|
 | `compare_versions` | Compare package versions | `package_name`, `version1`, `version2` |
-| `check_requirements_file` | Check a requirements file for outdated packages | `file_path` |
+| `check_requirements_file` | Check a requirements file for outdated packages | `file_path`, `format` (optional, 'json' or 'table') |
+
+### check_requirements_file
+
+Check a requirements file for outdated packages.
+
+**Parameters:**
+- `file_path`: Path to the requirements file to check
+
+This method supports both `requirements.txt` files and `pyproject.toml` files. For `pyproject.toml` files, it can detect dependencies from:
+- PEP 621 project metadata (`project.dependencies`)
+- Poetry (`tool.poetry.dependencies`)
+- PDM (`tool.pdm.dependencies`)
+- Flit (`tool.flit.metadata.requires`)
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "check_requirements_file",
+  "params": {
+    "file_path": "requirements.txt"
+  },
+  "id": 7
+}
+```
+
+**Example with JSON format:**
+```bash
+curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{
+  "jsonrpc": "2.0",
+  "method": "check_requirements_file",
+  "params": {
+    "file_path": "requirements.txt",
+    "format": "json"
+  },
+  "id": 7
+}'
+```
+
+**Example with pyproject.toml:**
+```bash
+curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{
+  "jsonrpc": "2.0",
+  "method": "check_requirements_file",
+  "params": {
+    "file_path": "pyproject.toml"
+  },
+  "id": 7
+}'
+```
 
 ## Making Requests
 
@@ -134,8 +184,11 @@ curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{
 # Get the latest version of a package
 curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "get_latest_version", "params": {"package_name": "flask"}, "id": 3}'
 
+# Check requirements file with JSON format
+curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "check_requirements_file", "params": {"file_path": "requirements.txt", "format": "json"}, "id": 4}'
+
 # Discover available tools
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "describe", "id": 4}'
+curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "describe", "id": 5}'
 ```
 
 ### STDIN Mode

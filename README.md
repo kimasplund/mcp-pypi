@@ -91,6 +91,12 @@ pypi-mcp search fastapi
 # Check a requirements file for outdated packages
 pypi-mcp check-requirements requirements.txt
 
+# Check requirements file with JSON output
+pypi-mcp check-requirements requirements.txt --format json
+
+# Check dependencies in pyproject.toml
+pypi-mcp check-requirements pyproject.toml
+
 # See download statistics for a package
 pypi-mcp stats downloads numpy
 
@@ -235,6 +241,20 @@ pytest
 pytest --cov=mcp_pypi
 ```
 
+## Docker Testing (Development Only)
+
+For development and debugging purposes, the project includes Docker-based tests that verify compatibility across multiple Python versions (3.10, 3.11, 3.12, 3.13). These tests are excluded from CI/CD workflows and are meant for local development only.
+
+```bash
+# Run Docker tests (requires Docker and Docker Compose)
+pytest tests/test_docker.py --run-docker
+
+# Run a specific Docker test
+pytest tests/test_docker.py::test_package_import --run-docker
+```
+
+See `tests/docker_readme.md` for more details on Docker testing.
+
 ## MCP Server Integration
 
 You can integrate the PyPI client as an MCP server in your workflow:
@@ -304,7 +324,14 @@ The server exposes the following JSON-RPC methods:
 - `get_dependency_tree`: Get a dependency tree
 - `get_package_info`: Get detailed package information
 - `get_latest_version`: Get the latest version of a package
-- And more...
+- `get_package_releases`: Get all releases of a package
+- `get_release_urls`: Get download URLs for a package
+- `get_newest_packages`: Get newest packages on PyPI
+- `get_latest_updates`: Get latest package updates
+- `get_project_releases`: Get recent project releases
+- `get_documentation_url`: Get documentation URL for a package
+- `check_requirements_file`: Check a requirements file for outdated packages
+- `compare_versions`: Compare package versions
 
 Each method accepts parameters as defined in the tool schema, which can be retrieved using the `describe` method.
 
@@ -316,4 +343,19 @@ MIT
 
 Kim Asplund (kim.asplund@gmail.com)
 GitHub: https://github.com/kimasplund
-Website: https://asplund.kim 
+Website: https://asplund.kim
+
+## Example Usage: Check Requirements
+
+Check a requirements file for outdated packages:
+
+```sh
+# Check requirements.txt file
+pypi check-requirements requirements.txt
+
+# Check pyproject.toml file - will detect dependencies from PEP 621, Poetry, PDM, and Flit
+pypi check-requirements pyproject.toml
+
+# Use JSON output format
+pypi check-requirements requirements.txt --format json
+``` 

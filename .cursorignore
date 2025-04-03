@@ -13,3 +13,10 @@ __pycache__/
 *.pywz.pyd
 *.pywz.pyw
 *.pywz.pyz
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+*.tar.gz
+*.zip

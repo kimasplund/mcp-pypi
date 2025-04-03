@@ -31,6 +31,9 @@ ENV/
 *.dockerfile
 *.dockerignore
 docker-compose.override.yml
+docker-compose.yml
+.docker-container-id
+docker-data/
 
 # Local cache
 **/pypi_mcp_cache/
@@ -215,3 +218,9 @@ cython_debug/
 pypi_client.log
 .DS_Store
 temp/
+
+# Docker testing
+tests/docker_readme.md
+
+.cursorignore
+.cursorignore

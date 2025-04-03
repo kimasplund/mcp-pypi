@@ -311,6 +311,41 @@ def test_check_requirements(runner):
         if os.path.exists(requirements_path):
             os.unlink(requirements_path)
 
+def test_check_requirements_with_json_format(runner):
+    """Test check requirements command with JSON format."""
+    mock_data = {
+        'outdated': [
+            {'package': 'package1', 'current_version': '1.0.0', 'latest_version': '2.0.0'},
+        ],
+        'up_to_date': [
+            {'package': 'package2', 'current_version': '2.0.0'},
+        ]
+    }
+    
+    # Create a temporary requirements file
+    with tempfile.NamedTemporaryFile(delete=False, mode='w') as tmp:
+        requirements_path = tmp.name
+        tmp.write("package1==1.0.0\npackage2>=2.0.0")
+    
+    try:
+        mock_client = MagicMock()
+        mock_client.check_requirements_file = AsyncMock(return_value=mock_data)
+        mock_client.close = AsyncMock()
+        
+        with patch('mcp_pypi.cli.main.PyPIClient', return_value=mock_client):
+            with mock_asyncio_run(mock_client, mock_data):
+                with patch('mcp_pypi.cli.main.output_json') as mock_output_json:
+                    result = runner.invoke(app, ['check-requirements', requirements_path, '--format', 'json'])
+                    assert result.exit_code == 0
+                    mock_output_json.assert_called_once_with(mock_data, False)
+        
+        mock_client.check_requirements_file.assert_called_once_with(requirements_path)
+        mock_client.close.assert_called_once()
+    finally:
+        # Clean up
+        if os.path.exists(requirements_path):
+            os.unlink(requirements_path)
+
 def test_check_requirements_file_error(runner):
     """Test check requirements file command with file error."""
     mock_data = {
@@ -638,4 +673,98 @@ def test_version_callback():
             except SystemExit:
                 pass  # This is expected
             
-            mock_exit.assert_called_once() 
+            mock_exit.assert_called_once()
+
+def test_check_requirements_pyproject_toml(runner):
+    """Test check requirements command with a pyproject.toml file."""
+    mock_data = {
+        'outdated': [
+            {'package': 'flask', 'current_version': '2.0.0', 'latest_version': '2.3.0', 'constraint': '==2.0.0'}
+        ],
+        'up_to_date': [
+            {'package': 'requests', 'current_version': '>=2.26.0', 'latest_version': '2.28.1', 'constraint': '>=2.26.0'},
+            {'package': 'aiohttp', 'current_version': '>=3.8.0', 'latest_version': '3.8.5', 'constraint': '>=3.8.0'}
+        ]
+    }
+    
+    # Create a temporary pyproject.toml file
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.toml') as tmp:
+        pyproject_path = tmp.name
+        tmp.write("""
+[project]
+name = "test-project"
+version = "0.1.0"
+dependencies = [
+    "requests>=2.26.0",
+    "flask==2.0.0"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8"
+aiohttp = ">=3.8.0"
+        """)
+    
+    try:
+        mock_client = MagicMock()
+        mock_client.check_requirements_file = AsyncMock(return_value=mock_data)
+        mock_client.close = AsyncMock()
+        
+        with patch('mcp_pypi.cli.main.PyPIClient', return_value=mock_client):
+            with mock_asyncio_run(mock_client, mock_data):
+                result = runner.invoke(app, ['check-requirements', pyproject_path])
+                assert result.exit_code == 0
+        
+        mock_client.check_requirements_file.assert_called_once_with(pyproject_path)
+        mock_client.close.assert_called_once()
+    finally:
+        # Clean up
+        if os.path.exists(pyproject_path):
+            os.unlink(pyproject_path)
+
+def test_check_requirements_pyproject_toml_json_format(runner):
+    """Test check requirements command with a pyproject.toml file in JSON format."""
+    mock_data = {
+        'outdated': [
+            {'package': 'flask', 'current_version': '2.0.0', 'latest_version': '2.3.0', 'constraint': '==2.0.0'}
+        ],
+        'up_to_date': [
+            {'package': 'requests', 'current_version': '>=2.26.0', 'latest_version': '2.28.1', 'constraint': '>=2.26.0'},
+            {'package': 'aiohttp', 'current_version': '>=3.8.0', 'latest_version': '3.8.5', 'constraint': '>=3.8.0'}
+        ]
+    }
+    
+    # Create a temporary pyproject.toml file
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.toml') as tmp:
+        pyproject_path = tmp.name
+        tmp.write("""
+[project]
+name = "test-project"
+version = "0.1.0"
+dependencies = [
+    "requests>=2.26.0",
+    "flask==2.0.0"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8"
+aiohttp = ">=3.8.0"
+        """)
+    
+    try:
+        mock_client = MagicMock()
+        mock_client.check_requirements_file = AsyncMock(return_value=mock_data)
+        mock_client.close = AsyncMock()
+        
+        with patch('mcp_pypi.cli.main.PyPIClient', return_value=mock_client):
+            with mock_asyncio_run(mock_client, mock_data):
+                with patch('mcp_pypi.cli.main.output_json') as mock_output_json:
+                    result = runner.invoke(app, ['check-requirements', pyproject_path, '--format', 'json'])
+                    assert result.exit_code == 0
+                    mock_output_json.assert_called_once_with(mock_data, False)
+        
+        mock_client.check_requirements_file.assert_called_once_with(pyproject_path)
+        mock_client.close.assert_called_once()
+    finally:
+        # Clean up
+        if os.path.exists(pyproject_path):
+            os.unlink(pyproject_path) 

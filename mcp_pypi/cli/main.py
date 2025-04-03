@@ -556,11 +556,28 @@ def search_packages(
 
 # Requirements file check
 @app.command("check-requirements")
-def check_requirements_file(
-    file_path: str = typer.Argument(..., help="Path to requirements.txt file"),
-    color: bool = typer.Option(True, help="Colorize output")
+def check_requirements(
+    file_path: str = typer.Argument(
+        ...,
+        help="Path to requirements file to check (.txt, .pip, or pyproject.toml)"
+    ),
+    format: str = typer.Option(
+        None,
+        "--format",
+        "-f",
+        help="Output format (json, table)"
+    ),
+    color: bool = typer.Option(
+        True,
+        "--color/--no-color",
+        help="Colorize output"
+    )
 ):
-    """Check a requirements file for outdated packages."""
+    """
+    Check a requirements file for updates.
+    
+    Supports requirements.txt format and pyproject.toml (dependencies from Poetry, PEP 621, PDM, and Flit will be detected).
+    """
     async def run():
         config = get_config()
         client = PyPIClient(config)
@@ -572,19 +589,33 @@ def check_requirements_file(
                 print_error(result["error"]["message"])
                 return
             
-            if color:
+            # Use json format if specified, or if color is False
+            if format == "json" or (format is None and not color):
+                output_json(result, False)
+                return
+            
+            if color and format != "json":
                 # Display outdated packages
                 if "outdated" in result and result["outdated"]:
-                    table = Table(title="Outdated Packages")
-                    table.add_column("Package")
-                    table.add_column("Current Version")
-                    table.add_column("Latest Version")
+                    console.print(f"\n[bold]Outdated packages:[/bold]")
+                    table = Table(
+                        "Package", "Current", "Latest", "Constraint",
+                        title="Outdated Packages",
+                        title_style="bold magenta",
+                        header_style="bold blue"
+                    )
                     
                     for pkg in result["outdated"]:
+                        package_name = pkg.get("package", pkg.get("name", "Unknown"))
+                        current_version = pkg.get("current_version", "Unknown")
+                        latest_version = pkg.get("latest_version", "Unknown")
+                        constraint = pkg.get("constraint", pkg.get("specs", ""))
+                        
                         table.add_row(
-                            pkg["package"],
-                            pkg["current_version"],
-                            pkg["latest_version"]
+                            f"[bold]{package_name}[/bold]",
+                            current_version,
+                            f"[green]{latest_version}[/green]",
+                            constraint
                         )
                     
                     console.print(table)
@@ -593,14 +624,25 @@ def check_requirements_file(
                 
                 # Display up-to-date packages
                 if "up_to_date" in result and result["up_to_date"]:
-                    table = Table(title="Up-to-date Packages")
-                    table.add_column("Package")
-                    table.add_column("Version")
+                    console.print(f"\n[bold]Up-to-date packages:[/bold]")
+                    table = Table(
+                        "Package", "Current", "Latest", "Constraint",
+                        title="Up-to-date Packages",
+                        title_style="bold blue",
+                        header_style="bold cyan"
+                    )
                     
                     for pkg in result["up_to_date"]:
+                        package_name = pkg.get("package", pkg.get("name", "Unknown"))
+                        current_version = pkg.get("current_version", "Unknown")
+                        latest_version = pkg.get("latest_version", "Unknown")
+                        constraint = pkg.get("constraint", pkg.get("specs", ""))
+                        
                         table.add_row(
-                            pkg["package"],
-                            pkg["current_version"]
+                            package_name,
+                            current_version,
+                            latest_version,
+                            constraint
                         )
                     
                     console.print(table)

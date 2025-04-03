@@ -11,9 +11,11 @@ from urllib.parse import quote_plus
 from typing import Dict, List, Any, Optional, Tuple, Union, cast
 import json
 import datetime
+import sys
 
 from packaging.version import Version
 from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
 
 from mcp_pypi.core.models import (
     PyPIClientConfig, PackageInfo, VersionInfo, ReleasesInfo,
@@ -27,6 +29,12 @@ from mcp_pypi.core.cache import AsyncCacheManager
 from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.stats import PackageStatsService
 from mcp_pypi.utils.helpers import sanitize_package_name, sanitize_version
+
+# For Python < 3.11, use tomli for parsing TOML files
+if sys.version_info < (3, 11):
+    import tomli as tomllib
+else:
+    import tomllib
 
 logger = logging.getLogger("mcp-pypi.client")
 
@@ -976,15 +984,25 @@ class PyPIClient:
                 return cast(PackageRequirementsResult, format_error(ErrorCode.FILE_ERROR, f"File not found: {file_path}"))
             
             # Check file extension
-            if not path.name.endswith(('.txt', '.pip')):
-                return cast(PackageRequirementsResult, format_error(ErrorCode.INVALID_INPUT, f"File must be a .txt or .pip file: {file_path}"))
-            
+            if path.name.endswith(('.toml')):
+                return await self._check_pyproject_toml(path)
+            elif path.name.endswith(('.txt', '.pip')):
+                return await self._check_requirements_txt(path)
+            else:
+                return cast(PackageRequirementsResult, format_error(ErrorCode.INVALID_INPUT, f"File must be a .txt, .pip, or .toml file: {file_path}"))
+        except Exception as e:
+            logger.exception(f"Error checking requirements file: {e}")
+            return cast(PackageRequirementsResult, format_error(ErrorCode.UNKNOWN_ERROR, f"Error checking requirements file: {str(e)}"))
+    
+    async def _check_requirements_txt(self, path: Path) -> PackageRequirementsResult:
+        """Check a requirements.txt file for outdated packages."""
+        try:
             # Read file
             try:
                 with path.open('r') as f:
                     requirements = f.readlines()
             except PermissionError:
-                return cast(PackageRequirementsResult, format_error(ErrorCode.PERMISSION_ERROR, f"Permission denied when reading file: {file_path}"))
+                return cast(PackageRequirementsResult, format_error(ErrorCode.PERMISSION_ERROR, f"Permission denied when reading file: {str(path)}"))
             except Exception as e:
                 return cast(PackageRequirementsResult, format_error(ErrorCode.FILE_ERROR, f"Error reading file: {str(e)}"))
             
@@ -995,6 +1013,10 @@ class PyPIClient:
                 req_line = req_line.strip()
                 if not req_line or req_line.startswith('#'):
                     continue
+                
+                # Remove inline comments before parsing
+                if '#' in req_line:
+                    req_line = req_line.split('#', 1)[0].strip()
                 
                 # Parse requirement
                 try:
@@ -1016,26 +1038,38 @@ class PyPIClient:
                     
                     # Check if up to date
                     is_outdated = False
-                    req_version = None
+                    current_version = None
                     
                     if req.specifier:
                         # Extract the version from the specifier
                         for spec in req.specifier:
                             if spec.operator in ('==', '==='):
-                                req_version = spec.version
-                                req_ver = Version(req_version)
+                                current_version = str(spec.version)
+                                req_ver = Version(current_version)
                                 is_outdated = latest_ver > req_ver
+                            else:
+                                # For other operators (>=, >, etc.), still capture the constraint
+                                # but don't mark as outdated
+                                if not current_version:  # Only take the first constraint if multiple
+                                    current_version = f"{spec.operator}{spec.version}"
+                    
+                    # If no version info could be determined, set to latest
+                    if not current_version:
+                        current_version = "unspecified (latest)"
                     
                     if is_outdated:
                         outdated.append({
                             "package": pkg_name,
-                            "current_version": req_version or "",
-                            "latest_version": latest_version
+                            "current_version": current_version,
+                            "latest_version": latest_version,
+                            "constraint": str(req.specifier)
                         })
                     else:
                         up_to_date.append({
                             "package": pkg_name,
-                            "current_version": req_version or "unspecified (latest)"
+                            "current_version": current_version,
+                            "latest_version": latest_version,
+                            "constraint": str(req.specifier)
                         })
                 except Exception as e:
                     logger.warning(f"Error parsing requirement '{req_line}': {e}")
@@ -1060,21 +1094,32 @@ class PyPIClient:
                                     outdated.append({
                                         "package": pkg_name,
                                         "current_version": version_spec,
-                                        "latest_version": latest_version
+                                        "latest_version": latest_version,
+                                        "constraint": version_spec
                                     })
                                 else:
                                     # No specific version required
                                     up_to_date.append({
                                         "package": pkg_name,
-                                        "current_version": "unspecified (latest)"
+                                        "current_version": "unspecified (latest)",
+                                        "latest_version": latest_version,
+                                        "constraint": ""
                                     })
                         else:
                             # Raw package name without version specifier
                             pkg_name = req_line
-                            up_to_date.append({
-                                "package": pkg_name,
-                                "current_version": "unspecified (latest)"
-                            })
+                            
+                            # Get latest version
+                            latest_version_info = await self.get_latest_version(pkg_name)
+                            
+                            if "error" not in latest_version_info:
+                                latest_version = latest_version_info["version"]
+                                up_to_date.append({
+                                    "package": pkg_name,
+                                    "current_version": "unspecified (latest)",
+                                    "latest_version": latest_version,
+                                    "constraint": ""
+                                })
                     except Exception:
                         # Skip lines we can't parse at all
                         continue
@@ -1084,5 +1129,143 @@ class PyPIClient:
                 "up_to_date": up_to_date
             }
         except Exception as e:
-            logger.exception(f"Error checking requirements file: {e}")
+            logger.exception(f"Error checking requirements.txt file: {e}")
             return cast(PackageRequirementsResult, format_error(ErrorCode.UNKNOWN_ERROR, f"Error checking requirements file: {str(e)}"))
+    
+    async def _check_pyproject_toml(self, path: Path) -> PackageRequirementsResult:
+        """Check a pyproject.toml file for outdated packages."""
+        try:
+            # Try to import tomllib (Python 3.11+) or tomli (for older versions)
+            try:
+                import tomllib
+            except ImportError:
+                try:
+                    import tomli as tomllib
+                except ImportError:
+                    return cast(PackageRequirementsResult, format_error(
+                        ErrorCode.MISSING_DEPENDENCY, 
+                        "Parsing pyproject.toml requires tomli package. Please install with: pip install tomli"
+                    ))
+            
+            try:
+                with path.open('rb') as f:  # Open in binary mode as required by tomllib
+                    pyproject_data = tomllib.load(f)
+            except PermissionError:
+                return cast(PackageRequirementsResult, format_error(ErrorCode.PERMISSION_ERROR, f"Permission denied when reading file: {str(path)}"))
+            except Exception as e:
+                return cast(PackageRequirementsResult, format_error(ErrorCode.FILE_ERROR, f"Error reading TOML file: {str(e)}"))
+            
+            dependencies = []
+            
+            # Extract dependencies from different formats
+            
+            # 1. PEP 621 format - project.dependencies
+            if "project" in pyproject_data and "dependencies" in pyproject_data["project"]:
+                deps = pyproject_data["project"]["dependencies"]
+                dependencies.extend(deps)
+            
+            # 2. Poetry format - tool.poetry.dependencies
+            if "tool" in pyproject_data and "poetry" in pyproject_data["tool"]:
+                if "dependencies" in pyproject_data["tool"]["poetry"]:
+                    poetry_deps = pyproject_data["tool"]["poetry"]["dependencies"]
+                    for name, constraint in poetry_deps.items():
+                        if name == "python":  # Skip python dependency
+                            continue
+                        if isinstance(constraint, str):
+                            dependencies.append(f"{name}{constraint}")
+                        elif isinstance(constraint, dict) and "version" in constraint:
+                            dependencies.append(f"{name}{constraint['version']}")
+            
+            # 3. PDM format - tool.pdm.dependencies
+            if "tool" in pyproject_data and "pdm" in pyproject_data["tool"]:
+                if "dependencies" in pyproject_data["tool"]["pdm"]:
+                    pdm_deps = pyproject_data["tool"]["pdm"]["dependencies"]
+                    for name, constraint in pdm_deps.items():
+                        if isinstance(constraint, str):
+                            dependencies.append(f"{name}{constraint}")
+                        elif isinstance(constraint, dict) and "version" in constraint:
+                            dependencies.append(f"{name}{constraint['version']}")
+            
+            # 4. Flit format - tool.flit.metadata.requires
+            if "tool" in pyproject_data and "flit" in pyproject_data["tool"]:
+                if "metadata" in pyproject_data["tool"]["flit"] and "requires" in pyproject_data["tool"]["flit"]["metadata"]:
+                    dependencies.extend(pyproject_data["tool"]["flit"]["metadata"]["requires"])
+            
+            # Process dependencies
+            outdated = []
+            up_to_date = []
+            
+            for req_str in dependencies:
+                try:
+                    req = Requirement(req_str)
+                    package_name = sanitize_package_name(req.name)
+                    
+                    # Get package info from PyPI
+                    info_result = await self.get_latest_version(package_name)
+                    
+                    # Check if we got a valid result
+                    if "error" in info_result:
+                        logger.warning(f"Could not get latest version for {package_name}: {info_result['error']['message']}")
+                        continue
+                        
+                    latest_version = info_result.get("version", "")
+                    if not latest_version:
+                        logger.warning(f"No version information found for {package_name}")
+                        continue
+                    
+                    # Get current version from requirement specifier
+                    current_version = ""
+                    is_outdated = False
+                    
+                    # Handle different types of version specifiers
+                    if req.specifier:
+                        for spec in req.specifier:
+                            if spec.operator in ('==', '==='):
+                                # Exact version match
+                                current_version = str(spec.version)
+                                
+                                # Check if outdated
+                                try:
+                                    current_ver = Version(current_version)
+                                    latest_ver = Version(latest_version)
+                                    is_outdated = latest_ver > current_ver
+                                except Exception as e:
+                                    logger.warning(f"Error comparing versions for {package_name}: {e}")
+                                    continue
+                            else:
+                                # For other operators (>=, >, etc.) use as constraint but don't mark as outdated
+                                if not current_version:
+                                    current_version = f"{spec.operator}{spec.version}"
+                    
+                    # If no version info could be determined, set to latest
+                    if not current_version:
+                        current_version = "unspecified (latest)"
+                    
+                    # Add to appropriate list
+                    if is_outdated:
+                        outdated.append({
+                            "package": req.name,
+                            "current_version": current_version,
+                            "latest_version": latest_version,
+                            "constraint": str(req.specifier)
+                        })
+                    else:
+                        up_to_date.append({
+                            "package": req.name,
+                            "current_version": current_version,
+                            "latest_version": latest_version,
+                            "constraint": str(req.specifier)
+                        })
+                        
+                except Exception as e:
+                    logger.warning(f"Error processing dependency {req_str}: {e}")
+                    continue
+            
+            return {
+                "outdated": outdated,
+                "up_to_date": up_to_date
+            }
+            
+        except Exception as e:
+            logger.exception(f"Error checking pyproject.toml file: {e}")
+            return cast(PackageRequirementsResult, format_error(ErrorCode.UNKNOWN_ERROR, f"Error checking pyproject.toml file: {str(e)}"))

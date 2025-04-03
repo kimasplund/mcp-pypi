@@ -113,8 +113,29 @@ class PyPIMCPServer:
             return await self.client.get_documentation_url(package_name)
 
         @self.mcp_server.tool()
-        async def check_requirements_file(file_path: str) -> Union[PackageRequirementsResult, ErrorResult]:
-            """Check a requirements file for outdated packages."""
+        async def check_requirements_file(file_path: str, format: Optional[str] = None) -> Union[PackageRequirementsResult, ErrorResult]:
+            """
+            Check a requirements file for outdated packages.
+            
+            This method examines a requirements file (requirements.txt or pyproject.toml) and reports
+            which packages are outdated.
+            
+            Parameters:
+                file_path (str): The path to the requirements file
+                format (str, optional): Output format, either 'json' or 'table'. Defaults to 'table'.
+            
+            Returns:
+                A dictionary containing:
+                - outdated: List of outdated packages with current and latest versions
+                - up_to_date: List of up-to-date packages
+                
+            For pyproject.toml files, dependencies from the following formats are supported:
+            - PEP 621 project metadata (project.dependencies)
+            - Poetry (tool.poetry.dependencies)
+            - PDM (tool.pdm.dependencies)
+            - Flit (tool.flit.metadata.requires)
+            """
+            await self.configure_client()
             return await self.client.check_requirements_file(file_path)
 
         @self.mcp_server.tool()
