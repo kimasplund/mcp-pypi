@@ -3,7 +3,7 @@ mcp:
   - name: PYPI_MCP
     description: Tools for interacting with the Python Package Index (PyPI), enabling package information retrieval, version checking, download URL generation, and dependency analysis.
     icon: https://upload.wikimedia.org/wikipedia/commons/0/04/PyPI-Logo-notext.svg
-    version: 2.0.0
+    version: 2.0.1
     tools:
       - name: get_package_info
         description: Get detailed information about a Python package from PyPI
@@ -120,7 +120,7 @@ Add the PyPI MCP server to your MCP configuration:
 {
   "mcpServers": {
     "PYPI_MCP": {
-      "command": "pypi-mcp",
+      "command": "mcp-pypi",
       "args": ["serve"]
     }
   }
@@ -169,7 +169,6 @@ Get detailed information about a Python package from PyPI.
   }
 }
 ```
-
 ### get_latest_version
 
 Get the latest version of a package from PyPI.

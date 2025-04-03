@@ -80,34 +80,34 @@ The client includes a rich command-line interface:
 
 ```bash
 # Get package information
-pypi-mcp package info requests
+mcp-pypi package info requests
 
 # Get the latest version of a package
-pypi-mcp package version flask
+mcp-pypi package version flask
 
 # Search for packages
-pypi-mcp search fastapi
+mcp-pypi search fastapi
 
 # Check a requirements file for outdated packages
-pypi-mcp check-requirements requirements.txt
+mcp-pypi check-requirements requirements.txt
 
 # Check requirements file with JSON output
-pypi-mcp check-requirements requirements.txt --format json
+mcp-pypi check-requirements requirements.txt --format json
 
 # Check dependencies in pyproject.toml
-pypi-mcp check-requirements pyproject.toml
+mcp-pypi check-requirements pyproject.toml
 
 # See download statistics for a package
-pypi-mcp stats downloads numpy
+mcp-pypi stats downloads numpy
 
 # Show newest packages on PyPI
-pypi-mcp feed newest
+mcp-pypi feed newest
 
 # Compare versions
-pypi-mcp package compare requests 2.28.1 2.28.2
+mcp-pypi package compare requests 2.28.1 2.28.2
 
 # Clear the cache
-pypi-mcp cache clear
+mcp-pypi cache clear
 ```
 
 ## Python API Usage
@@ -277,16 +277,16 @@ For detailed documentation on the server, see [Server Documentation](docs/server
 
 ```bash
 # Start the HTTP server on the default port (8000)
-pypi-mcp serve
+mcp-pypi serve
 
 # Start the server on a custom port
-pypi-mcp serve --port 8001
+mcp-pypi serve --port 8001
 
 # Start the server with verbose logging
-pypi-mcp serve --verbose
+mcp-pypi serve --verbose
 
 # Start in STDIN mode for MCP integration
-pypi-mcp serve --stdin
+mcp-pypi serve --stdin
 ```
 
 #### Server Features
@@ -356,11 +356,21 @@ Check a requirements file for outdated packages:
 
 ```sh
 # Check requirements.txt file
-pypi check-requirements requirements.txt
+mcp-pypi check-requirements requirements.txt
 
 # Check pyproject.toml file - will detect dependencies from PEP 621, Poetry, PDM, and Flit
-pypi check-requirements pyproject.toml
+mcp-pypi check-requirements pyproject.toml
 
 # Use JSON output format
-pypi check-requirements requirements.txt --format json
-``` 
+mcp-pypi check-requirements requirements.txt --format json
+```
+
+```json
+{
+  "mcpServers": {
+    "PYPI_MCP": {
+      "command": "mcp-pypi",
+      "args": ["serve"]
+    }
+  }
+} 

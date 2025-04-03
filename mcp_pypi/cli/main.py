@@ -891,8 +891,8 @@ def get_mcp_schema():
     """Return the MCP schema for tool discovery."""
     return {
         "name": "PYPI_MCP",
-        "version": "2.0.0",
-        "description": "Tools for interacting with the Python Package Index (PyPI)",
+        "description": "PyPI MCP server for accessing Python package information",
+        "version": "2.0.1",
         "tools": [
             {
                 "name": "get_package_info",

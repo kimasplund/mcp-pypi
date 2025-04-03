@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-pypi"
-version = "2.0.0"
+version = "2.0.1"
 description = "A modern PyPI client library and CLI tool"
 readme = "README.md"
 authors = [
@@ -60,7 +60,7 @@ search = [
 ]
 
 [project.scripts]
-pypi-mcp = "mcp_pypi.cli.main:app"
+mcp-pypi = "mcp_pypi.cli.main:app"
 
 [tool.setuptools.packages.find]
 where = ["."] 

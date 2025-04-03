@@ -207,7 +207,7 @@ You can integrate the PyPI client with the MCP protocol by adding it to your MCP
 {
   "mcpServers": {
     "PYPI_MCP": {
-      "command": "pypi-mcp",
+      "command": "mcp-pypi",
       "args": ["serve", "--stdin"]
     }
   }
