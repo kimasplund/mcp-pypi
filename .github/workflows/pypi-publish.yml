@@ -1,0 +1,78 @@
+name: Publish Python Package
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install pytest pytest-asyncio
+        pip install -e ".[dev]"
+    - name: Run tests
+      run: |
+        pytest
+
+  build-and-publish:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+    - name: Verify version
+      run: |
+        # Get the version from the tag
+        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+        # Extract version from pyproject.toml
+        PACKAGE_VERSION=$(grep -m 1 'version = ' pyproject.toml | cut -d'"' -f2)
+        echo "Tag version: $TAG_VERSION"
+        echo "Package version: $PACKAGE_VERSION"
+        # Ensure they match
+        if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+          echo "Version mismatch: Tag version ($TAG_VERSION) doesn't match package version ($PACKAGE_VERSION)"
+          exit 1
+        fi
+    - name: Build package
+      run: python -m build
+    - name: Check distribution
+      run: |
+        python -m twine check dist/*
+    
+    # Optional: Deploy to TestPyPI first
+    - name: Publish to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        user: __token__
+        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        repository-url: https://test.pypi.org/legacy/
+        skip-existing: true
+    
+    # Deploy to PyPI
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        user: __token__
+        password: ${{ secrets.PYPI_API_TOKEN }} 
