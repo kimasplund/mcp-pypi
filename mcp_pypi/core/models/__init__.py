@@ -22,7 +22,7 @@ else:
 T = TypeVar('T')
 
 # Constants
-USER_AGENT = "PyPI-MCP-Tool/2.0"
+USER_AGENT = "Mozilla/5.0 (compatible; MCP-PyPI/2.0; +https://asplund.kim)"
 DEFAULT_CACHE_DIR = os.path.join(tempfile.gettempdir(), "pypi_mcp_cache")
 DEFAULT_CACHE_TTL = 3600  # 1 hour
 DEFAULT_CACHE_MAX_SIZE = 100 * 1024 * 1024  # 100 MB

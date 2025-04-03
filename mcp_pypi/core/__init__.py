@@ -76,6 +76,15 @@ class PyPIClient:
             logger.info(f"Optional dependency {module} not found; some features will be limited")
             return False
     
+    def set_user_agent(self, user_agent: str) -> None:
+        """Set a custom User-Agent for all subsequent requests.
+        
+        Args:
+            user_agent: The User-Agent string to use for PyPI requests
+        """
+        self.config.user_agent = user_agent
+        logger.info(f"User-Agent updated to: {user_agent}")
+    
     async def close(self) -> None:
         """Close the client and release resources."""
         await self.http.close()
