@@ -58,6 +58,17 @@ class PyPIMCPServer:
         # Register prompts
         self._register_prompts()
 
+    async def configure_client(self) -> None:
+        """Configure the PyPI client with the current settings.
+        
+        This method is called before executing certain operations that may need
+        updated client configuration, such as checking requirements files.
+        """
+        logger.debug("Configuring PyPI client with current settings")
+        # Update User-Agent if needed for better compatibility with PyPI
+        self.client.set_user_agent("Mozilla/5.0 (compatible; MCP-PyPI/2.0; +https://asplund.kim)")
+        # Any additional client configuration can be added here
+
     def _register_tools(self):
         """Register all PyPI tools with the MCP server."""
 
