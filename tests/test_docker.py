@@ -1,4 +1,17 @@
-"""Tests that verify functionality across multiple Python versions using Docker."""
+"""
+DEVELOPMENT ONLY TESTS - DO NOT RUN IN CI/CD ENVIRONMENTS
+
+These tests verify functionality across multiple Python versions using Docker.
+They are intended for local development and debugging only, and should not be 
+run in automated CI/CD pipelines.
+
+To run these tests:
+1. Install the Docker testing dependencies: pip install -e ".[docker-test]"
+2. Ensure Docker and Docker Compose are running on your system
+3. Run: pytest tests/test_docker.py --run-docker
+
+NOTE: These tests are deliberately skipped unless the --run-docker flag is provided.
+"""
 
 import subprocess
 import pytest

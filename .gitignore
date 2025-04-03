@@ -222,5 +222,7 @@ temp/
 # Docker testing
 tests/docker_readme.md
 
-.cursorignore
+# Keep Docker tests documentation
+!tests/DOCKER_TESTS_README.md
+
 .cursorignore

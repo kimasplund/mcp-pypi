@@ -1,6 +1,7 @@
 """Pytest configuration for MCP-PyPI tests."""
 
 import os
+import sys
 import pytest
 
 def pytest_addoption(parser):
@@ -39,16 +40,6 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "docker" in item.keywords:
                 item.add_marker(skip_docker)
-
-# Only register Docker fixtures if --run-docker is specified
-# This prevents pytest-docker from trying to initialize Docker in CI environments
-def pytest_plugin_registered(plugin, manager):
-    """Called when a plugin is registered."""
-    # If plugin name contains 'docker' and we're not running docker tests,
-    # we want to disable it to prevent hanging in CI
-    if isinstance(plugin.__name__, str) and 'docker' in plugin.__name__.lower():
-        if not manager.config.getoption("--run-docker", False):
-            manager.unregister(plugin)
 
 # Docker fixtures - only used when --run-docker is specified
 @pytest.fixture(scope="session")
