@@ -72,6 +72,18 @@ jobs:
       run: |
         echo "Running core stats tests..."
         python -m pytest tests/core/test_stats.py -vvs --asyncio-mode=auto
+    - name: Run core client tests
+      timeout-minutes: 1
+      run: |
+        echo "Running core client tests..."
+        python tests/core/test_client.py
+      continue-on-error: true
+    - name: Run core bs4 tests
+      timeout-minutes: 1
+      run: |
+        echo "Running core bs4 tests..."
+        python tests/core/test_bs4.py
+      continue-on-error: true
   
   test-cli:
     runs-on: ubuntu-latest
@@ -98,7 +110,13 @@ jobs:
       timeout-minutes: 1
       run: |
         echo "Running CLI schema tests..."
-        python -m pytest tests/cli/test_schema.py -vvs --asyncio-mode=auto
+        python tests/cli/test_schema.py
+      continue-on-error: true
+    - name: Run CLI server mock tests
+      timeout-minutes: 1
+      run: |
+        echo "Running CLI server mock tests..."
+        python -m pytest tests/cli/test_server_mock.py -vvs --asyncio-mode=auto
       continue-on-error: true
 
   # Special build job with minimal tests for publishing
