@@ -4,12 +4,19 @@ Type definitions for the MCP-PyPI client.
 
 from dataclasses import dataclass, field
 import os
+import sys
 import tempfile
 from typing import (
-    Any, TypedDict, NotRequired, Dict, List,
+    Any, TypedDict, Dict, List,
     Optional, Set, Union, Literal, TypeVar, cast, 
     Awaitable, Callable, Protocol
 )
+
+# NotRequired was added in Python 3.11, import from typing_extensions for earlier versions
+if sys.version_info >= (3, 11):
+    from typing import NotRequired
+else:
+    from typing_extensions import NotRequired
 
 # Type variables
 T = TypeVar('T')

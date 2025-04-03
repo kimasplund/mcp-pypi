@@ -24,15 +24,26 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         python -m pip install pytest pytest-asyncio
+        # Ensure typing_extensions is installed for Python 3.10
+        python -m pip install typing_extensions>=4.3.0
+        # Install the package in development mode
         pip install -e ".[dev]"
         # Remove pytest-docker plugin if it was installed
         pip uninstall -y pytest-docker || true
+        # Create a simple conftest.py for asyncio settings if needed
+        echo 'import pytest' > asyncio_conftest.py
+        echo 'pytestmark = pytest.mark.asyncio' >> asyncio_conftest.py
     - name: Run tests
       # This will mark the job as successful even if tests fail
       continue-on-error: ${{ matrix.python-version != '3.13' }}
       run: |
-        # Note: Docker tests are excluded as they are for local debugging only
-        pytest tests/ --ignore=tests/test_docker.py
+        # Run a single basic test first to check if pytest is working
+        echo "Running a single basic test..."
+        timeout 60 python -m pytest tests/utils -v --ignore=tests/test_docker.py -p no:docker
+        
+        # Then run all tests if the basic test passes
+        echo "Running all tests..."
+        timeout 300 python -m pytest tests/ -v --ignore=tests/test_docker.py -p no:docker
 
   # This job will run regardless of test job status
   build-and-publish:
@@ -54,11 +65,23 @@ jobs:
     - name: Test build on Python 3.13
       run: |
         python -m pip install pytest pytest-asyncio
+        # Ensure typing_extensions is installed for Python 3.10
+        python -m pip install typing_extensions>=4.3.0
+        # Install the package in development mode
         pip install -e ".[dev]"
         # Remove pytest-docker plugin if it was installed
         pip uninstall -y pytest-docker || true
-        # Note: Docker tests are excluded as they are for local debugging only
-        pytest tests/ --ignore=tests/test_docker.py
+        # Create a simple conftest.py for asyncio settings if needed
+        echo 'import pytest' > asyncio_conftest.py
+        echo 'pytestmark = pytest.mark.asyncio' >> asyncio_conftest.py
+        
+        # Run a single basic test first to check if pytest is working
+        echo "Running a single basic test..."
+        timeout 60 python -m pytest tests/utils -v --ignore=tests/test_docker.py -p no:docker
+        
+        # Then run all tests if the basic test passes
+        echo "Running all tests..."
+        timeout 300 python -m pytest tests/ -v --ignore=tests/test_docker.py -p no:docker
         if [ $? -ne 0 ]; then
           echo "Tests on Python 3.13 failed. Aborting publication."
           exit 1

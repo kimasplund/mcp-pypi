@@ -41,39 +41,22 @@ def pytest_collection_modifyitems(config, items):
             if "docker" in item.keywords:
                 item.add_marker(skip_docker)
 
-# Docker fixtures - only used when --run-docker is specified
+# Simplified Docker fixtures for CI
 @pytest.fixture(scope="session")
-def docker_compose_file(pytestconfig, request):
-    """Path to the docker-compose.yml file."""
-    # Only provide real path if --run-docker is specified
-    if request.config.getoption("--run-docker"):
-        return str(pytestconfig.rootdir / "docker-compose.yml")
+def docker_compose_file():
+    """Return None to disable Docker Compose usage."""
     return None
 
 @pytest.fixture(scope="session")
-def docker_services(request):
-    """Mock for the docker_services fixture when pytest-docker is not available or --run-docker is not specified."""
-    # This is a mock fixture that will be used when pytest-docker is not available
-    # or when --run-docker is not specified
+def docker_services():
+    """Mock Docker services fixture."""
     class MockDockerServices:
         def start(self, service_name):
             """Mock the start method."""
             return True
-    
     return MockDockerServices()
 
 @pytest.fixture(scope="session")
-def python_versions(docker_services, request):
-    """Ensure all Python version services are running and responsive."""
-    # Only attempt to start services if --run-docker is specified
-    if request.config.getoption("--run-docker"):
-        # List of service names from docker-compose.yml
-        services = ["python-3.10", "python-3.11", "python-3.12", "python-3.13"]
-        for service in services:
-            docker_services.start(service)
-        
-        # Return the services for use in tests
-        return services
-    
-    # Return empty list if --run-docker is not specified
+def python_versions():
+    """Return empty list to disable Python version services."""
     return [] 

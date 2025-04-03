@@ -32,6 +32,7 @@ dependencies = [
     "rich>=13.0.0",
     "mcp>=1.6.0",
     "tomli>=2.0.0;python_version<'3.11'",  # For parsing pyproject.toml in Python <3.11
+    "typing_extensions>=4.3.0;python_version<'3.11'",  # For NotRequired in Python 3.10
 ]
 
 [project.urls]
