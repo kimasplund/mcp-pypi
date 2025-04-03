@@ -167,7 +167,7 @@ jobs:
     
     # Optional: Deploy to TestPyPI first
     - name: Publish to TestPyPI
-      if: github.event_name == 'release'  # Only run on release events
+      if: success()  # Run on both release and workflow_dispatch events
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         user: __token__
