@@ -38,7 +38,7 @@ def version_callback(value: bool):
 
 # Create the CLI app
 app = typer.Typer(
-    name="pypi-mcp",
+    name="mcp-pypi",
     help="PyPI-MCP-Tool: A client for interacting with PyPI (Python Package Index)",
     add_completion=True
 )
@@ -699,7 +699,7 @@ def cache_stats(
 @app.command("serve")
 def serve(
     host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host to bind to"),
-    port: int = typer.Option(8000, "--port", "-p", help="Port to listen on (will auto-scan for available ports if busy)"),
+    port: int = typer.Option(8143, "--port", "-p", help="Port to listen on (will auto-scan for available ports if busy)"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
     log_file: Optional[str] = typer.Option(None, "--log-file", help="Log file path"),
     cache_dir: Optional[str] = typer.Option(None, "--cache-dir", help="Cache directory path"),
@@ -724,10 +724,10 @@ def serve(
     
     Example usage:
     
-        pypi-mcp serve
-        pypi-mcp serve --port 8001
-        pypi-mcp serve --stdin
-        pypi-mcp serve --verbose
+        mcp-pypi serve
+        mcp-pypi serve --port 8001
+        mcp-pypi serve --stdin
+        mcp-pypi serve --verbose
     
     For integrating with MCP tools, use the --stdin mode.
     """

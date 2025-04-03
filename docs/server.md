@@ -12,13 +12,13 @@ In HTTP mode, the server listens for JSON-RPC requests over HTTP on the specifie
 
 ```bash
 # Start the server on the default port (8000)
-pypi-mcp serve
+mcp-pypi serve
 
 # Start on a specific port
-pypi-mcp serve --port 8001
+mcp-pypi serve --port 8001
 
 # Bind to a different interface
-pypi-mcp serve --host 0.0.0.0 --port 8001
+mcp-pypi serve --host 0.0.0.0 --port 8001
 ```
 
 ### STDIN Mode
@@ -27,7 +27,7 @@ In STDIN mode, the server reads JSON-RPC requests from standard input and writes
 
 ```bash
 # Start in STDIN mode
-pypi-mcp serve --stdin
+mcp-pypi serve --stdin
 ```
 
 ## Features
@@ -196,7 +196,7 @@ curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{
 In STDIN mode, you can send JSON-RPC requests directly to the server's standard input:
 
 ```bash
-echo '{"jsonrpc": "2.0", "method": "ping", "id": 1}' | pypi-mcp serve --stdin
+echo '{"jsonrpc": "2.0", "method": "ping", "id": 1}' | mcp-pypi serve --stdin
 ```
 
 ## Integration with MCP

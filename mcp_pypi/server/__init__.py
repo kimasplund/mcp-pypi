@@ -5,7 +5,8 @@ This module provides a fully compliant MCP server using the official MCP Python 
 
 import logging
 import sys
-from typing import Dict, Any, Optional, Union, cast
+import socket
+from typing import Dict, Any, Optional, Union, cast, Tuple
 
 # Add type ignore comments for missing stubs
 from mcp.server.fastmcp import FastMCP  # type: ignore
@@ -40,11 +41,15 @@ class ResourceResponse:
 class PyPIMCPServer:
     """A fully compliant MCP server for PyPI functionality."""
 
-    def __init__(self, config: Optional[PyPIClientConfig] = None):
+    def __init__(self, config: Optional[PyPIClientConfig] = None, host: str = "127.0.0.1", port: int = 8143):
         """Initialize the MCP server with PyPI client."""
         self.config = config or PyPIClientConfig()
         self.client = PyPIClient(self.config)
         self.mcp_server = FastMCP("PyPI MCP Server")
+        
+        # Set the host and port in the FastMCP settings
+        self.mcp_server.settings.host = host
+        self.mcp_server.settings.port = port
 
         # Register all tools
         self._register_tools()
@@ -246,12 +251,48 @@ class PyPIMCPServer:
                 ],
             )
 
-    async def start_http_server(self, host: str = "127.0.0.1", port: int = 8000):
+    async def start_http_server(self, host: str = "127.0.0.1", port: int = 8143):
         """Start an HTTP server."""
         try:
-            await self.mcp_server.start(host=host, port=port)
+            # Check if the port is available, try to find another if not
+            port = self._find_available_port(host, port)
+            
+            # Update host and port settings before starting the server
+            self.mcp_server.settings.host = host
+            self.mcp_server.settings.port = port
+            
+            logger.info(f"Starting MCP HTTP server on {host}:{port}...")
+            
+            # Use run_sse_async instead of start which doesn't exist
+            await self.mcp_server.run_sse_async()
         finally:
             await self.client.close()
+    
+    def _find_available_port(self, host: str, port: int, max_attempts: int = 10) -> int:
+        """Find an available port, starting from the specified one."""
+        original_port = port
+        
+        for offset in range(max_attempts):
+            if offset > 0:
+                port = original_port + offset
+                logger.info(f"Port {original_port + offset - 1} is in use, trying port {port}...")
+            
+            # Check if the port is available
+            if not self._is_port_in_use(host, port):
+                break
+        else:
+            # If we couldn't find an available port in the range
+            error_msg = f"Could not find an available port in range {original_port}-{original_port + max_attempts - 1}"
+            logger.error(error_msg)
+            raise OSError(error_msg)
+        
+        return port
+    
+    @staticmethod
+    def _is_port_in_use(host: str, port: int) -> bool:
+        """Check if a port is in use."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex((host, port)) == 0
 
     async def process_stdin(self):
         """Process stdin for MCP protocol."""

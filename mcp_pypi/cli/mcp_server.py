@@ -24,8 +24,17 @@ app = typer.Typer(
     help="Start an MCP-compliant server for PyPI"
 )
 
-@app.command("run")
-def run_server(
+@app.callback()
+def callback():
+    """
+    Start an MCP-compliant server for PyPI.
+    
+    This command group contains commands for running the MCP server in different modes.
+    """
+    pass
+
+@app.command()
+def run(
     host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host to bind to"),
     port: int = typer.Option(8000, "--port", "-p", help="Port to listen on"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
@@ -47,10 +56,10 @@ def run_server(
     
     Example usage:
     
-        pypi-mcp mcp-server run
-        pypi-mcp mcp-server run --port 8001
-        pypi-mcp mcp-server run --stdin
-        pypi-mcp mcp-server run --verbose
+        mcp-pypi mcp-server run
+        mcp-pypi mcp-server run --port 8001
+        mcp-pypi mcp-server run --stdin
+        mcp-pypi mcp-server run --verbose
     """
     # Configure logging
     log_level = logging.DEBUG if verbose else logging.INFO

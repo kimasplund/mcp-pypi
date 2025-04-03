@@ -16,13 +16,13 @@ This module provides a fully compliant MCP server implementation using the offic
 
 ```bash
 # Start the server with HTTP endpoint
-pypi-mcp mcp-server run
+mcp-pypi mcp-server run
 
 # Start the server in stdin mode for MCP integration
-pypi-mcp mcp-server run --stdin
+mcp-pypi mcp-server run --stdin
 
 # Use with custom cache settings
-pypi-mcp mcp-server run --cache-dir /tmp/pypi-cache --cache-ttl 7200
+mcp-pypi mcp-server run --cache-dir /tmp/pypi-cache --cache-ttl 7200
 ```
 
 ### Python API Usage
