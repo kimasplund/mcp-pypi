@@ -889,10 +889,12 @@ def write_response(response: Dict[str, Any]):
 
 def get_mcp_schema():
     """Return the MCP schema for tool discovery."""
+    from mcp_pypi import __version__
+    
     return {
         "name": "PYPI_MCP",
         "description": "PyPI MCP server for accessing Python package information",
-        "version": "2.0.1",
+        "version": __version__,
         "tools": [
             {
                 "name": "get_package_info",

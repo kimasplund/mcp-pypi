@@ -40,6 +40,7 @@ class ErrorCode:
     UNKNOWN_ERROR = "unknown_error"
     RATE_LIMIT_ERROR = "rate_limit_error"
     TIMEOUT_ERROR = "timeout_error"
+    MISSING_DEPENDENCY = "missing_dependency"
 
 # Helper function for formatting errors - moved here to break circular import
 def format_error(code: str, message: str) -> "ErrorResult":

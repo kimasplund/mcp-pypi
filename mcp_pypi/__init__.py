@@ -2,4 +2,6 @@
 MCP-PyPI: Modern Command-line PyPI Client
 """
 
-__version__ = "2.0.3"
+from ._version import __version__
+
+__all__ = ["__version__"]
