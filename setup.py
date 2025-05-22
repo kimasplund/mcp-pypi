@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="mcp-pypi",
-    version="2.0.1",
+    version="2.0.3",
     author="Kim Asplund",
     author_email="kim.asplund@gmail.com",
     description="A modern PyPI client library and CLI tool",
