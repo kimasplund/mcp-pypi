@@ -1601,7 +1601,7 @@ class PyPIClient:
             cache_key = f"osv:vulnerabilities:{sanitized_name}:{version or 'all'}"
             
             # Check cache first (vulnerability data changes slowly)
-            cached_result = await self.cache_manager.get(cache_key)
+            cached_result = await self.cache.get(cache_key)
             if cached_result:
                 logger.debug(f"Cache hit for vulnerability check: {cache_key}")
                 return cached_result
@@ -1770,7 +1770,7 @@ class PyPIClient:
             # Cache the result with configurable TTL
             # Vulnerability data doesn't change frequently, default is 1 hour
             cache_ttl = self.config.vulnerability_cache_ttl
-            await self.cache_manager.set(cache_key, result, ttl=cache_ttl)
+            await self.cache.set(cache_key, result, ttl=cache_ttl)
             logger.debug(f"Cached vulnerability data for {cache_key} with TTL {cache_ttl}s")
             
             return result
@@ -1789,17 +1789,211 @@ class PyPIClient:
         try:
             # PyPI RSS feed for updates
             url = "https://pypi.org/rss/updates.xml"
-            # For now, return empty feed as PyPI RSS parsing is not implemented
-            return {
-                "updates": [],
-                "error": {
-                    "message": "RSS feed parsing not implemented",
-                    "code": "not_implemented"
+            
+            # Fetch the RSS feed
+            response = await self.http.fetch(url)
+            
+            # Check if we got an error
+            if isinstance(response, dict) and "error" in response:
+                return {
+                    "updates": [],
+                    "error": response["error"]
                 }
-            }
+            
+            # If we have defusedxml, use it for secure parsing
+            try:
+                import defusedxml.ElementTree as ET
+                
+                # Extract raw XML data from response
+                if isinstance(response, dict) and "raw_data" in response:
+                    xml_data = response["raw_data"]
+                    
+                    # Parse the XML
+                    if isinstance(xml_data, bytes):
+                        root = ET.fromstring(xml_data)
+                    elif isinstance(xml_data, str):
+                        root = ET.fromstring(xml_data.encode('utf-8'))
+                    else:
+                        return {
+                            "updates": [],
+                            "error": {
+                                "message": "Unexpected response format from RSS feed",
+                                "code": "parse_error"
+                            }
+                        }
+                    
+                    # Parse RSS items
+                    updates = []
+                    
+                    # RSS 2.0 format
+                    for item in root.findall(".//item"):
+                        title_elem = item.find("title")
+                        link_elem = item.find("link")
+                        desc_elem = item.find("description")
+                        pub_date_elem = item.find("pubDate")
+                        
+                        if title_elem is not None and title_elem.text:
+                            # Extract package name and version from title
+                            # Format is usually "package-name 1.2.3"
+                            title = title_elem.text.strip()
+                            parts = title.rsplit(' ', 1)
+                            
+                            package_name = parts[0] if parts else title
+                            version = parts[1] if len(parts) > 1 else ""
+                            
+                            updates.append({
+                                "package_name": package_name,
+                                "version": version,
+                                "title": title,
+                                "link": link_elem.text if link_elem is not None else "",
+                                "description": desc_elem.text if desc_elem is not None else "",
+                                "published_date": pub_date_elem.text if pub_date_elem is not None else ""
+                            })
+                    
+                    return {
+                        "updates": updates,
+                        "feed_url": url,
+                        "feed_title": "PyPI Recent Updates"
+                    }
+                else:
+                    return {
+                        "updates": [],
+                        "error": {
+                            "message": "Invalid response format from RSS feed",
+                            "code": "parse_error"
+                        }
+                    }
+                
+            except ImportError:
+                return {
+                    "updates": [],
+                    "error": {
+                        "message": "RSS parsing requires defusedxml for security (install with: pip install defusedxml)",
+                        "code": "missing_dependency"
+                    }
+                }
+                
         except Exception as e:
             logger.exception(f"Error getting updates feed: {e}")
             return {
                 "updates": [],
                 "error": {"message": str(e), "code": "feed_error"}
             }
+    
+    async def get_package_changelog(self, package_name: str, version: Optional[str] = None) -> str:
+        """Get changelog for a package.
+        
+        This method attempts to retrieve changelog information from:
+        1. Package metadata project_urls for changelog link
+        2. GitHub releases if the package has a GitHub repository
+        3. Common changelog file names in the package distribution
+        
+        Args:
+            package_name: Name of the package
+            version: Specific version (optional, defaults to latest)
+            
+        Returns:
+            Changelog text or appropriate message
+        """
+        try:
+            # Get package info to find changelog URL
+            info_result = await self.get_package_info(package_name)
+            if "error" in info_result:
+                return f"Package {package_name} not found"
+            
+            info = info_result.get("info", {})
+            project_urls = info.get("project_urls") or {}
+            
+            # Check for explicit changelog URL
+            changelog_url = None
+            for key, url in project_urls.items():
+                if any(term in key.lower() for term in ["changelog", "changes", "history", "release"]):
+                    changelog_url = url
+                    break
+            
+            # If we found a changelog URL, try to fetch it
+            if changelog_url:
+                # Handle GitHub releases specially
+                if "github.com" in changelog_url and "/releases" in changelog_url:
+                    # Extract owner and repo from GitHub URL
+                    import re
+                    match = re.search(r'github\.com/([^/]+)/([^/]+)', changelog_url)
+                    if match:
+                        owner, repo = match.groups()
+                        # Use GitHub API to get releases
+                        api_url = f"https://api.github.com/repos/{owner}/{repo}/releases"
+                        
+                        try:
+                            response = await self.http.fetch(api_url)
+                            if isinstance(response, dict) and "error" not in response:
+                                # GitHub API returns array directly
+                                releases = response if isinstance(response, list) else []
+                            else:
+                                releases = response if isinstance(response, list) else []
+                            
+                            if releases:
+                                # Format releases into changelog
+                                changelog_parts = [f"# Changelog for {package_name}\n"]
+                                
+                                for release in releases[:10]:  # Show last 10 releases
+                                    tag = release.get("tag_name", "")
+                                    name = release.get("name", "")
+                                    body = release.get("body", "")
+                                    published = release.get("published_at", "")
+                                    
+                                    if tag:
+                                        changelog_parts.append(f"\n## {tag}")
+                                        if name and name != tag:
+                                            changelog_parts.append(f" - {name}")
+                                        if published:
+                                            changelog_parts.append(f"\n*Released: {published[:10]}*")
+                                        if body:
+                                            changelog_parts.append(f"\n{body}")
+                                
+                                return "\n".join(changelog_parts)
+                        except Exception as e:
+                            logger.debug(f"Could not fetch GitHub releases: {e}")
+                
+                # Try to fetch as regular webpage
+                try:
+                    response = await self.http.fetch(changelog_url)
+                    if isinstance(response, dict):
+                        # If it's JSON, try to extract text
+                        return str(response)
+                    return f"Changelog available at: {changelog_url}"
+                except Exception as e:
+                    logger.debug(f"Could not fetch changelog URL: {e}")
+                    return f"Changelog available at: {changelog_url}"
+            
+            # Check if there's a GitHub repo to check releases
+            github_url = None
+            for key, url in project_urls.items():
+                if "github.com" in str(url) and not "/releases" in str(url):
+                    github_url = url
+                    break
+            
+            if not github_url and info.get("home_page") and "github.com" in str(info.get("home_page")):
+                github_url = info.get("home_page")
+            
+            if github_url:
+                # Extract owner and repo
+                import re
+                match = re.search(r'github\.com/([^/]+)/([^/]+)', github_url)
+                if match:
+                    owner, repo = match.groups()
+                    repo = repo.rstrip('/')  # Remove trailing slash if present
+                    
+                    # Construct changelog URL
+                    releases_url = f"https://github.com/{owner}/{repo}/releases"
+                    return f"Changelog might be available at: {releases_url}"
+            
+            # If no changelog found, return a helpful message
+            available_urls = "\n".join([f"- {k}: {v}" for k, v in project_urls.items()])
+            if available_urls:
+                return f"No explicit changelog found. Available project URLs:\n{available_urls}"
+            else:
+                return f"No changelog information available for {package_name}"
+                
+        except Exception as e:
+            logger.error(f"Error getting changelog for {package_name}: {e}")
+            return f"Error retrieving changelog: {str(e)}"

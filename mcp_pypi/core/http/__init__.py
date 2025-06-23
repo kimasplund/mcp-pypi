@@ -22,7 +22,7 @@ class AsyncHTTPClient:
 
     def __init__(self, config: PyPIClientConfig, cache_manager: AsyncCacheManager):
         self.config = config
-        self.cache_manager = cache_manager
+        self.cache = cache_manager  # Changed from self.cache_manager to self.cache
         self.rate_limit_delay = 0.1  # Initial delay between requests
         self.last_request_time = 0.0
         self._session: Optional[ClientSession] = None
@@ -68,13 +68,13 @@ class AsyncHTTPClient:
         """
         # Check cache first (only for GET requests)
         if method == "GET" and data is None:
-            cached_data = await self.cache_manager.get(url)
+            cached_data = await self.cache.get(url)
             if cached_data:
                 logger.debug(f"Cache hit for {url}")
                 return cached_data
 
         # Get ETag if available for conditional requests
-        etag = await self.cache_manager.get_etag(url) if method == "GET" else None
+        etag = await self.cache.get_etag(url) if method == "GET" else None
 
         # Prepare headers
         request_headers = {"User-Agent": self.config.user_agent}
@@ -136,7 +136,7 @@ class AsyncHTTPClient:
                                 try:
                                     result = await retry_response.json()
                                     if isinstance(result, dict) and method == "GET":
-                                        await self.cache_manager.set(
+                                        await self.cache.set(
                                             url, result, new_etag
                                         )
                                     return result
@@ -233,7 +233,7 @@ class AsyncHTTPClient:
                             # Cache successful JSON responses (only for GET requests)
                             if isinstance(result, dict) and method == "GET":
                                 logger.debug(f"Caching result for {url}")
-                                await self.cache_manager.set(url, result, new_etag)
+                                await self.cache.set(url, result, new_etag)
 
                             return result
                         except json.JSONDecodeError as e:
