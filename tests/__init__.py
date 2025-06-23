@@ -1,1 +1,1 @@
-"""Test package for MCP-PyPI.""" 
+"""Test package for MCP-PyPI."""

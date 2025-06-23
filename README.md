@@ -1,388 +1,298 @@
-# PyPI MCP Client (mcp-pypi)
+# MCP-PyPI
 
-A powerful Python client and CLI tool for interacting with the Python Package Index (PyPI). This tool integrates with Claude, Gordon, Cursor, or any other AI assistant that supports the MCP protocol.
+A Model Context Protocol (MCP) server for providing PyPI package information through standardized AI agent interfaces.
 
+## Overview
 
-
-## Major Improvements
-
-This is a complete rewrite of the original PyPI MCP server, with many improvements:
-
-- **Modular Architecture**: Organized into logical components for better maintainability
-- **True Asynchronous HTTP**: Uses `aiohttp` for efficient, non-blocking requests
-- **Improved Caching**: Thread-safe async cache with proper pruning
-- **Dependency Injection**: Components can be replaced or mocked for testing
-- **Proper Error Handling**: Consistent error handling with descriptive messages
-- **Real Package Statistics**: Fetches real download statistics from PyPI
-- **Modern CLI**: Rich command-line interface with Typer and Rich
-- **Extensive Testing**: Comprehensive test suite for all components
-- **Type Safety**: Complete type annotations throughout the codebase
-- **Security Challenge Handling**: Gracefully handles PyPI security challenges
+MCP-PyPI is a server that implements the Model Context Protocol (MCP), allowing AI assistants like Claude to access real-time Python package information from PyPI. It enables AI agents to search for packages, check dependencies, analyze version information, and much more.
 
 ## Features
 
-The PyPI MCP client provides the following capabilities:
-
-### Core Features
-
-- **Package Information**: Get detailed information about Python packages
-- **Version Management**: Retrieve and compare package versions
-- **Download URL Generation**: Generate predictable download URLs
-- **Search**: Search for packages on PyPI
-- **Dependencies**: Get package dependencies and their details
-
-### Enhanced Features
-
-- **Package Statistics**: Get real download statistics for packages
-- **Dependency Visualization**: Generate and visualize dependency trees
-- **Documentation Discovery**: Find documentation URLs for packages
-- **Requirements Analysis**: Check requirements files for outdated packages
-- **Caching**: Efficient local response caching with ETag support
-- **User-Agent Configuration**: Proper user-agent with contact information
+- **MCP Server**: Fully compliant MCP server with multiple transport options
+- **PyPI Integration**: Real-time access to the Python Package Index
+- **Tool Integration**: Easily integrable with Claude and other MCP-compatible AI assistants
+- **Multiple Transport Types**: Supports HTTP, SSE, WebSocket, and STDIO communication
+- **Advanced Caching**: High-performance hybrid memory/disk caching system with multiple eviction strategies
+- **Pydantic Models**: Strong typing with Pydantic for request/response validation
 
 ## Installation
 
-### From PyPI (recommended)
+### Basic Installation
 
 ```bash
 pip install mcp-pypi
 ```
 
-### From Source
+### With Transport-Specific Dependencies
+
+For HTTP transport:
+```bash
+pip install "mcp-pypi[http]"
+```
+
+For WebSocket transport:
+```bash
+pip install "mcp-pypi[websocket]"
+```
+
+For all transports and development tools:
+```bash
+pip install "mcp-pypi[http,websocket,sse,dev]"
+```
+
+## Running the Server
+
+MCP-PyPI provides several ways to run the server:
+
+### Command-line Interface
+
+Using the typer-based CLI:
 
 ```bash
-git clone https://github.com/kimasplund/mcp-pypi.git
-cd mcp-pypi
-pip install .
+# HTTP/SSE transport (default)
+mcp-pypi-server run
+
+# STDIO transport (for direct Claude integration)
+mcp-pypi-server run --stdin
+
+# With verbose logging
+mcp-pypi-server run --verbose
+
+# Specify host and port
+mcp-pypi-server run --host 0.0.0.0 --port 8144
 ```
 
-For development:
+### Advanced Server Runner
+
+Using the advanced server runner with more transport options:
 
 ```bash
-pip install -e ".[dev]"
+# Run with HTTP transport
+mcp-pypi-run --transport http --host 0.0.0.0 --port 8143
+
+# Run with WebSocket transport
+mcp-pypi-run --transport ws --host 127.0.0.1 --port 8144 
+
+# Run with STDIO transport
+mcp-pypi-run --transport stdio
+
+# Run with all available transports
+mcp-pypi-run --transport all --host 127.0.0.1 --port 8143
+
+# With debug logging
+mcp-pypi-run --transport http --debug
 ```
 
-### Optional Dependencies
+### Traditional JSON-RPC Server
 
-Install optional visualization features:
+For classic JSON-RPC over HTTP:
 
 ```bash
-pip install "mcp-pypi[viz]"
+# Start the JSON-RPC server
+mcp-pypi-rpc
 ```
 
-For improved search functionality:
+## Configuration
+
+### Server Configuration File (.mcp.json)
+
+Create a `.mcp.json` file in your project directory to configure MCP servers:
+
+```json
+{
+  "version": "2025-03-26",
+  "mcpServers": {
+    "pypi-http-server": {
+      "type": "http",
+      "url": "http://127.0.0.1:8143/messages/",
+      "protocolVersion": "2025-03-26",
+      "description": "PyPI MCP server over HTTP"
+    },
+    "pypi-ws-server": {
+      "type": "websocket",
+      "url": "ws://127.0.0.1:8144/ws",
+      "protocolVersion": "2025-03-26",
+      "description": "PyPI MCP server over WebSocket"
+    },
+    "pypi-stdio-server": {
+      "type": "stdio",
+      "command": "mcp-pypi-server run --stdin",
+      "protocolVersion": "2025-03-26",
+      "description": "PyPI MCP server over STDIO"
+    }
+  }
+}
+```
+
+### Environment Variables
+
+The server behavior can be controlled with environment variables:
+
+- `MCP_PYPI_HOST`: Host to bind to (default: 127.0.0.1)
+- `MCP_PYPI_PORT`: Port to listen on (default: 8143)
+- `MCP_PYPI_LOG_LEVEL`: Log level (default: INFO)
+- `MCP_PYPI_CACHE_DIR`: Cache directory path
+- `MCP_PYPI_CACHE_TTL`: Cache TTL in seconds (default: 3600)
+- `MCP_PYPI_CACHE_TYPE`: Cache type to use (default: "disk", also available: "hybrid")
+- `MCP_PYPI_CACHE_MEMORY_SIZE`: Maximum number of items to keep in memory cache (default: 1024)
+- `MCP_PYPI_CACHE_EVICTION`: Eviction strategy for hybrid cache (default: "lru", also available: "lfu", "ttl")
+- `MCP_PYPI_USER_AGENT`: User agent for PyPI requests
+
+## Claude Integration
+
+To use with Claude, reference the MCP server in your conversation:
+
+```
+Use the pypi-http-server MCP tool to help me find information about Python packages.
+```
+
+For direct STDIO integration with Claude:
+
+```
+I need you to use MCP to access Python package information. Please run the following command and connect to the server:
+
+mcp-pypi-server run --stdin
+```
+
+## Available Tools
+
+- **Package Information**
+  - `get_package_info`: Get detailed information about a Python package
+  - `get_latest_version`: Get the latest version of a package
+  - `get_package_metadata`: Get package metadata from PyPI
+  - `check_package_exists`: Check if a package exists on PyPI
+  - `get_documentation_url`: Get documentation URL for a package
+
+- **Package Releases**
+  - `get_package_releases`: Get all releases of a package
+  - `get_project_releases`: Get project releases with timestamps
+  - `get_newest_packages`: Get newest packages on PyPI
+  - `get_latest_updates`: Get latest package updates on PyPI
+
+- **Dependencies**
+  - `get_dependency_tree`: Get the dependency tree for a package
+  - `check_requirements_file`: Check a requirements file for outdated packages
+
+- **Search and Stats**
+  - `search_packages`: Search for packages on PyPI
+  - `get_package_stats`: Get download statistics for a package
+  - `compare_versions`: Compare two package versions
+
+## Troubleshooting
+
+### Common Issues
+
+- **Port already in use**: Try a different port with `--port` option
+- **Connection refused**: Ensure the server is running and accessible
+- **Timeout errors**: Consider increasing timeouts or checking connectivity
+- **CORS issues**: If accessing from a browser, ensure CORS headers are properly set
+
+### Debugging
+
+Enable verbose logging for more detailed output:
 
 ```bash
-pip install "mcp-pypi[search]"
+mcp-pypi-server run --verbose
+# or
+mcp-pypi-run --transport http --debug
 ```
 
-## CLI Usage
-
-The client includes a rich command-line interface:
-
-```bash
-# Get package information
-mcp-pypi package info requests
-
-# Get the latest version of a package
-mcp-pypi package version flask
-
-# Search for packages
-mcp-pypi search fastapi
-
-# Check a requirements file for outdated packages
-mcp-pypi check-requirements requirements.txt
-
-# Check requirements file with JSON output
-mcp-pypi check-requirements requirements.txt --format json
-
-# Check dependencies in pyproject.toml
-mcp-pypi check-requirements pyproject.toml
-
-# See download statistics for a package
-mcp-pypi stats downloads numpy
-
-# Show newest packages on PyPI
-mcp-pypi feed newest
-
-# Compare versions
-mcp-pypi package compare requests 2.28.1 2.28.2
-
-# Clear the cache
-mcp-pypi cache clear
-```
-
-## Python API Usage
-
-```python
-import asyncio
-from mcp_pypi.core import PyPIClient
-from mcp_pypi.core.models import PyPIClientConfig
-
-async def get_package_info():
-    # Create a client with custom configuration
-    config = PyPIClientConfig(cache_ttl=3600, max_retries=3)
-    client = PyPIClient(config)
-    
-    try:
-        # Get package information
-        info = await client.get_package_info("requests")
-        print(f"Latest version: {info['info']['version']}")
-        
-        # Get download statistics
-        stats = await client.get_package_stats("requests")
-        print(f"Last month downloads: {stats.get('last_month', 0):,}")
-        
-        # Check dependencies
-        deps = await client.get_dependencies("requests")
-        print("Dependencies:")
-        for dep in deps.get("dependencies", []):
-            print(f"  {dep['name']} {dep['version_spec']}")
-            
-        # Example of searching with proper error handling
-        search_result = await client.search_packages("fastapi")
-        
-        if isinstance(search_result, str) and "Client Challenge" in search_result:
-            print("PyPI returned a security challenge page.")
-            print("Try using a web browser to search directly.")
-        elif isinstance(search_result, dict):
-            if "error" in search_result:
-                print(f"Search error: {search_result['error']['message']}")
-            elif "message" in search_result:
-                print(search_result['message'])
-            elif "results" in search_result:
-                results = search_result["results"]
-                print(f"Found {len(results)} packages")
-                for pkg in results[:3]:  # Just show first 3
-                    print(f"  {pkg.get('name')} - {pkg.get('description', '')[:60]}...")
-                    
-    finally:
-        # Always close the client to release resources
-        await client.close()
-
-# Run the async function
-asyncio.run(get_package_info())
-```
-
-## Error Handling
-
-All tools use standardized error responses with the following error codes:
-
-- `not_found`: Package or resource not found
-- `invalid_input`: Invalid parameter value provided
-- `network_error`: Error communicating with PyPI
-- `parse_error`: Error parsing response from PyPI
-- `file_error`: Error accessing or reading a file
-- `permission_error`: Insufficient permissions
-- `rate_limit_error`: Exceeded PyPI rate limits
-- `timeout_error`: Request timed out
-
-### Handling Errors
-
-```python
-# Example of proper error handling
-async def example_with_error_handling():
-    client = PyPIClient()
-    try:
-        # Try to get info for a package that doesn't exist
-        info = await client.get_package_info("this-package-does-not-exist")
-        
-        # Check for error
-        if "error" in info:
-            error_code = info["error"]["code"]
-            error_message = info["error"]["message"]
-            
-            if error_code == "not_found":
-                print(f"Package not found: {error_message}")
-            elif error_code == "network_error":
-                print(f"Network issue: {error_message}")
-            else:
-                print(f"Error ({error_code}): {error_message}")
-        else:
-            # Process normal response
-            print(f"Package found: {info['info']['name']}")
-            
-    finally:
-        await client.close()
-```
-
-### Security Challenges
-
-PyPI implements security measures to prevent scraping and abuse. In some cases, PyPI may return a "Client Challenge" page instead of the expected response. The MCP-PyPI client handles these cases in the following ways:
-
-1. For search requests, the client detects the challenge page and returns a structured response with a helpful message.
-2. For API endpoints, the client uses proper caching and respects rate limits to minimize the chances of triggering security measures.
-
-When you encounter a security challenge during searches:
-
-```python
-search_result = await client.search_packages("flask")
-
-# Handle different response types
-if isinstance(search_result, str) and "Client Challenge" in search_result:
-    print("Security challenge detected - try direct browser search")
-elif isinstance(search_result, dict):
-    if "message" in search_result:
-        print(search_result["message"])
-    elif "results" in search_result:
-        # Process normal results
-        for pkg in search_result["results"]:
-            print(f"{pkg['name']} - {pkg['description']}")
-```
-
-## Running Tests
-
-```bash
-# Install development dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Run tests with coverage
-pytest --cov=mcp_pypi
-```
-
-## Docker Testing (Development Only)
-
-For development and debugging purposes, the project includes Docker-based tests that verify compatibility across multiple Python versions (3.10, 3.11, 3.12, 3.13). These tests are excluded from CI/CD workflows and are meant for local development only.
-
-To enable Docker testing, install the additional dependencies:
-
-```bash
-# Install Docker testing dependencies
-pip install -e ".[docker-test]"
-
-# Run Docker tests (requires Docker and Docker Compose)
-pytest tests/test_docker.py --run-docker
-
-# Run a specific Docker test
-pytest tests/test_docker.py::test_package_import --run-docker
-```
-
-See `tests/docker_readme.md` for more details on Docker testing.
-
-## MCP Server Integration
-
-You can integrate the PyPI client as an MCP server in your workflow:
-
-### JSON-RPC 2.0 Server
-
-The PyPI MCP client includes a full JSON-RPC 2.0 compliant server that can be started in two modes:
-
-1. **HTTP Server Mode**: Exposes the API over HTTP
-2. **STDIN Mode**: Reads JSON-RPC requests from standard input (for use with the MCP protocol)
-
-For detailed documentation on the server, see [Server Documentation](docs/server.md).
-
-#### Starting the Server
-
-```bash
-# Start the HTTP server on the default port (8000)
-mcp-pypi serve
-
-# Start the server on a custom port
-mcp-pypi serve --port 8001
-
-# Start the server with verbose logging
-mcp-pypi serve --verbose
-
-# Start in STDIN mode for MCP integration
-mcp-pypi serve --stdin
-```
-
-#### Server Features
-
-- **Automatic Port Selection**: If the specified port is in use, the server automatically scans for an available port
-- **Tool Discovery**: The server implements the JSON-RPC "describe" method for tool discovery
-- **JSON-RPC 2.0 Compliance**: All responses follow the JSON-RPC 2.0 specification
-- **Error Handling**: Proper error responses with standard error codes
-- **Caching**: Server responses are cached for improved performance
-
-#### Making Requests to the Server
-
-Example using `curl`:
-
-```bash
-# Make a ping request to check if the server is running
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "ping", "id": 1}'
-
-# Check if a package exists
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "check_package_exists", "params": {"package_name": "requests"}, "id": 2}'
-
-# Get the latest version of a package
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "get_latest_version", "params": {"package_name": "flask"}, "id": 3}'
-
-# Discover available tools
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "describe", "id": 4}'
-```
-
-#### Server Endpoints
-
-The server exposes the following JSON-RPC methods:
-
-- `ping`: Simple connectivity check
-- `describe`: Get information about available tools
-- `search_packages`: Search for packages on PyPI
-- `get_dependencies`: Get dependencies for a package
-- `check_package_exists`: Check if a package exists
-- `get_package_metadata`: Get package metadata
-- `get_package_stats`: Get download statistics
-- `get_dependency_tree`: Get a dependency tree
-- `get_package_info`: Get detailed package information
-- `get_latest_version`: Get the latest version of a package
-- `get_package_releases`: Get all releases of a package
-- `get_release_urls`: Get download URLs for a package
-- `get_newest_packages`: Get newest packages on PyPI
-- `get_latest_updates`: Get latest package updates
-- `get_project_releases`: Get recent project releases
-- `get_documentation_url`: Get documentation URL for a package
-- `check_requirements_file`: Check a requirements file for outdated packages
-- `compare_versions`: Compare package versions
-
-Each method accepts parameters as defined in the tool schema, which can be retrieved using the `describe` method.
-
-# No more outdated packages in Cursor.
-## MCP Package Version Management Rules
-
-> ### Example Rule
-> 
-> - When adding Python packages to requirements.txt or pyproject.toml:
->   - ALWAYS query the MCP-PyPI server to fetch the latest version
->   - Default to the latest version returned by the MCP-PyPI server
->   - Do not specify version constraints unless explicitly instructed to do so
->   - If asked to check requirements.txt or pyproject.toml use the tool check_requirements_file to check the entire file
 ## License
 
-MIT
+Commercial
 
 ## Author
 
 Kim Asplund (kim.asplund@gmail.com)
-GitHub: https://github.com/kimasplund
-Website: https://asplund.kim
 
-## Example Usage: Check Requirements
+## Advanced Usage
 
-Check a requirements file for outdated packages:
+### Caching System
 
-```sh
-# Check requirements.txt file
-mcp-pypi check-requirements requirements.txt
+MCP-PyPI includes an advanced caching system to improve performance and reduce load on the PyPI servers. Two caching implementations are available:
 
-# Check pyproject.toml file - will detect dependencies from PEP 621, Poetry, PDM, and Flit
-mcp-pypi check-requirements pyproject.toml
+#### Disk Cache (Default)
 
-# Use JSON output format
-mcp-pypi check-requirements requirements.txt --format json
+The traditional disk-based cache stores API responses and function results in files. It provides:
+
+- Persistent storage across server restarts
+- TTL-based expiration
+- Size-based cleanup
+- Thread-safe operation
+
+To use the disk cache in your code:
+
+```python
+from mcp_pypi.utils.common.caching import Cache, cached
+
+# Create a cache instance with custom parameters
+cache = Cache(
+    cache_dir="/path/to/cache",
+    ttl=3600,  # 1 hour
+    max_size=1024 * 1024 * 100  # 100 MB
+)
+
+# Use the cache directly
+cache.set("my_key", {"some": "data"})
+result = cache.get("my_key")
+
+# Or use the decorator
+@cached(ttl=1800)  # 30 minutes
+def some_function(arg1, arg2):
+    # Function will only be called if result not in cache
+    return expensive_operation(arg1, arg2)
 ```
 
-```json
-{
-  "mcpServers": {
-    "PYPI_MCP": {
-      "command": "mcp-pypi",
-      "args": ["serve"]
-    }
-  }
-} 
+#### Hybrid Cache (Advanced)
+
+The hybrid cache combines in-memory and disk-based caching for optimal performance:
+
+- Fast in-memory access for frequently used data
+- Persistent disk storage for durability
+- Multiple eviction strategies (LRU, LFU, TTL)
+- Thread-safe operation with fine-grained locking
+- Enhanced metrics and statistics
+- Pattern-based invalidation
+
+To use the hybrid cache in your code:
+
+```python
+from mcp_pypi.utils.common.caching import HybridCache, hybrid_cached, EvictionStrategy
+
+# Create a hybrid cache with custom parameters
+cache = HybridCache(
+    cache_dir="/path/to/cache",
+    ttl=3600,  # 1 hour
+    max_size=1024 * 1024 * 100,  # 100 MB disk cache
+    memory_max_size=1000,  # 1000 items in memory
+    eviction_strategy=EvictionStrategy.LRU  # Least Recently Used
+)
+
+# Use the cache directly
+cache.set("my_key", {"some": "data"})
+result = cache.get("my_key")
+
+# Use pattern-based invalidation
+cache.invalidate_pattern(r"^prefix_.*")
+
+# Get detailed stats
+stats = cache.get_enhanced_stats()
+
+# Or use the decorator with a specific eviction strategy
+@hybrid_cached(ttl=1800, eviction_strategy=EvictionStrategy.LFU)
+def some_function(arg1, arg2):
+    # Function will only be called if result not in cache
+    return expensive_operation(arg1, arg2)
+```
+
+#### Configuring Cache in Server
+
+To configure the cache type when running the server:
+
+```bash
+# Use hybrid cache with LRU eviction
+MCP_PYPI_CACHE_TYPE=hybrid MCP_PYPI_CACHE_EVICTION=lru mcp-pypi-server run
+
+# Use hybrid cache with custom memory size
+MCP_PYPI_CACHE_TYPE=hybrid MCP_PYPI_CACHE_MEMORY_SIZE=2048 mcp-pypi-server run
+```

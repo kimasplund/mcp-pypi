@@ -51,7 +51,7 @@ def client(mock_http_client, mock_cache_manager, mock_stats_service):
         config=config,
         http_client=mock_http_client,
         cache_manager=mock_cache_manager,
-        stats_service=mock_stats_service
+        stats_service=mock_stats_service,
     )
     return client
 
@@ -78,11 +78,11 @@ async def test_get_newest_packages_success(client, mock_http_client):
         </item>
       </channel>
     </rss>"""
-    
+
     # Mock the HTTP response with raw_data
     mock_http_client.fetch.return_value = {
         "raw_data": xml_response,
-        "content_type": "application/xml"
+        "content_type": "application/xml",
     }
 
     # Execute
@@ -134,16 +134,16 @@ async def test_get_latest_updates_success(client, mock_http_client):
         </item>
       </channel>
     </rss>"""
-    
+
     # Create a mock ElementTree parse result
     root = ET.fromstring(xml_response)
-    
+
     # Mock the ET.fromstring to return our prepared XML tree
-    with patch('xml.etree.ElementTree.fromstring', return_value=root):
+    with patch("xml.etree.ElementTree.fromstring", return_value=root):
         # Mock the HTTP response with raw_data
         mock_http_client.fetch.return_value = {
             "raw_data": xml_response,
-            "content_type": "application/xml"
+            "content_type": "application/xml",
         }
 
         # Execute
@@ -189,14 +189,18 @@ async def test_check_package_exists_success(client, mock_http_client):
     # Verify
     assert "exists" in result
     assert result["exists"] is True
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/test-package/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/test-package/json"
+    )
 
 
 @pytest.mark.asyncio
 async def test_check_package_exists_nonexistent(client, mock_http_client):
     """Test check_package_exists with non-existent package."""
     # Setup mock 404 response
-    mock_http_client.fetch.return_value = {"error": {"code": "not_found", "message": "Package not found"}}
+    mock_http_client.fetch.return_value = {
+        "error": {"code": "not_found", "message": "Package not found"}
+    }
 
     # Execute
     result = await client.check_package_exists("nonexistent-package")
@@ -204,7 +208,9 @@ async def test_check_package_exists_nonexistent(client, mock_http_client):
     # Verify
     assert "exists" in result
     assert result["exists"] is False
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/nonexistent-package/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/nonexistent-package/json"
+    )
 
 
 @pytest.mark.asyncio
@@ -215,35 +221,23 @@ async def test_get_dependency_tree_success(client, mock_http_client):
         # First call - main package
         {
             "info": {
-                "name": "main-package", 
+                "name": "main-package",
                 "version": "1.0.0",
-                "requires_dist": ["dep1>=1.0.0", "dep2>=2.0.0"]
+                "requires_dist": ["dep1>=1.0.0", "dep2>=2.0.0"],
             }
         },
         # Second call - dep1
         {
             "info": {
-                "name": "dep1", 
+                "name": "dep1",
                 "version": "1.0.0",
-                "requires_dist": ["dep3>=3.0.0"]
+                "requires_dist": ["dep3>=3.0.0"],
             }
         },
         # Third call - dep2
-        {
-            "info": {
-                "name": "dep2", 
-                "version": "2.0.0",
-                "requires_dist": []
-            }
-        },
+        {"info": {"name": "dep2", "version": "2.0.0", "requires_dist": []}},
         # Fourth call - dep3
-        {
-            "info": {
-                "name": "dep3", 
-                "version": "3.0.0",
-                "requires_dist": []
-            }
-        }
+        {"info": {"name": "dep3", "version": "3.0.0", "requires_dist": []}},
     ]
 
     # Execute
@@ -273,28 +267,26 @@ async def test_get_dependency_tree_error(client, mock_http_client):
     assert "error" in result
     assert result["error"]["code"] == "unknown_error"
     assert "Network error" in result["error"]["message"]
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/main-package/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/main-package/json"
+    )
 
 
 @pytest.mark.asyncio
 async def test_check_requirements_file_success(client, mock_http_client):
     """Test check_requirements_file with successful responses."""
     # Create a temporary requirements file
-    with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.txt') as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".txt") as tmp:
         requirements_path = tmp.name
         tmp.write("package1==1.0.0\npackage2>=2.0.0")
-    
+
     try:
         # Setup mock responses
         mock_http_client.fetch.side_effect = [
             # First call - package1
-            {
-                "info": {"name": "package1", "version": "1.5.0"}
-            },
+            {"info": {"name": "package1", "version": "1.5.0"}},
             # Second call - package2
-            {
-                "info": {"name": "package2", "version": "2.0.0"}
-            }
+            {"info": {"name": "package2", "version": "2.0.0"}},
         ]
 
         # Execute
@@ -311,7 +303,7 @@ async def test_check_requirements_file_success(client, mock_http_client):
         # Check up to date packages
         assert len(result["up_to_date"]) == 1
         assert result["up_to_date"][0]["package"] == "package2"
-        
+
         # Verify API calls
         mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/package1/json")
         mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/package2/json")
@@ -326,7 +318,7 @@ async def test_check_requirements_file_error(client, mock_http_client):
     """Test check_requirements_file with file not found error."""
     # Setup non-existent file path
     nonexistent_path = "/path/to/nonexistent/requirements.txt"
-    
+
     # Execute
     result = await client.check_requirements_file(nonexistent_path)
 
@@ -342,70 +334,55 @@ async def test_check_requirements_file_error(client, mock_http_client):
 async def test_check_requirements_file_with_inline_comments(client, mock_http_client):
     """Test check_requirements_file with requirements that have inline comments."""
     # Create a temporary requirements file with inline comments
-    with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.txt') as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".txt") as tmp:
         requirements_path = tmp.name
         tmp.write("requests>=2.26.0  # HTTP client with comments\n")
         tmp.write("flask==2.0.0  # Web framework\n")
         tmp.write("# Full line comment\n")
         tmp.write("numpy>=1.21.0\n")
-    
+
     try:
         # Setup mock responses
         mock_http_client.fetch.side_effect = [
             # Response for requests
-            {
-                "info": {
-                    "version": "2.28.1",
-                    "name": "requests"
-                }
-            },
+            {"info": {"version": "2.28.1", "name": "requests"}},
             # Response for flask
-            {
-                "info": {
-                    "version": "2.3.0",
-                    "name": "flask"
-                }
-            },
+            {"info": {"version": "2.3.0", "name": "flask"}},
             # Response for numpy
-            {
-                "info": {
-                    "version": "1.21.6",
-                    "name": "numpy"
-                }
-            }
+            {"info": {"version": "1.21.6", "name": "numpy"}},
         ]
-        
+
         # Check the requirements file
         result = await client.check_requirements_file(requirements_path)
-        
+
         # Assert on the result
         assert "error" not in result
         assert "outdated" in result
         assert "up_to_date" in result
-        
+
         # Flask should be outdated, comments shouldn't interfere with parsing
         outdated = {pkg["package"]: pkg for pkg in result["outdated"]}
         assert "flask" in outdated
         assert outdated["flask"]["current_version"] == "2.0.0"
         assert outdated["flask"]["latest_version"] == "2.3.0"
-        
+
         # Requests should be up to date with no comment in version
         up_to_date = {pkg["package"]: pkg for pkg in result["up_to_date"]}
         assert "requests" in up_to_date
         assert "comment" not in up_to_date["requests"]["current_version"].lower()
-        
+
         # Numpy should be up to date
         assert "numpy" in up_to_date
-        
+
         # Test that we correctly parsed the right number of packages
         assert len(result["outdated"]) == 1
         assert len(result["up_to_date"]) == 2
-        
+
         # Verify API calls were made correctly and comments were properly stripped
         mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/requests/json")
         mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/flask/json")
         mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/numpy/json")
-        
+
     finally:
         # Clean up
         os.unlink(requirements_path)
@@ -415,9 +392,10 @@ async def test_check_requirements_file_with_inline_comments(client, mock_http_cl
 async def test_check_requirements_file_with_pyproject_toml(client, mock_http_client):
     """Test check_requirements_file with pyproject.toml format."""
     # Create a temporary pyproject.toml file
-    with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.toml') as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".toml") as tmp:
         pyproject_path = tmp.name
-        tmp.write("""
+        tmp.write(
+            """
 [project]
 name = "test-project"
 version = "0.1.0"
@@ -436,8 +414,9 @@ numpy = ">=1.21.0"
 
 [tool.flit.metadata]
 requires = ["typer>=0.9.0"]
-        """)
-    
+        """
+        )
+
     try:
         # Setup mock responses
         mock_http_client.fetch.side_effect = [
@@ -450,65 +429,52 @@ requires = ["typer>=0.9.0"]
             # Response for numpy
             {"version": "1.24.0"},
             # Response for typer
-            {"version": "0.9.0"}
+            {"version": "0.9.0"},
         ]
-        
+
         # Mock the tomllib loading to avoid dependency on Python 3.11+
-        with patch('tomllib.load') as mock_load:
+        with patch("tomllib.load") as mock_load:
             mock_load.return_value = {
-                "project": {
-                    "dependencies": ["requests>=2.26.0", "flask==2.0.0"]
-                },
+                "project": {"dependencies": ["requests>=2.26.0", "flask==2.0.0"]},
                 "tool": {
                     "poetry": {
-                        "dependencies": {
-                            "python": ">=3.8",
-                            "aiohttp": ">=3.8.0"
-                        }
+                        "dependencies": {"python": ">=3.8", "aiohttp": ">=3.8.0"}
                     },
-                    "pdm": {
-                        "dependencies": {
-                            "numpy": ">=1.21.0"
-                        }
-                    },
-                    "flit": {
-                        "metadata": {
-                            "requires": ["typer>=0.9.0"]
-                        }
-                    }
-                }
+                    "pdm": {"dependencies": {"numpy": ">=1.21.0"}},
+                    "flit": {"metadata": {"requires": ["typer>=0.9.0"]}},
+                },
             }
-            
+
             # Execute
             result = await client.check_requirements_file(pyproject_path)
-        
+
         # Verify
         assert "error" not in result
         assert "outdated" in result
         assert "up_to_date" in result
-        
+
         # Get packages by name for easier assertions
         outdated = {pkg["package"]: pkg for pkg in result["outdated"]}
         up_to_date = {pkg["package"]: pkg for pkg in result["up_to_date"]}
-        
+
         # Check outdated packages (flask should be outdated)
         assert "flask" in outdated
         assert outdated["flask"]["current_version"] == "2.0.0"
         assert outdated["flask"]["latest_version"] == "2.3.0"
-        
+
         # Check up-to-date packages (requests, aiohttp, numpy, typer)
         assert "requests" in up_to_date
         assert "aiohttp" in up_to_date
         assert "numpy" in up_to_date
         assert "typer" in up_to_date
-        
+
         # Verify API calls
         mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/requests/json")
         mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/flask/json")
         mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/aiohttp/json")
         mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/numpy/json")
         mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/typer/json")
-    
+
     finally:
         # Clean up
         if os.path.exists(pyproject_path):
@@ -521,49 +487,59 @@ async def test_search_packages_success(client, mock_http_client):
     # Setup a simplified results structure
     search_results = [
         {"name": "package1", "version": "1.0.0", "description": "Test package 1"},
-        {"name": "package2", "version": "2.0.0", "description": "Test package 2"}
+        {"name": "package2", "version": "2.0.0", "description": "Test package 2"},
     ]
-    
+
     # Mock the HTTP response with raw HTML
     mock_http_client.fetch.return_value = {
         "raw_data": "<html>mock html</html>",
-        "content_type": "text/html"
+        "content_type": "text/html",
     }
-    
+
     # Patch Beautiful Soup
-    with patch.object(client, '_has_bs4', True):
-        with patch('bs4.BeautifulSoup') as mock_bs:
+    with patch.object(client, "_has_bs4", True):
+        with patch("bs4.BeautifulSoup") as mock_bs:
             # Set up mock BS4 behavior
             mock_soup = MagicMock()
             mock_bs.return_value = mock_soup
-            
+
             # Mock the find_all to return package elements
             mock_items = [MagicMock(), MagicMock()]
             mock_soup.select.return_value = mock_items
-            
+
             # Mock the package name, version and description extraction
             for idx, item in enumerate(mock_items):
                 pkg_name = MagicMock()
                 pkg_name.get_text.return_value = search_results[idx]["name"]
-                item.select.side_effect = lambda selector: [pkg_name] if selector == "h3 a" else []
-                
+                item.select.side_effect = lambda selector: (
+                    [pkg_name] if selector == "h3 a" else []
+                )
+
                 # Additionally mock any other methods the actual implementation might use
                 # This is a simplified example and may need adjustment based on the actual implementation
-                item.find.side_effect = lambda selector: MagicMock(
-                    get_text=MagicMock(return_value=search_results[idx]["description"])
-                ) if selector == "p" else MagicMock(
-                    get_text=MagicMock(return_value=search_results[idx]["version"])
+                item.find.side_effect = lambda selector: (
+                    MagicMock(
+                        get_text=MagicMock(
+                            return_value=search_results[idx]["description"]
+                        )
+                    )
+                    if selector == "p"
+                    else MagicMock(
+                        get_text=MagicMock(return_value=search_results[idx]["version"])
+                    )
                 )
-                
+
             # Execute
             result = await client.search_packages("test", page=1)
-    
+
     # Verify
     assert "results" in result
     assert len(result["results"]) == 2
-    
+
     # Test that the client called the HTTP service correctly
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/search/?q=test&page=1")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/search/?q=test&page=1"
+    )
 
 
 @pytest.mark.asyncio
@@ -579,7 +555,9 @@ async def test_search_packages_error(client, mock_http_client):
     assert "error" in result
     assert result["error"]["code"] == "unknown_error"
     assert "Network error" in result["error"]["message"]
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/search/?q=test&page=1")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/search/?q=test&page=1"
+    )
 
 
 @pytest.mark.asyncio
@@ -631,77 +609,84 @@ async def test_get_package_info_success(client, mock_http_client):
             "license": "MIT",
             "project_urls": {
                 "Homepage": "https://example.com",
-                "Documentation": "https://docs.example.com"
-            }
+                "Documentation": "https://docs.example.com",
+            },
         },
         "releases": {
             "1.0.0": [{"packagetype": "sdist"}],
-            "0.9.0": [{"packagetype": "sdist"}]
-        }
+            "0.9.0": [{"packagetype": "sdist"}],
+        },
     }
     mock_http_client.fetch.return_value = mock_response
-    
+
     # Execute
     result = await client.get_package_info("test-package")
-    
+
     # Verify
     assert "info" in result
     assert result["info"]["name"] == "test-package"
     assert result["info"]["version"] == "1.0.0"
     assert "releases" in result
     assert "1.0.0" in result["releases"]
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/test-package/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/test-package/json"
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_package_info_error(client, mock_http_client):
     """Test getting package info with error response."""
     # Setup mock error response
-    mock_http_client.fetch.return_value = {"error": {"code": "not_found", "message": "Package not found"}}
-    
+    mock_http_client.fetch.return_value = {
+        "error": {"code": "not_found", "message": "Package not found"}
+    }
+
     # Execute
     result = await client.get_package_info("nonexistent-package")
-    
+
     # Verify
     assert "error" in result
     assert result["error"]["code"] == "not_found"
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/nonexistent-package/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/nonexistent-package/json"
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_latest_version_success(client, mock_http_client):
     """Test getting latest version with successful response."""
     # Setup mock response
-    mock_response = {
-        "info": {
-            "name": "test-package",
-            "version": "1.0.0"
-        }
-    }
+    mock_response = {"info": {"name": "test-package", "version": "1.0.0"}}
     mock_http_client.fetch.return_value = mock_response
-    
+
     # Execute
     result = await client.get_latest_version("test-package")
-    
+
     # Verify
     assert "version" in result
     assert result["version"] == "1.0.0"
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/test-package/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/test-package/json"
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_latest_version_error(client, mock_http_client):
     """Test getting latest version with error response."""
     # Setup mock error response
-    mock_http_client.fetch.return_value = {"error": {"code": "not_found", "message": "Package not found"}}
-    
+    mock_http_client.fetch.return_value = {
+        "error": {"code": "not_found", "message": "Package not found"}
+    }
+
     # Execute
     result = await client.get_latest_version("nonexistent-package")
-    
+
     # Verify
     assert "error" in result
     assert result["error"]["code"] == "not_found"
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/nonexistent-package/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/nonexistent-package/json"
+    )
 
 
 @pytest.mark.asyncio
@@ -709,21 +694,18 @@ async def test_get_package_releases_success(client, mock_http_client):
     """Test getting package releases with successful response."""
     # Setup mock response
     mock_response = {
-        "info": {
-            "name": "test-package",
-            "version": "1.0.0"
-        },
+        "info": {"name": "test-package", "version": "1.0.0"},
         "releases": {
             "1.0.0": [{"packagetype": "sdist"}],
             "0.9.0": [{"packagetype": "sdist"}],
-            "0.8.0": [{"packagetype": "sdist"}]
-        }
+            "0.8.0": [{"packagetype": "sdist"}],
+        },
     }
     mock_http_client.fetch.return_value = mock_response
-    
+
     # Execute
     result = await client.get_package_releases("test-package")
-    
+
     # Verify
     assert "releases" in result
     assert len(result["releases"]) == 3
@@ -731,22 +713,28 @@ async def test_get_package_releases_success(client, mock_http_client):
     release_versions = result["releases"]
     assert "1.0.0" in release_versions
     assert "0.9.0" in release_versions
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/test-package/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/test-package/json"
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_package_releases_error(client, mock_http_client):
     """Test getting package releases with error response."""
     # Setup mock error response
-    mock_http_client.fetch.return_value = {"error": {"code": "not_found", "message": "Package not found"}}
-    
+    mock_http_client.fetch.return_value = {
+        "error": {"code": "not_found", "message": "Package not found"}
+    }
+
     # Execute
     result = await client.get_package_releases("nonexistent-package")
-    
+
     # Verify
     assert "error" in result
     assert result["error"]["code"] == "not_found"
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/nonexistent-package/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/nonexistent-package/json"
+    )
 
 
 @pytest.mark.asyncio
@@ -754,51 +742,54 @@ async def test_get_release_urls_success(client, mock_http_client):
     """Test getting release URLs with successful response."""
     # Setup mock response
     mock_response = {
-        "info": {
-            "name": "test-package",
-            "version": "1.0.0"
-        },
+        "info": {"name": "test-package", "version": "1.0.0"},
         "urls": [
             {
                 "packagetype": "sdist",
                 "url": "https://files.pythonhosted.org/packages/test-package-1.0.0.tar.gz",
                 "filename": "test-package-1.0.0.tar.gz",
-                "size": 10000
+                "size": 10000,
             },
             {
                 "packagetype": "bdist_wheel",
                 "url": "https://files.pythonhosted.org/packages/test-package-1.0.0-py3-none-any.whl",
                 "filename": "test-package-1.0.0-py3-none-any.whl",
-                "size": 8000
-            }
-        ]
+                "size": 8000,
+            },
+        ],
     }
     mock_http_client.fetch.return_value = mock_response
-    
+
     # Execute
     result = await client.get_release_urls("test-package", "1.0.0")
-    
+
     # Verify
     assert "urls" in result
     assert len(result["urls"]) == 2
     assert result["urls"][0]["packagetype"] == "sdist"
     assert result["urls"][1]["packagetype"] == "bdist_wheel"
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/test-package/1.0.0/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/test-package/1.0.0/json"
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_release_urls_error(client, mock_http_client):
     """Test getting release URLs with error response."""
     # Setup mock error response
-    mock_http_client.fetch.return_value = {"error": {"code": "not_found", "message": "Release not found"}}
-    
+    mock_http_client.fetch.return_value = {
+        "error": {"code": "not_found", "message": "Release not found"}
+    }
+
     # Execute
     result = await client.get_release_urls("test-package", "9.9.9")
-    
+
     # Verify
     assert "error" in result
     assert result["error"]["code"] == "not_found"
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/test-package/9.9.9/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/test-package/9.9.9/json"
+    )
 
 
 @pytest.mark.asyncio
@@ -823,28 +814,30 @@ async def test_get_project_releases_success(client, mock_http_client):
         </item>
       </channel>
     </rss>"""
-    
+
     # Create a mock ElementTree parse result
     root = ET.fromstring(xml_response)
-    
+
     # Mock the ET.fromstring to return our prepared XML tree
-    with patch('xml.etree.ElementTree.fromstring', return_value=root):
+    with patch("xml.etree.ElementTree.fromstring", return_value=root):
         # Mock the HTTP response with raw_data
         mock_http_client.fetch.return_value = {
             "raw_data": xml_response,
-            "content_type": "application/xml"
+            "content_type": "application/xml",
         }
-        
+
         # Execute
         result = await client.get_project_releases("test-package")
-    
+
     # Verify
     assert "releases" in result
     assert len(result["releases"]) == 2
     # Check for title field in the releases
     assert result["releases"][0]["title"] == "1.0.0"
     assert result["releases"][1]["title"] == "0.9.0"
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/rss/project/test-package/releases.xml")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/rss/project/test-package/releases.xml"
+    )
 
 
 @pytest.mark.asyncio
@@ -852,15 +845,17 @@ async def test_get_project_releases_error(client, mock_http_client):
     """Test getting project releases with error response."""
     # Setup mock error response
     mock_http_client.fetch.side_effect = Exception("Network error")
-    
+
     # Execute
     result = await client.get_project_releases("test-package")
-    
+
     # Verify
     assert "error" in result
     assert result["error"]["code"] == "unknown_error"
     assert "Network error" in result["error"]["message"]
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/rss/project/test-package/releases.xml")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/rss/project/test-package/releases.xml"
+    )
 
 
 @pytest.mark.asyncio
@@ -879,50 +874,49 @@ async def test_get_package_metadata_success(client, mock_http_client):
             "keywords": "testing,package",
             "classifiers": [
                 "Programming Language :: Python :: 3",
-                "License :: OSI Approved :: MIT License"
+                "License :: OSI Approved :: MIT License",
             ],
             "requires_python": ">=3.6",
             "project_urls": {
                 "Homepage": "https://example.com",
-                "Documentation": "https://docs.example.com"
+                "Documentation": "https://docs.example.com",
             },
-            "requires_dist": ["requests>=2.0.0", "click>=7.0"]
+            "requires_dist": ["requests>=2.0.0", "click>=7.0"],
         }
     }
     mock_http_client.fetch.return_value = mock_response
-    
+
     # Execute
     result = await client.get_package_metadata("test-package")
-    
+
     # Verify
     assert "metadata" in result
     assert result["metadata"]["name"] == "test-package"
     assert result["metadata"]["version"] == "1.0.0"
     assert "classifiers" in result["metadata"]
     assert len(result["metadata"]["classifiers"]) == 2
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/test-package/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/test-package/json"
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_package_metadata_with_version(client, mock_http_client):
     """Test getting package metadata with specific version."""
     # Setup mock response
-    mock_response = {
-        "info": {
-            "name": "test-package",
-            "version": "0.9.0"
-        }
-    }
+    mock_response = {"info": {"name": "test-package", "version": "0.9.0"}}
     mock_http_client.fetch.return_value = mock_response
-    
+
     # Execute
     result = await client.get_package_metadata("test-package", "0.9.0")
-    
+
     # Verify
     assert "metadata" in result
     assert result["metadata"]["name"] == "test-package"
     assert result["metadata"]["version"] == "0.9.0"
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/test-package/0.9.0/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/test-package/0.9.0/json"
+    )
 
 
 @pytest.mark.asyncio
@@ -930,19 +924,16 @@ async def test_get_package_stats_with_mock(client, mock_stats_service):
     """Test getting package stats via the stats service."""
     # Setup mock response
     mock_stats_result = {
-        "downloads": {
-            "2023-01": 10000,
-            "2022-12": 9000
-        },
+        "downloads": {"2023-01": 10000, "2022-12": 9000},
         "last_month": 10000,
         "last_week": 2500,
-        "last_day": 350
+        "last_day": 350,
     }
     mock_stats_service.get_package_stats.return_value = mock_stats_result
-    
+
     # Execute
     result = await client.get_package_stats("test-package")
-    
+
     # Verify
     assert "downloads" in result
     assert "last_month" in result
@@ -955,24 +946,23 @@ async def test_get_package_stats_with_version(client, mock_stats_service):
     """Test getting package stats for a specific version."""
     # Setup mock response
     mock_stats_result = {
-        "downloads": {
-            "2023-01": 5000,
-            "2022-12": 4500
-        },
+        "downloads": {"2023-01": 5000, "2022-12": 4500},
         "last_month": 5000,
         "last_week": 1250,
-        "last_day": 175
+        "last_day": 175,
     }
     mock_stats_service.get_package_stats.return_value = mock_stats_result
-    
+
     # Execute
     result = await client.get_package_stats("test-package", "1.0.0")
-    
+
     # Verify
     assert "downloads" in result
     assert "last_month" in result
     assert result["last_month"] == 5000
-    mock_stats_service.get_package_stats.assert_called_once_with("test-package", "1.0.0")
+    mock_stats_service.get_package_stats.assert_called_once_with(
+        "test-package", "1.0.0"
+    )
 
 
 @pytest.mark.asyncio
@@ -985,20 +975,22 @@ async def test_get_documentation_url_success(client, mock_http_client):
             "version": "1.0.0",
             "project_urls": {
                 "Documentation": "https://docs.example.com",
-                "Homepage": "https://example.com"
-            }
+                "Homepage": "https://example.com",
+            },
         }
     }
     mock_http_client.fetch.return_value = mock_response
-    
+
     # Execute
     result = await client.get_documentation_url("test-package")
-    
+
     # Verify
     assert "docs_url" in result
     assert result["docs_url"] == "https://docs.example.com"
     assert "summary" in result
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/test-package/json")
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/test-package/json"
+    )
 
 
 @pytest.mark.asyncio
@@ -1009,30 +1001,30 @@ async def test_get_documentation_url_fallback(client, mock_http_client):
         "info": {
             "name": "test-package",
             "version": "1.0.0",
-            "project_urls": {
-                "Homepage": "https://example.com"
-            }
+            "project_urls": {"Homepage": "https://example.com"},
         }
     }
-    
+
     # Setup mock for the URL check
-    with patch('aiohttp.ClientSession.head') as mock_head:
+    with patch("aiohttp.ClientSession.head") as mock_head:
         # Configure the mock to return different responses based on URLs
         async def mock_head_implementation(url, **kwargs):
             mock_response = MagicMock()
             mock_response.status = 200 if "readthedocs.org" in url else 404
             return mock_response
-        
+
         mock_head.side_effect = mock_head_implementation
-        
+
         # Mock the HTTP response for package info
         mock_http_client.fetch.return_value = mock_response
-        
+
         # Execute
         result = await client.get_documentation_url("test-package")
-    
+
     # Verify
     assert "docs_url" in result
     assert "readthedocs.org" in result["docs_url"]
     assert "summary" in result
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/test-package/json") 
+    mock_http_client.fetch.assert_called_once_with(
+        "https://pypi.org/pypi/test-package/json"
+    )

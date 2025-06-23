@@ -1,0 +1,136 @@
+{
+  "version": "2023-08-01",
+  "name": "MCP-PyPI Server",
+  "description": "A Model Context Protocol server providing PyPI package tools and resources",
+  "documentation": "https://github.com/kimasplund/mcp-pypi",
+  "contact": "kim.asplund@gmail.com",
+  "transports": [
+    {
+      "type": "stdio",
+      "description": "Standard input/output transport for CLI integrations"
+    },
+    {
+      "type": "http",
+      "url": "http://127.0.0.1:8143",
+      "description": "HTTP transport for web-based integrations"
+    },
+    {
+      "type": "sse",
+      "url": "http://127.0.0.1:8143/sse",
+      "description": "Server-Sent Events transport for real-time data streaming"
+    },
+    {
+      "type": "websocket",
+      "url": "ws://127.0.0.1:8144",
+      "description": "WebSocket transport for bi-directional communication"
+    }
+  ],
+  "capabilities": [
+    "initialize",
+    "listTools",
+    "invokeTool",
+    "listResources",
+    "getResource",
+    "getPrompt"
+  ],
+  "protocols": ["1.0", "1.1"],
+  "defaultProtocol": "1.1",
+  "tools": [
+    {
+      "name": "get_package_info",
+      "description": "Get detailed information about a Python package from PyPI"
+    },
+    {
+      "name": "get_latest_version",
+      "description": "Get the latest version of a package from PyPI"
+    },
+    {
+      "name": "get_dependency_tree",
+      "description": "Get the dependency tree for a package"
+    },
+    {
+      "name": "search_packages",
+      "description": "Search for packages on PyPI"
+    },
+    {
+      "name": "get_package_stats",
+      "description": "Get download statistics for a package"
+    },
+    {
+      "name": "check_package_exists",
+      "description": "Check if a package exists on PyPI"
+    },
+    {
+      "name": "get_package_metadata",
+      "description": "Get package metadata from PyPI"
+    },
+    {
+      "name": "get_package_releases",
+      "description": "Get all releases of a package"
+    },
+    {
+      "name": "get_project_releases",
+      "description": "Get project releases with timestamps"
+    },
+    {
+      "name": "get_documentation_url",
+      "description": "Get documentation URL for a package"
+    },
+    {
+      "name": "check_requirements_file",
+      "description": "Check a requirements file for outdated packages"
+    },
+    {
+      "name": "compare_versions",
+      "description": "Compare two package versions"
+    },
+    {
+      "name": "get_newest_packages",
+      "description": "Get newest packages on PyPI"
+    },
+    {
+      "name": "get_latest_updates",
+      "description": "Get latest package updates on PyPI"
+    }
+  ],
+  "prompts": [
+    {
+      "name": "search_packages_prompt",
+      "description": "Create a prompt for searching packages"
+    },
+    {
+      "name": "analyze_package_prompt",
+      "description": "Create a prompt for analyzing a package"
+    },
+    {
+      "name": "compare_packages_prompt",
+      "description": "Create a prompt for comparing two packages"
+    }
+  ],
+  "resources": [
+    {
+      "pattern": "pypi://package/{package_name}",
+      "description": "Package information resource"
+    },
+    {
+      "pattern": "pypi://stats/{package_name}",
+      "description": "Package statistics resource"
+    },
+    {
+      "pattern": "pypi://dependencies/{package_name}",
+      "description": "Package dependencies resource"
+    }
+  ],
+  "mcpServers": {
+    "pypi-mcp-server": {
+      "type": "http",
+      "url": "http://127.0.0.1:8143/messages/",
+      "protocolVersion": "2025-03-26"
+    },
+    "pypi-stdio-server": {
+      "type": "stdio",
+      "command": "mcp-pypi-server run --stdin",
+      "protocolVersion": "2025-03-26"
+    }
+  }
+} 

@@ -4,20 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-pypi"
-version = "2.0.2"
-description = "A modern PyPI client library and CLI tool"
+version = "2.1.0"
+description = "Model Context Protocol (MCP) server for PyPI integration"
 readme = "README.md"
 authors = [
     {name = "Kim Asplund", email = "kim.asplund@gmail.com"}
 ]
-license = {text = "MIT"}
+license = {text = "Commercial"}
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Operating System :: OS Independent",
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -26,11 +26,12 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "mcp>=1.9.4",
     "aiohttp>=3.8.0",
     "packaging>=23.0",
     "typer>=0.9.0",
     "rich>=13.0.0",
-    "mcp>=1.6.0",
+    "pydantic>=2.0.0,<3.0.0",
     "tomli>=2.0.0;python_version<'3.11'",  # For parsing pyproject.toml in Python <3.11
     "typing_extensions>=4.3.0;python_version<'3.11'",  # For NotRequired in Python 3.10
 ]
@@ -47,9 +48,7 @@ dev = [
     "black>=23.0.0",
     "isort>=5.12.0",
     "mypy>=1.0.0",
-]
-docker-test = [
-    "pytest-docker>=2.0.0",
+    "pylint>=2.17.0",
 ]
 viz = [
     "plotly>=5.13.0",
@@ -58,9 +57,16 @@ viz = [
 search = [
     "beautifulsoup4>=4.12.0",
 ]
+docs = [
+    "sphinx>=6.0.0",
+    "sphinx-rtd-theme>=1.2.0",
+    "myst-parser>=1.0.0",  # For Markdown support in Sphinx
+]
 
 [project.scripts]
 mcp-pypi = "mcp_pypi.cli.main:app"
 
 [tool.setuptools.packages.find]
-where = ["."] 
+where = ["mcp_pypi"]
+include = ["mcp_pypi*"]
+exclude = ["tests", "examples", "docs"] 

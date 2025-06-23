@@ -1,0 +1,14 @@
+2025-04-16 15:59:15,264 - mcp.server.lowlevel.server - DEBUG - Initializing server 'PyPI MCP Server'
+2025-04-16 15:59:15,264 - mcp.server.lowlevel.server - DEBUG - Registering handler for ListToolsRequest
+2025-04-16 15:59:15,264 - mcp.server.lowlevel.server - DEBUG - Registering handler for CallToolRequest
+2025-04-16 15:59:15,264 - mcp.server.lowlevel.server - DEBUG - Registering handler for ListResourcesRequest
+2025-04-16 15:59:15,264 - mcp.server.lowlevel.server - DEBUG - Registering handler for ReadResourceRequest
+2025-04-16 15:59:15,264 - mcp.server.lowlevel.server - DEBUG - Registering handler for PromptListRequest
+2025-04-16 15:59:15,264 - mcp.server.lowlevel.server - DEBUG - Registering handler for GetPromptRequest
+2025-04-16 15:59:15,265 - mcp.server.lowlevel.server - DEBUG - Registering handler for ListResourceTemplatesRequest
+2025-04-16 15:59:15,272 - mcp-pypi - INFO - Starting MCP HTTP server on 127.0.0.1:8143...
+2025-04-16 15:59:15,272 - mcp.server.sse - DEBUG - SseServerTransport initialized with endpoint: /messages/
+INFO:     Started server process [337476]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8143 (Press CTRL+C to quit)

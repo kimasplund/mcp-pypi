@@ -1,0 +1,89 @@
+[MASTER]
+# Add the parent directory to the Python path for imports.
+init-hook='import sys; sys.path.append(".")'
+
+# Specify a configuration file.
+# rcfile=
+
+# Python code to execute, usually for sys.path manipulation such as
+# pygtk.require().
+#init-hook=
+
+# A comma-separated list of package or module names from where C extensions may
+# be loaded. Extensions are loading into the active Python interpreter and may
+# run arbitrary code.
+extension-pkg-allow-list=
+
+# Allow loading of arbitrary C extensions.
+unsafe-load-any-extension=no
+
+# A comma-separated list of packages that should be considered third-party
+# load-plugins=matplotlib,numpy,pandas
+
+[MESSAGES CONTROL]
+# Disable the message, report, category or checker with the given id(s).
+disable=C0111,  # missing docstring
+        C0103,  # invalid name
+        C0303,  # trailing whitespace
+        W0212,  # protected member access (often needed in testing)
+        R0801,  # similar lines (acceptable in tests)
+        R0913,  # too many arguments
+        R0902,  # too many instance attributes
+        R0903,  # too few public methods
+        W0511,  # TODOs and FIXMEs are okay
+        W0102,  # dangerous default value for parameters
+        W0621,  # redefining name from outer scope
+        W0622,  # redefining built-in
+        W0613,  # unused argument
+
+[REPORTS]
+# Set the output format
+output-format=text
+
+# Tells whether to display a full report or only the messages
+reports=yes
+
+# Python expression which should return a note less than 10 (10 is the highest
+# note). You have access to the variables errors warning, statement which
+# respectively contain the number of errors / warnings messages and the total
+# number of statements analyzed. This is used by the global evaluation report.
+evaluation=10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10)
+
+# Template for the output evaluation report.
+msg-template="{path}:{line}:{column}: {msg_id}: {msg} ({symbol})"
+
+[FORMAT]
+# Maximum number of characters on a single line.
+max-line-length=100
+
+[DESIGN]
+# Maximum number of arguments for function / method
+max-args=8
+
+# Maximum number of locals for function / method body
+max-locals=15
+
+# Maximum number of return / yield for function / method body
+max-returns=6
+
+# Maximum number of branch for function / method body
+max-branches=12
+
+# Maximum number of statements in function / method body
+max-statements=50
+
+# Maximum number of parents for a class
+max-parents=7
+
+# Maximum number of attributes for a class
+max-attributes=11
+
+# Maximum number of public methods for a class
+max-public-methods=20
+
+# Maximum number of boolean expressions in an if statement
+max-bool-expr=5
+
+[EXCEPTIONS]
+# Allow catching Exception
+overgeneral-exceptions= 

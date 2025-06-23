@@ -1,239 +1,228 @@
-# JSON-RPC Server Documentation
+# Enhanced MCP-PyPI Server
 
-The MCP-PyPI package includes a full JSON-RPC 2.0 compliant server that provides access to all PyPI client functionality. This document describes the server features, configuration options, and available endpoints.
+This document provides detailed information about the enhanced MCP-PyPI server implementation that supports multiple transport mechanisms and configuration options.
 
-## Server Modes
+## Overview
 
-The server can be run in two different modes:
+The enhanced server (`enhanced_mcp_server.py`) provides a unified interface for running the MCP-PyPI server with different transport mechanisms:
 
-### HTTP Mode (Default)
+- **STDIO**: Standard input/output for command-line and subprocess communication
+- **HTTP**: RESTful and long-polling HTTP communication
+- **WebSocket**: Full-duplex communication over a single TCP connection
+- **SSE**: Server-Sent Events for real-time server-to-client streaming
 
-In HTTP mode, the server listens for JSON-RPC requests over HTTP on the specified host and port.
+This flexibility allows the server to integrate with various client environments and communication patterns.
 
-```bash
-# Start the server on the default port (8000)
-mcp-pypi serve
+## Usage
 
-# Start on a specific port
-mcp-pypi serve --port 8001
+### Basic Usage
 
-# Bind to a different interface
-mcp-pypi serve --host 0.0.0.0 --port 8001
-```
-
-### STDIN Mode
-
-In STDIN mode, the server reads JSON-RPC requests from standard input and writes responses to standard output. This mode is designed for integration with the MCP protocol.
+To start the server with default settings (STDIO transport):
 
 ```bash
-# Start in STDIN mode
-mcp-pypi serve --stdin
+python enhanced_mcp_server.py
 ```
 
-## Features
-
-### Automatic Port Selection
-
-If the specified port is busy, the server will automatically scan for an available port by incrementing the port number (e.g., 8000, 8001, 8002, etc.). This helps prevent "address already in use" errors and ensures the server can start even if the default port is occupied.
-
-### Tool Discovery
-
-The server implements the JSON-RPC "describe" method, which returns information about all available tools and their parameters. This makes it easier for clients to discover the server's capabilities.
-
-### JSON-RPC 2.0 Compliance
-
-All responses follow the [JSON-RPC 2.0 specification](https://www.jsonrpc.org/specification), including proper error handling and response formatting.
-
-### Error Handling
-
-The server provides standardized error responses with appropriate error codes, making it easier to handle errors in client applications.
-
-### Caching
-
-Server responses are cached for improved performance using the PyPI client's caching mechanisms.
-
-## Configuration Options
-
-The server can be configured with the following command-line options:
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--host`, `-h` | `127.0.0.1` | Host to bind to |
-| `--port`, `-p` | `8000` | Port to listen on |
-| `--verbose`, `-v` | `False` | Enable verbose logging |
-| `--log-file` | `None` | Log file path |
-| `--cache-dir` | System default | Cache directory path |
-| `--cache-ttl` | `3600` | Cache TTL in seconds |
-| `--stdin` | `False` | Read JSON-RPC requests from stdin |
-
-## Available Methods
-
-The server exposes the following JSON-RPC methods:
-
-### Core Methods
-
-| Method | Description | Parameters |
-|--------|-------------|------------|
-| `ping` | Simple connectivity check | None |
-| `describe` | Get information about available tools | None |
-
-### Package Information Methods
-
-| Method | Description | Parameters |
-|--------|-------------|------------|
-| `get_package_info` | Get detailed package information | `package_name` |
-| `get_latest_version` | Get latest version of a package | `package_name` |
-| `check_package_exists` | Check if a package exists | `package_name` |
-| `get_package_metadata` | Get package metadata | `package_name`, `version` (optional) |
-| `get_package_releases` | Get all releases of a package | `package_name` |
-| `get_release_urls` | Get download URLs for a package | `package_name`, `version` |
-| `get_documentation_url` | Get documentation URL for a package | `package_name`, `version` (optional) |
-
-### Dependency Methods
-
-| Method | Description | Parameters |
-|--------|-------------|------------|
-| `get_dependencies` | Get dependencies for a package | `package_name`, `version` (optional) |
-| `get_dependency_tree` | Get a dependency tree | `package_name`, `version` (optional), `depth` (optional) |
-
-### Statistics Methods
-
-| Method | Description | Parameters |
-|--------|-------------|------------|
-| `get_package_stats` | Get download statistics | `package_name`, `version` (optional), `periods` (optional) |
-
-### Search and Feed Methods
-
-| Method | Description | Parameters |
-|--------|-------------|------------|
-| `search_packages` | Search for packages on PyPI | `query`, `page` (optional) |
-| `get_newest_packages` | Get newest packages on PyPI | `limit` (optional) |
-| `get_latest_updates` | Get latest package updates | `limit` (optional) |
-| `get_project_releases` | Get recent project releases | `package_name` |
-
-### Utilities
-
-| Method | Description | Parameters |
-|--------|-------------|------------|
-| `compare_versions` | Compare package versions | `package_name`, `version1`, `version2` |
-| `check_requirements_file` | Check a requirements file for outdated packages | `file_path`, `format` (optional, 'json' or 'table') |
-
-### check_requirements_file
-
-Check a requirements file for outdated packages.
-
-**Parameters:**
-- `file_path`: Path to the requirements file to check
-
-This method supports both `requirements.txt` files and `pyproject.toml` files. For `pyproject.toml` files, it can detect dependencies from:
-- PEP 621 project metadata (`project.dependencies`)
-- Poetry (`tool.poetry.dependencies`)
-- PDM (`tool.pdm.dependencies`)
-- Flit (`tool.flit.metadata.requires`)
-
-**Example:**
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "check_requirements_file",
-  "params": {
-    "file_path": "requirements.txt"
-  },
-  "id": 7
-}
-```
-
-**Example with JSON format:**
-```bash
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{
-  "jsonrpc": "2.0",
-  "method": "check_requirements_file",
-  "params": {
-    "file_path": "requirements.txt",
-    "format": "json"
-  },
-  "id": 7
-}'
-```
-
-**Example with pyproject.toml:**
-```bash
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{
-  "jsonrpc": "2.0",
-  "method": "check_requirements_file",
-  "params": {
-    "file_path": "pyproject.toml"
-  },
-  "id": 7
-}'
-```
-
-## Making Requests
-
-### HTTP Mode
-
-You can make requests to the server using any HTTP client that supports JSON-RPC. Here are some examples using `curl`:
+To specify a different transport type:
 
 ```bash
-# Make a ping request
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "ping", "id": 1}'
-
-# Check if a package exists
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "check_package_exists", "params": {"package_name": "requests"}, "id": 2}'
-
-# Get the latest version of a package
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "get_latest_version", "params": {"package_name": "flask"}, "id": 3}'
-
-# Check requirements file with JSON format
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "check_requirements_file", "params": {"file_path": "requirements.txt", "format": "json"}, "id": 4}'
-
-# Discover available tools
-curl -X POST http://localhost:8000/rpc -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "describe", "id": 5}'
+python enhanced_mcp_server.py --transport http --host 127.0.0.1 --port 8143
 ```
 
-### STDIN Mode
+### Command-Line Arguments
 
-In STDIN mode, you can send JSON-RPC requests directly to the server's standard input:
+The server supports the following command-line arguments:
+
+#### Transport Options
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--transport`, `-t` | string | `stdio` | Transport type to use (`stdio`, `http`, `websocket`, `sse`) |
+| `--host` | string | `127.0.0.1` | Hostname to bind to (for network transports) |
+| `--port` | int | `8143` | Port number to listen on (for network transports) |
+| `--message-format` | string | `auto` | Message format for STDIO transport (`auto`, `binary`, `newline`) |
+| `--timeout` | float | `30.0` | Operation timeout in seconds |
+
+#### Protocol Options
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--protocol-version` | string | (latest) | MCP protocol version to use |
+
+#### Cache Options
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--cache-dir` | string | None | Directory for caching PyPI data |
+| `--cache-ttl` | int | `3600` | Cache TTL in seconds |
+
+#### Debug Options
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--debug`, `-d` | flag | `False` | Enable debug logging |
+| `--log-level` | string | `INFO` | Set logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+
+## Transport Types
+
+### STDIO Transport
+
+The STDIO transport uses standard input and output streams for communication. This is ideal for command-line tools and integration with systems that can spawn subprocesses.
+
+Example usage:
 
 ```bash
-echo '{"jsonrpc": "2.0", "method": "ping", "id": 1}' | mcp-pypi serve --stdin
+python enhanced_mcp_server.py --transport stdio --message-format binary
 ```
 
-## Integration with MCP
+The STDIO transport supports two message formats:
+- `binary`: Length-prefixed binary format (more efficient)
+- `newline`: Newline-delimited JSON format (more human-readable)
+- `auto`: Auto-detect the format based on incoming messages
 
-You can integrate the PyPI client with the MCP protocol by adding it to your MCP configuration:
+### HTTP Transport
 
-```json
-{
-  "mcpServers": {
-    "PYPI_MCP": {
-      "command": "mcp-pypi",
-      "args": ["serve", "--stdin"]
-    }
-  }
-}
+The HTTP transport provides RESTful API access to the MCP-PyPI server. This is suitable for web applications and services that communicate over HTTP.
+
+Example usage:
+
+```bash
+python enhanced_mcp_server.py --transport http --host 0.0.0.0 --port 8080
 ```
 
-This will make all PyPI client functionality available through the MCP protocol.
+The HTTP server provides the following endpoints:
+- `POST /`: Main endpoint for JSON-RPC requests and responses
 
-## Error Handling
+### WebSocket Transport
 
-The server uses the following error codes in accordance with the JSON-RPC 2.0 specification:
+The WebSocket transport enables full-duplex communication over a single TCP connection. This is ideal for real-time applications that require bidirectional messaging.
 
-| Code | Message | Meaning |
-|------|---------|---------|
-| -32700 | Parse error | Invalid JSON was received |
-| -32600 | Invalid Request | The JSON sent is not a valid Request object |
-| -32601 | Method not found | The method does not exist / is not available |
-| -32602 | Invalid params | Invalid method parameter(s) |
-| -32603 | Internal error | Internal JSON-RPC error |
-| -32000 to -32099 | Server error | Reserved for implementation-defined server errors |
+Example usage:
 
-In addition, the server defines the following custom error codes:
+```bash
+python enhanced_mcp_server.py --transport websocket --host 0.0.0.0 --port 8765
+```
 
-| Code | Message | Meaning |
-|------|---------|---------|
-| -32001 | Not found | Package or resource not found |
-| -32002 | Network error | Error communicating with PyPI |
-| -32003 | Permission error | Insufficient permissions |
-| -32004 | File error | Error accessing or reading a file | 
+### SSE Transport
+
+The Server-Sent Events (SSE) transport provides a streaming connection for server-to-client communication. This is suitable for applications that need real-time updates from the server.
+
+Example usage:
+
+```bash
+python enhanced_mcp_server.py --transport sse --host 0.0.0.0 --port 8090
+```
+
+The SSE server provides the following endpoints:
+- `GET /events`: SSE endpoint for event streaming
+- `POST /message`: Endpoint for sending messages to the server
+
+## Protocol Version Negotiation
+
+The server supports protocol version negotiation to ensure compatibility between clients and servers. You can specify the protocol version to use with the `--protocol-version` argument:
+
+```bash
+python enhanced_mcp_server.py --protocol-version 2025-03-26
+```
+
+If not specified, the server will use the latest supported version and negotiate with clients based on their requested version.
+
+## Cache Configuration
+
+The server supports caching PyPI data to improve performance and reduce load on the PyPI servers. You can configure the cache directory and TTL:
+
+```bash
+python enhanced_mcp_server.py --cache-dir /tmp/pypi-cache --cache-ttl 7200
+```
+
+## Debug and Logging
+
+For troubleshooting and development, you can enable debug mode and set the logging level:
+
+```bash
+python enhanced_mcp_server.py --debug --log-level DEBUG
+```
+
+This will output detailed information about transport initialization, message handling, and server operations.
+
+## Integration Examples
+
+### Integration with FastAPI
+
+You can integrate the MCP-PyPI server with a FastAPI application:
+
+```python
+from fastapi import FastAPI
+from enhanced_mcp_server import EnhancedMCPServer
+
+app = FastAPI()
+mcp_server = EnhancedMCPServer(transport_type="http")
+
+@app.on_event("startup")
+async def startup():
+    # Start the MCP server
+    await mcp_server.start()
+
+@app.on_event("shutdown")
+async def shutdown():
+    # Clean up resources
+    await mcp_server.server.client.close()
+```
+
+### Integration with WebSocket Service
+
+You can integrate the MCP-PyPI server with a WebSocket service:
+
+```python
+import asyncio
+import websockets
+from enhanced_mcp_server import EnhancedMCPServer
+
+async def main():
+    # Initialize server
+    server = EnhancedMCPServer(
+        transport_type="websocket",
+        host="0.0.0.0",
+        port=8765,
+        debug=True
+    )
+    
+    # Start the server
+    await server.start()
+
+# Run the server
+asyncio.run(main())
+```
+
+## Implementation Details
+
+The enhanced server provides several key features:
+
+1. **Transport Abstraction**: Unified interface for all transport types
+2. **Fallback Mechanisms**: Built-in methods with fallback to manual implementations
+3. **Flexible Configuration**: Extensive command-line options for all aspects of the server
+4. **Protocol Version Management**: Support for different MCP protocol versions
+5. **Error Handling**: Comprehensive error handling and reporting
+6. **Logging**: Detailed logging for troubleshooting
+
+The server first attempts to use the built-in methods provided by FastMCP (if available) and falls back to manual implementations using our transport classes when necessary.
+
+## Debugging Tips
+
+If you encounter issues with the server:
+
+1. Enable debug mode with `--debug` and set log level to `DEBUG`
+2. Check the server logs for transport initialization messages
+3. Verify that the correct transport type is being used
+4. Ensure that required dependencies are installed for the selected transport
+5. Check for port conflicts when using network transports
+
+## Required Dependencies
+
+The enhanced server requires the following dependencies:
+
+- `fastmcp`: For core MCP server functionality
+- `mcp_pypi`: For PyPI client implementation
+- `uvicorn`: For HTTP and SSE servers
+- `websockets`: For WebSocket server
+- `fastapi`: For HTTP and SSE APIs 

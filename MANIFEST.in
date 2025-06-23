@@ -1,0 +1,9 @@
+include README.md
+include LICENSE
+include requirements.txt
+include .mcp.json
+include pypi_mcp_server.sh
+include basic_mcp_server.py
+include simplified_mcp_server.py
+recursive-include docs *.md
+recursive-include mcp_pypi *.py 
