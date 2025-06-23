@@ -1628,12 +1628,6 @@ class PyPIClient:
             logger.exception(f"Error getting packages feed: {e}")
             return {"packages": [], "error": {"message": str(e), "code": "feed_error"}}
 
-    async def get_package_changelog(
-        self, package_name: str, version: Optional[str] = None
-    ) -> str:
-        """Get changelog for a package (placeholder implementation)."""
-        return f"Changelog retrieval not implemented for {package_name}"
-
     async def check_vulnerabilities(
         self, package_name: str, version: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -1675,7 +1669,7 @@ class PyPIClient:
             payload = {"package": {"name": sanitized_name, "ecosystem": "PyPI"}}
 
             if version:
-                payload["version"] = sanitize_version(version)
+                payload["package"]["version"] = sanitize_version(version)
 
             # Make the API request to OSV
             logger.info(
@@ -1954,11 +1948,7 @@ class PyPIClient:
                                 }
                             )
 
-                    return {
-                        "updates": updates,
-                        "feed_url": url,
-                        "feed_title": "PyPI Recent Updates",
-                    }
+                    return {"updates": updates}
                 else:
                     return {
                         "updates": [],
