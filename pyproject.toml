@@ -10,10 +10,11 @@ readme = "README.md"
 authors = [
     {name = "Kim Asplund", email = "kim.asplund@gmail.com"}
 ]
-license = {text = "Commercial"}
+license = {text = "MIT OR Commercial"}
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
     "License :: Other/Proprietary License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",

@@ -225,7 +225,15 @@ mcp-pypi serve --log-level DEBUG
 
 ## 📄 License
 
-This project is licensed under a Commercial License - see [LICENSE](LICENSE) file for details.
+This project is dual-licensed:
+
+- **Open Source**: MIT License for personal, educational, and non-profit use - see [LICENSE](LICENSE)
+- **Commercial**: Commercial License required for business use - see [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL)
+
+### Quick License Guide:
+- ✅ **Free to use**: Personal projects, education, non-profits, open source
+- 💰 **Commercial license required**: For-profit companies, commercial products, consulting
+- 📧 **Contact**: kim.asplund@gmail.com for commercial licensing
 
 ## 🙏 Acknowledgments
 

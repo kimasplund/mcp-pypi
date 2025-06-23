@@ -1,0 +1,48 @@
+COMMERCIAL LICENSE AGREEMENT
+
+Copyright (c) 2025 Kim Asplund
+
+This Commercial License Agreement ("Agreement") is between Kim Asplund ("Licensor") 
+and the purchasing entity ("Licensee").
+
+1. GRANT OF LICENSE
+   Subject to payment of the license fee, Licensor grants Licensee a non-exclusive,
+   non-transferable license to use MCP-PyPI in commercial applications.
+
+2. COMMERCIAL USE DEFINITION
+   "Commercial use" means any use of the Software:
+   - Within a for-profit organization
+   - In products or services that generate revenue
+   - In consulting or contracting services
+   - By organizations with annual revenue exceeding $100,000 USD
+
+3. FEES
+   Commercial license fees are based on organization size:
+   - Small Business (< 10 employees): $99/year
+   - Medium Business (10-100 employees): $499/year
+   - Enterprise (> 100 employees): $999/year
+
+4. OPEN SOURCE EXCEPTION
+   This commercial license is NOT required for:
+   - Personal use
+   - Educational use
+   - Non-profit organizations
+   - Open source projects
+   These uses are covered under the MIT License.
+
+5. SUPPORT
+   Commercial license includes:
+   - Priority bug fixes
+   - Email support
+   - Feature request consideration
+
+6. TERM
+   This license is valid for one year from purchase date and must be renewed annually.
+
+7. WARRANTY DISCLAIMER
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+8. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY DAMAGES ARISING FROM USE OF THE SOFTWARE.
+
+To purchase a commercial license, contact: kim.asplund@gmail.com
