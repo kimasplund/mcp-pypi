@@ -394,7 +394,10 @@ class PyPIClient:
                 else:
                     return {
                         "packages": [],
-                        "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(raw_data)}"}
+                        "error": {
+                            "code": ErrorCode.PARSE_ERROR,
+                            "message": f"Unexpected data type: {type(raw_data)}",
+                        },
                     }
             elif isinstance(data, (str, bytes)):
                 # Legacy format
@@ -405,7 +408,10 @@ class PyPIClient:
             else:
                 return {
                     "packages": [],
-                    "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(data)}"}
+                    "error": {
+                        "code": ErrorCode.PARSE_ERROR,
+                        "message": f"Unexpected data type: {type(data)}",
+                    },
                 }
 
             # Parse the XML string
@@ -435,7 +441,13 @@ class PyPIClient:
                 return {"packages": packages}
             except ET.ParseError as e:
                 logger.error(f"XML parse error: {e}")
-                return {"packages": [], "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Invalid XML response: {e}"}}
+                return {
+                    "packages": [],
+                    "error": {
+                        "code": ErrorCode.PARSE_ERROR,
+                        "message": f"Invalid XML response: {e}",
+                    },
+                }
         except Exception as e:
             logger.exception(f"Error parsing newest packages feed: {e}")
             return cast(PackagesFeed, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
@@ -461,8 +473,13 @@ class PyPIClient:
                     data_str = raw_data
                 else:
                     return {
-                        "updates": [], "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(raw_data)}"}}
-                    
+                        "updates": [],
+                        "error": {
+                            "code": ErrorCode.PARSE_ERROR,
+                            "message": f"Unexpected data type: {type(raw_data)}",
+                        },
+                    }
+
             elif isinstance(data, (str, bytes)):
                 # Legacy format
                 if isinstance(data, bytes):
@@ -472,7 +489,10 @@ class PyPIClient:
             else:
                 return {
                     "updates": [],
-                    "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(data)}"}
+                    "error": {
+                        "code": ErrorCode.PARSE_ERROR,
+                        "message": f"Unexpected data type: {type(data)}",
+                    },
                 }
 
             # Parse the XML string
@@ -502,10 +522,19 @@ class PyPIClient:
                 return {"updates": updates}
             except ET.ParseError as e:
                 logger.error(f"XML parse error: {e}")
-                return {"updates": [], "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Invalid XML response: {e}"}}
+                return {
+                    "updates": [],
+                    "error": {
+                        "code": ErrorCode.PARSE_ERROR,
+                        "message": f"Invalid XML response: {e}",
+                    },
+                }
         except Exception as e:
             logger.exception(f"Error parsing latest updates feed: {e}")
-            return {"updates": [], "error": {"code": ErrorCode.UNKNOWN_ERROR, "message": str(e)}}
+            return {
+                "updates": [],
+                "error": {"code": ErrorCode.UNKNOWN_ERROR, "message": str(e)},
+            }
 
     async def get_project_releases(self, package_name: str) -> ReleasesFeed:
         """Get the releases feed for a project."""
@@ -530,7 +559,10 @@ class PyPIClient:
                 else:
                     return {
                         "releases": [],
-                        "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(raw_data)}"}
+                        "error": {
+                            "code": ErrorCode.PARSE_ERROR,
+                            "message": f"Unexpected data type: {type(raw_data)}",
+                        },
                     }
             elif isinstance(data, (str, bytes)):
                 # Legacy format
@@ -541,7 +573,10 @@ class PyPIClient:
             else:
                 return {
                     "releases": [],
-                    "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(data)}"}
+                    "error": {
+                        "code": ErrorCode.PARSE_ERROR,
+                        "message": f"Unexpected data type: {type(data)}",
+                    },
                 }
 
             # Parse the XML string
@@ -571,10 +606,19 @@ class PyPIClient:
                 return {"releases": releases}
             except ET.ParseError as e:
                 logger.error(f"XML parse error: {e}")
-                return {"releases": [], "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Invalid XML response: {e}"}}
+                return {
+                    "releases": [],
+                    "error": {
+                        "code": ErrorCode.PARSE_ERROR,
+                        "message": f"Invalid XML response: {e}",
+                    },
+                }
         except Exception as e:
             logger.exception(f"Error parsing project releases feed: {e}")
-            return {"releases": [], "error": {"code": ErrorCode.UNKNOWN_ERROR, "message": str(e)}}
+            return {
+                "releases": [],
+                "error": {"code": ErrorCode.UNKNOWN_ERROR, "message": str(e)},
+            }
 
     async def search_packages(self, query: str, page: int = 1) -> SearchResult:
         """Search for packages on PyPI."""
@@ -600,7 +644,10 @@ class PyPIClient:
                 else:
                     return {
                         "results": [],
-                        "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(raw_data)}"}
+                        "error": {
+                            "code": ErrorCode.PARSE_ERROR,
+                            "message": f"Unexpected data type: {type(raw_data)}",
+                        },
                     }
             elif isinstance(data, (str, bytes)):
                 # Legacy format
@@ -611,7 +658,10 @@ class PyPIClient:
             else:
                 return {
                     "results": [],
-                    "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(data)}"}
+                    "error": {
+                        "code": ErrorCode.PARSE_ERROR,
+                        "message": f"Unexpected data type: {type(data)}",
+                    },
                 }
 
             # Handle case when we receive a Client Challenge page instead of search results
@@ -672,7 +722,10 @@ class PyPIClient:
             }
         except Exception as e:
             logger.exception(f"Error searching packages: {e}")
-            return {"results": [], "error": {"code": ErrorCode.UNKNOWN_ERROR, "message": str(e)}}
+            return {
+                "results": [],
+                "error": {"code": ErrorCode.UNKNOWN_ERROR, "message": str(e)},
+            }
 
     async def compare_versions(
         self, package_name: str, version1: str, version2: str
@@ -886,7 +939,9 @@ class PyPIClient:
                 "homepage": info.get("home_page", ""),
                 "requires_python": info.get("requires_python", ""),
                 "classifiers": info.get("classifiers", []),
-                "keywords": info.get("keywords", "").split(",") if info.get("keywords") else [],
+                "keywords": (
+                    info.get("keywords", "").split(",") if info.get("keywords") else []
+                ),
             }
 
             return {"metadata": metadata}
@@ -948,7 +1003,9 @@ class PyPIClient:
 
             # Build dependency tree iteratively
             async def build_tree() -> TreeNode:
-                queue: List[Tuple[str, Optional[str], int, Optional[str]]] = [(sanitized_name, sanitized_version, 0, None)]
+                queue: List[Tuple[str, Optional[str], int, Optional[str]]] = [
+                    (sanitized_name, sanitized_version, 0, None)
+                ]
                 nodes: Dict[str, TreeNode] = {}
 
                 # Root node
@@ -1352,21 +1409,23 @@ class PyPIClient:
                 ),
             )
 
-    def _extract_dependencies_from_pyproject(self, pyproject_data: Dict[str, Any]) -> List[str]:
+    def _extract_dependencies_from_pyproject(
+        self, pyproject_data: Dict[str, Any]
+    ) -> List[str]:
         """Extract dependencies from various pyproject.toml formats.
-        
+
         Args:
             pyproject_data: Parsed pyproject.toml data
-            
+
         Returns:
             List of dependency strings
         """
         dependencies = []
-        
+
         # 1. PEP 621 format - project.dependencies
         if "project" in pyproject_data and "dependencies" in pyproject_data["project"]:
             dependencies.extend(pyproject_data["project"]["dependencies"])
-        
+
         # 2. Poetry format - tool.poetry.dependencies
         if "tool" in pyproject_data and "poetry" in pyproject_data["tool"]:
             if "dependencies" in pyproject_data["tool"]["poetry"]:
@@ -1378,7 +1437,7 @@ class PyPIClient:
                         dependencies.append(f"{name}{constraint}")
                     elif isinstance(constraint, dict) and "version" in constraint:
                         dependencies.append(f"{name}{constraint['version']}")
-        
+
         # 3. PDM format - tool.pdm.dependencies
         if "tool" in pyproject_data and "pdm" in pyproject_data["tool"]:
             if "dependencies" in pyproject_data["tool"]["pdm"]:
@@ -1388,27 +1447,33 @@ class PyPIClient:
                         dependencies.append(f"{name}{constraint}")
                     elif isinstance(constraint, dict) and "version" in constraint:
                         dependencies.append(f"{name}{constraint['version']}")
-        
+
         # 4. Flit format - tool.flit.metadata.requires
         if "tool" in pyproject_data and "flit" in pyproject_data["tool"]:
-            if ("metadata" in pyproject_data["tool"]["flit"] and 
-                "requires" in pyproject_data["tool"]["flit"]["metadata"]):
-                dependencies.extend(pyproject_data["tool"]["flit"]["metadata"]["requires"])
-        
+            if (
+                "metadata" in pyproject_data["tool"]["flit"]
+                and "requires" in pyproject_data["tool"]["flit"]["metadata"]
+            ):
+                dependencies.extend(
+                    pyproject_data["tool"]["flit"]["metadata"]["requires"]
+                )
+
         return dependencies
-    
+
     def _load_toml_module(self):
         """Load the appropriate TOML parsing module.
-        
+
         Returns:
             The tomllib or tomli module, or None if not available
         """
         try:
             import tomllib
+
             return tomllib
         except ImportError:
             try:
                 import tomli as tomllib  # type: ignore[import-not-found]
+
                 return tomllib
             except ImportError:
                 return None
@@ -1425,7 +1490,7 @@ class PyPIClient:
                     "Parsing pyproject.toml requires tomli package. Please install with: pip install tomli",
                 ),
             )
-        
+
         # Read and parse the TOML file
         try:
             with path.open("rb") as f:
@@ -1445,7 +1510,7 @@ class PyPIClient:
                     ErrorCode.FILE_ERROR, f"Error reading TOML file: {str(e)}"
                 ),
             )
-        
+
         # Extract dependencies using helper method
         dependencies = self._extract_dependencies_from_pyproject(pyproject_data)
 
@@ -1470,9 +1535,7 @@ class PyPIClient:
 
                 latest_version = info_result.get("version", "")
                 if not latest_version:
-                    logger.warning(
-                        f"No version information found for {package_name}"
-                    )
+                    logger.warning(f"No version information found for {package_name}")
                     continue
 
                 # Get current version from requirement specifier
@@ -1529,9 +1592,8 @@ class PyPIClient:
                 logger.warning(f"Error processing dependency {req_str}: {e}")
                 continue
 
-        
         return {"outdated": outdated, "up_to_date": up_to_date}
-    
+
     async def get_releases_feed(self) -> ReleasesFeed:
         """Get recent releases feed from PyPI RSS."""
         try:
@@ -1542,16 +1604,13 @@ class PyPIClient:
                 "releases": [],
                 "error": {
                     "message": "RSS feed parsing not implemented",
-                    "code": "not_implemented"
-                }
+                    "code": "not_implemented",
+                },
             }
         except Exception as e:
             logger.exception(f"Error getting releases feed: {e}")
-            return {
-                "releases": [],
-                "error": {"message": str(e), "code": "feed_error"}
-            }
-    
+            return {"releases": [], "error": {"message": str(e), "code": "feed_error"}}
+
     async def get_packages_feed(self) -> PackagesFeed:
         """Get new packages feed from PyPI RSS."""
         try:
@@ -1562,27 +1621,28 @@ class PyPIClient:
                 "packages": [],
                 "error": {
                     "message": "RSS feed parsing not implemented",
-                    "code": "not_implemented"
-                }
+                    "code": "not_implemented",
+                },
             }
         except Exception as e:
             logger.exception(f"Error getting packages feed: {e}")
-            return {
-                "packages": [],
-                "error": {"message": str(e), "code": "feed_error"}
-            }
-    
-    async def get_package_changelog(self, package_name: str, version: Optional[str] = None) -> str:
+            return {"packages": [], "error": {"message": str(e), "code": "feed_error"}}
+
+    async def get_package_changelog(
+        self, package_name: str, version: Optional[str] = None
+    ) -> str:
         """Get changelog for a package (placeholder implementation)."""
         return f"Changelog retrieval not implemented for {package_name}"
-    
-    async def check_vulnerabilities(self, package_name: str, version: Optional[str] = None) -> Dict[str, Any]:
+
+    async def check_vulnerabilities(
+        self, package_name: str, version: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Check for vulnerabilities in a package using the OSV (Open Source Vulnerabilities) API.
-        
+
         Args:
             package_name: Name of the package to check
             version: Specific version to check (optional, checks all versions if not provided)
-            
+
         Returns:
             Dictionary containing vulnerability information including CVEs, severity, and fixes
         """
@@ -1590,46 +1650,46 @@ class PyPIClient:
             # First check if the package exists
             exists_result = await self.check_package_exists(package_name)
             if not exists_result.get("exists", False):
-                return cast(Dict[str, Any], format_error(
-                    ErrorCode.NOT_FOUND, f"Package {package_name} not found on PyPI"
-                ))
-            
+                return cast(
+                    Dict[str, Any],
+                    format_error(
+                        ErrorCode.NOT_FOUND, f"Package {package_name} not found on PyPI"
+                    ),
+                )
+
             sanitized_name = sanitize_package_name(package_name)
-            
+
             # Create cache key for vulnerability data
             # Cache based on package + version (or "all" for all versions)
             cache_key = f"osv:vulnerabilities:{sanitized_name}:{version or 'all'}"
-            
+
             # Check cache first (vulnerability data changes slowly)
             cached_result = await self.cache.get(cache_key)
             if cached_result:
                 logger.debug(f"Cache hit for vulnerability check: {cache_key}")
                 return cached_result
-            
+
             osv_url = "https://api.osv.dev/v1/query"
-            
+
             # Build the query payload
-            payload = {
-                "package": {
-                    "name": sanitized_name,
-                    "ecosystem": "PyPI"
-                }
-            }
-            
+            payload = {"package": {"name": sanitized_name, "ecosystem": "PyPI"}}
+
             if version:
                 payload["version"] = sanitize_version(version)
-            
+
             # Make the API request to OSV
-            logger.info(f"Checking vulnerabilities for {sanitized_name} {version or 'all versions'}")
-            
+            logger.info(
+                f"Checking vulnerabilities for {sanitized_name} {version or 'all versions'}"
+            )
+
             # OSV API expects POST with JSON payload
             response = await self.http.fetch(
-                osv_url, 
+                osv_url,
                 method="POST",
                 headers={"Content-Type": "application/json"},
-                data=json.dumps(payload).encode()
+                data=json.dumps(payload).encode(),
             )
-            
+
             # Check for errors in response
             if "error" in response:
                 logger.error(f"OSV API error: {response['error']}")
@@ -1637,73 +1697,91 @@ class PyPIClient:
                     "package": package_name,
                     "version": version or "all",
                     "vulnerabilities": [],
-                    "error": response["error"]
+                    "error": response["error"],
                 }
-            
+
             # Parse vulnerabilities from response
             vulnerabilities = []
             osv_vulns = response.get("vulns", [])
-            
+
             for vuln in osv_vulns:
                 # Extract affected versions
                 affected_versions = []
                 for affected in vuln.get("affected", []):
                     if affected.get("package", {}).get("ecosystem") == "PyPI":
-                        if affected.get("package", {}).get("name", "").lower() == sanitized_name.lower():
+                        if (
+                            affected.get("package", {}).get("name", "").lower()
+                            == sanitized_name.lower()
+                        ):
                             for range_info in affected.get("ranges", []):
                                 events = range_info.get("events", [])
                                 for event in events:
                                     if "introduced" in event:
-                                        affected_versions.append(f">={event['introduced']}")
+                                        affected_versions.append(
+                                            f">={event['introduced']}"
+                                        )
                                     if "fixed" in event:
                                         affected_versions.append(f"<{event['fixed']}")
-                
+
                 # Extract CVE IDs
-                cve_ids = [alias for alias in vuln.get("aliases", []) if alias.startswith("CVE-")]
-                
+                cve_ids = [
+                    alias
+                    for alias in vuln.get("aliases", [])
+                    if alias.startswith("CVE-")
+                ]
+
                 # Extract severity information
                 severity = None
                 severity_score = None
                 database_specific = vuln.get("database_specific", {})
                 if "severity" in database_specific:
                     severity = database_specific["severity"]
-                
+
                 # Check for CVSS scores in different formats
                 for detail in vuln.get("severity", []):
                     if detail.get("type") == "CVSS_V3":
                         severity_score = detail.get("score")
                         break
-                
+
                 vulnerability = {
                     "id": vuln.get("id", ""),
-                    "summary": vuln.get("summary", vuln.get("details", "No description available")),
+                    "summary": vuln.get(
+                        "summary", vuln.get("details", "No description available")
+                    ),
                     "severity": severity,
                     "severity_score": severity_score,
                     "cve": cve_ids,
                     "affected_versions": affected_versions,
                     "published": vuln.get("published", ""),
                     "modified": vuln.get("modified", ""),
-                    "references": [ref.get("url", "") for ref in vuln.get("references", [])],
+                    "references": [
+                        ref.get("url", "") for ref in vuln.get("references", [])
+                    ],
                 }
-                
+
                 # If a specific version was requested, only include if it's affected
                 if version:
                     # Check if this version is affected
                     version_obj = Version(version)
                     is_affected = False
-                    
+
                     for affected in vuln.get("affected", []):
                         if affected.get("package", {}).get("ecosystem") == "PyPI":
-                            if affected.get("package", {}).get("name", "").lower() == sanitized_name.lower():
+                            if (
+                                affected.get("package", {}).get("name", "").lower()
+                                == sanitized_name.lower()
+                            ):
                                 for range_info in affected.get("ranges", []):
                                     events = range_info.get("events", [])
                                     introduced = None
                                     fixed = None
-                                    
+
                                     for event in events:
                                         if "introduced" in event:
                                             try:
-                                                introduced = Version(event["introduced"])
+                                                introduced = Version(
+                                                    event["introduced"]
+                                                )
                                             except:
                                                 # Skip non-version strings (like git hashes)
                                                 continue
@@ -1713,21 +1791,22 @@ class PyPIClient:
                                             except:
                                                 # Skip non-version strings (like git hashes)
                                                 continue
-                                    
+
                                     # Check if version is in affected range
                                     if introduced and version_obj >= introduced:
                                         if fixed is None or version_obj < fixed:
                                             is_affected = True
                                             break
-                    
+
                     if is_affected:
                         vulnerabilities.append(vulnerability)
                 else:
                     # No specific version requested, include all vulnerabilities
                     vulnerabilities.append(vulnerability)
-            
+
             # Sort by severity (critical > high > medium > low)
             severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+
             # Helper function to extract numeric score
             def get_numeric_score(score_value):
                 if not score_value:
@@ -1741,20 +1820,36 @@ class PyPIClient:
                     return float(score_value)
                 except:
                     return 0
-            
+
             vulnerabilities.sort(
                 key=lambda v: (
                     severity_order.get(str(v.get("severity", "")).upper(), 999),
-                    -get_numeric_score(v.get("severity_score"))
+                    -get_numeric_score(v.get("severity_score")),
                 )
             )
-            
+
             # Count vulnerabilities by severity
-            critical_count = sum(1 for v in vulnerabilities if str(v.get("severity", "")).upper() == "CRITICAL")
-            high_count = sum(1 for v in vulnerabilities if str(v.get("severity", "")).upper() == "HIGH")
-            medium_count = sum(1 for v in vulnerabilities if str(v.get("severity", "")).upper() == "MEDIUM")
-            low_count = sum(1 for v in vulnerabilities if str(v.get("severity", "")).upper() == "LOW")
-            
+            critical_count = sum(
+                1
+                for v in vulnerabilities
+                if str(v.get("severity", "")).upper() == "CRITICAL"
+            )
+            high_count = sum(
+                1
+                for v in vulnerabilities
+                if str(v.get("severity", "")).upper() == "HIGH"
+            )
+            medium_count = sum(
+                1
+                for v in vulnerabilities
+                if str(v.get("severity", "")).upper() == "MEDIUM"
+            )
+            low_count = sum(
+                1
+                for v in vulnerabilities
+                if str(v.get("severity", "")).upper() == "LOW"
+            )
+
             result = {
                 "package": package_name,
                 "version": version or "all",
@@ -1764,134 +1859,142 @@ class PyPIClient:
                 "critical_count": critical_count,
                 "high_count": high_count,
                 "medium_count": medium_count,
-                "low_count": low_count
+                "low_count": low_count,
             }
-            
+
             # Cache the result with configurable TTL
             # Vulnerability data doesn't change frequently, default is 1 hour
             cache_ttl = self.config.vulnerability_cache_ttl
             await self.cache.set(cache_key, result, ttl=cache_ttl)
-            logger.debug(f"Cached vulnerability data for {cache_key} with TTL {cache_ttl}s")
-            
+            logger.debug(
+                f"Cached vulnerability data for {cache_key} with TTL {cache_ttl}s"
+            )
+
             return result
-            
+
         except Exception as e:
             logger.exception(f"Error checking vulnerabilities for {package_name}: {e}")
             return {
                 "package": package_name,
                 "version": version or "all",
                 "vulnerabilities": [],
-                "error": {"message": str(e), "code": "vulnerability_check_error"}
+                "error": {"message": str(e), "code": "vulnerability_check_error"},
             }
-    
+
     async def get_updates_feed(self) -> UpdatesFeed:
         """Get package updates feed from PyPI RSS."""
         try:
             # PyPI RSS feed for updates
             url = "https://pypi.org/rss/updates.xml"
-            
+
             # Fetch the RSS feed
             response = await self.http.fetch(url)
-            
+
             # Check if we got an error
             if isinstance(response, dict) and "error" in response:
-                return {
-                    "updates": [],
-                    "error": response["error"]
-                }
-            
+                return {"updates": [], "error": response["error"]}
+
             # If we have defusedxml, use it for secure parsing
             try:
                 import defusedxml.ElementTree as ET
-                
+
                 # Extract raw XML data from response
                 if isinstance(response, dict) and "raw_data" in response:
                     xml_data = response["raw_data"]
-                    
+
                     # Parse the XML
                     if isinstance(xml_data, bytes):
                         root = ET.fromstring(xml_data)
                     elif isinstance(xml_data, str):
-                        root = ET.fromstring(xml_data.encode('utf-8'))
+                        root = ET.fromstring(xml_data.encode("utf-8"))
                     else:
                         return {
                             "updates": [],
                             "error": {
                                 "message": "Unexpected response format from RSS feed",
-                                "code": "parse_error"
-                            }
+                                "code": "parse_error",
+                            },
                         }
-                    
+
                     # Parse RSS items
                     updates = []
-                    
+
                     # RSS 2.0 format
                     for item in root.findall(".//item"):
                         title_elem = item.find("title")
                         link_elem = item.find("link")
                         desc_elem = item.find("description")
                         pub_date_elem = item.find("pubDate")
-                        
+
                         if title_elem is not None and title_elem.text:
                             # Extract package name and version from title
                             # Format is usually "package-name 1.2.3"
                             title = title_elem.text.strip()
-                            parts = title.rsplit(' ', 1)
-                            
+                            parts = title.rsplit(" ", 1)
+
                             package_name = parts[0] if parts else title
                             version = parts[1] if len(parts) > 1 else ""
-                            
-                            updates.append({
-                                "package_name": package_name,
-                                "version": version,
-                                "title": title,
-                                "link": link_elem.text if link_elem is not None else "",
-                                "description": desc_elem.text if desc_elem is not None else "",
-                                "published_date": pub_date_elem.text if pub_date_elem is not None else ""
-                            })
-                    
+
+                            updates.append(
+                                {
+                                    "package_name": package_name,
+                                    "version": version,
+                                    "title": title,
+                                    "link": (
+                                        link_elem.text if link_elem is not None else ""
+                                    ),
+                                    "description": (
+                                        desc_elem.text if desc_elem is not None else ""
+                                    ),
+                                    "published_date": (
+                                        pub_date_elem.text
+                                        if pub_date_elem is not None
+                                        else ""
+                                    ),
+                                }
+                            )
+
                     return {
                         "updates": updates,
                         "feed_url": url,
-                        "feed_title": "PyPI Recent Updates"
+                        "feed_title": "PyPI Recent Updates",
                     }
                 else:
                     return {
                         "updates": [],
                         "error": {
                             "message": "Invalid response format from RSS feed",
-                            "code": "parse_error"
-                        }
+                            "code": "parse_error",
+                        },
                     }
-                
+
             except ImportError:
                 return {
                     "updates": [],
                     "error": {
                         "message": "RSS parsing requires defusedxml for security (install with: pip install defusedxml)",
-                        "code": "missing_dependency"
-                    }
+                        "code": "missing_dependency",
+                    },
                 }
-                
+
         except Exception as e:
             logger.exception(f"Error getting updates feed: {e}")
-            return {
-                "updates": [],
-                "error": {"message": str(e), "code": "feed_error"}
-            }
-    
-    async def get_package_changelog(self, package_name: str, version: Optional[str] = None) -> str:
+            return {"updates": [], "error": {"message": str(e), "code": "feed_error"}}
+
+    async def get_package_changelog(
+        self, package_name: str, version: Optional[str] = None
+    ) -> str:
         """Get changelog for a package.
-        
+
         This method attempts to retrieve changelog information from:
         1. Package metadata project_urls for changelog link
         2. GitHub releases if the package has a GitHub repository
         3. Common changelog file names in the package distribution
-        
+
         Args:
             package_name: Name of the package
             version: Specific version (optional, defaults to latest)
-            
+
         Returns:
             Changelog text or appropriate message
         """
@@ -1900,60 +2003,72 @@ class PyPIClient:
             info_result = await self.get_package_info(package_name)
             if "error" in info_result:
                 return f"Package {package_name} not found"
-            
+
             info = info_result.get("info", {})
             project_urls = info.get("project_urls") or {}
-            
+
             # Check for explicit changelog URL
             changelog_url = None
             for key, url in project_urls.items():
-                if any(term in key.lower() for term in ["changelog", "changes", "history", "release"]):
+                if any(
+                    term in key.lower()
+                    for term in ["changelog", "changes", "history", "release"]
+                ):
                     changelog_url = url
                     break
-            
+
             # If we found a changelog URL, try to fetch it
             if changelog_url:
                 # Handle GitHub releases specially
                 if "github.com" in changelog_url and "/releases" in changelog_url:
                     # Extract owner and repo from GitHub URL
                     import re
-                    match = re.search(r'github\.com/([^/]+)/([^/]+)', changelog_url)
+
+                    match = re.search(r"github\.com/([^/]+)/([^/]+)", changelog_url)
                     if match:
                         owner, repo = match.groups()
                         # Use GitHub API to get releases
-                        api_url = f"https://api.github.com/repos/{owner}/{repo}/releases"
-                        
+                        api_url = (
+                            f"https://api.github.com/repos/{owner}/{repo}/releases"
+                        )
+
                         try:
                             response = await self.http.fetch(api_url)
                             if isinstance(response, dict) and "error" not in response:
                                 # GitHub API returns array directly
-                                releases = response if isinstance(response, list) else []
+                                releases = (
+                                    response if isinstance(response, list) else []
+                                )
                             else:
-                                releases = response if isinstance(response, list) else []
-                            
+                                releases = (
+                                    response if isinstance(response, list) else []
+                                )
+
                             if releases:
                                 # Format releases into changelog
                                 changelog_parts = [f"# Changelog for {package_name}\n"]
-                                
+
                                 for release in releases[:10]:  # Show last 10 releases
                                     tag = release.get("tag_name", "")
                                     name = release.get("name", "")
                                     body = release.get("body", "")
                                     published = release.get("published_at", "")
-                                    
+
                                     if tag:
                                         changelog_parts.append(f"\n## {tag}")
                                         if name and name != tag:
                                             changelog_parts.append(f" - {name}")
                                         if published:
-                                            changelog_parts.append(f"\n*Released: {published[:10]}*")
+                                            changelog_parts.append(
+                                                f"\n*Released: {published[:10]}*"
+                                            )
                                         if body:
                                             changelog_parts.append(f"\n{body}")
-                                
+
                                 return "\n".join(changelog_parts)
                         except Exception as e:
                             logger.debug(f"Could not fetch GitHub releases: {e}")
-                
+
                 # Try to fetch as regular webpage
                 try:
                     response = await self.http.fetch(changelog_url)
@@ -1964,36 +2079,41 @@ class PyPIClient:
                 except Exception as e:
                     logger.debug(f"Could not fetch changelog URL: {e}")
                     return f"Changelog available at: {changelog_url}"
-            
+
             # Check if there's a GitHub repo to check releases
             github_url = None
             for key, url in project_urls.items():
                 if "github.com" in str(url) and not "/releases" in str(url):
                     github_url = url
                     break
-            
-            if not github_url and info.get("home_page") and "github.com" in str(info.get("home_page")):
+
+            if (
+                not github_url
+                and info.get("home_page")
+                and "github.com" in str(info.get("home_page"))
+            ):
                 github_url = info.get("home_page")
-            
+
             if github_url:
                 # Extract owner and repo
                 import re
-                match = re.search(r'github\.com/([^/]+)/([^/]+)', github_url)
+
+                match = re.search(r"github\.com/([^/]+)/([^/]+)", github_url)
                 if match:
                     owner, repo = match.groups()
-                    repo = repo.rstrip('/')  # Remove trailing slash if present
-                    
+                    repo = repo.rstrip("/")  # Remove trailing slash if present
+
                     # Construct changelog URL
                     releases_url = f"https://github.com/{owner}/{repo}/releases"
                     return f"Changelog might be available at: {releases_url}"
-            
+
             # If no changelog found, return a helpful message
             available_urls = "\n".join([f"- {k}: {v}" for k, v in project_urls.items()])
             if available_urls:
                 return f"No explicit changelog found. Available project URLs:\n{available_urls}"
             else:
                 return f"No changelog information available for {package_name}"
-                
+
         except Exception as e:
             logger.error(f"Error getting changelog for {package_name}: {e}")
             return f"Error retrieving changelog: {str(e)}"
