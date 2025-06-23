@@ -1971,6 +1971,212 @@ class PyPIClient:
             logger.exception(f"Error getting updates feed: {e}")
             return {"updates": [], "error": {"message": str(e), "code": "feed_error"}}
 
+    async def get_packages_feed(self) -> Dict[str, Any]:
+        """Get newest packages feed from PyPI RSS.
+
+        Returns:
+            Dict with list of newly created packages
+        """
+        try:
+            # PyPI RSS feed for newest packages
+            url = "https://pypi.org/rss/packages.xml"
+
+            # Fetch the RSS feed
+            response = await self.http.fetch(url)
+
+            # Check if we got an error
+            if isinstance(response, dict) and "error" in response:
+                return {"packages": [], "error": response["error"]}
+
+            # Parse RSS/XML
+            try:
+                import defusedxml.ElementTree as ET
+
+                # Extract raw XML data from response
+                if isinstance(response, dict) and "raw_data" in response:
+                    xml_data = response["raw_data"]
+
+                    # Parse the XML
+                    if isinstance(xml_data, bytes):
+                        root = ET.fromstring(xml_data)
+                    elif isinstance(xml_data, str):
+                        root = ET.fromstring(xml_data.encode("utf-8"))
+                    else:
+                        return {
+                            "packages": [],
+                            "error": {
+                                "message": "Unexpected response format from RSS feed",
+                                "code": "parse_error",
+                            },
+                        }
+
+                    # Parse RSS items
+                    packages = []
+
+                    # RSS 2.0 format
+                    for item in root.findall(".//item"):
+                        title_elem = item.find("title")
+                        link_elem = item.find("link")
+                        desc_elem = item.find("description")
+                        pub_date_elem = item.find("pubDate")
+
+                        if title_elem is not None and title_elem.text:
+                            packages.append(
+                                {
+                                    "name": title_elem.text.strip(),
+                                    "link": (
+                                        link_elem.text if link_elem is not None else ""
+                                    ),
+                                    "description": (
+                                        desc_elem.text if desc_elem is not None else ""
+                                    ),
+                                    "published_date": (
+                                        pub_date_elem.text
+                                        if pub_date_elem is not None
+                                        else ""
+                                    ),
+                                }
+                            )
+
+                    return {"packages": packages}
+                else:
+                    return {
+                        "packages": [],
+                        "error": {
+                            "message": "Invalid response format from RSS feed",
+                            "code": "parse_error",
+                        },
+                    }
+
+            except ImportError:
+                return {
+                    "packages": [],
+                    "error": {
+                        "message": "RSS parsing requires defusedxml for security (install with: pip install defusedxml)",
+                        "code": "missing_dependency",
+                    },
+                }
+
+        except Exception as e:
+            logger.exception(f"Error getting newest packages feed: {e}")
+            return {"packages": [], "error": {"message": str(e), "code": "feed_error"}}
+
+    async def get_project_releases_feed(self, package_name: str) -> Dict[str, Any]:
+        """Get releases feed for a specific project from PyPI RSS.
+
+        Args:
+            package_name: Name of the package
+
+        Returns:
+            Dict with list of releases for the project
+        """
+        try:
+            # PyPI RSS feed for project releases
+            url = f"https://pypi.org/rss/project/{package_name}/releases.xml"
+
+            # Fetch the RSS feed
+            response = await self.http.fetch(url)
+
+            # Check if we got an error
+            if isinstance(response, dict) and "error" in response:
+                return {"releases": [], "error": response["error"]}
+
+            # Parse RSS/XML
+            try:
+                import defusedxml.ElementTree as ET
+
+                # Extract raw XML data from response
+                if isinstance(response, dict) and "raw_data" in response:
+                    xml_data = response["raw_data"]
+
+                    # Parse the XML
+                    if isinstance(xml_data, bytes):
+                        root = ET.fromstring(xml_data)
+                    elif isinstance(xml_data, str):
+                        root = ET.fromstring(xml_data.encode("utf-8"))
+                    else:
+                        return {
+                            "releases": [],
+                            "error": {
+                                "message": "Unexpected response format from RSS feed",
+                                "code": "parse_error",
+                            },
+                        }
+
+                    # Parse RSS items
+                    releases = []
+
+                    # RSS 2.0 format
+                    for item in root.findall(".//item"):
+                        title_elem = item.find("title")
+                        link_elem = item.find("link")
+                        desc_elem = item.find("description")
+                        pub_date_elem = item.find("pubDate")
+
+                        if title_elem is not None and title_elem.text:
+                            # Extract version from title (format: "package_name version")
+                            title = title_elem.text.strip()
+                            parts = title.rsplit(" ", 1)
+                            version = parts[1] if len(parts) > 1 else ""
+
+                            releases.append(
+                                {
+                                    "version": version,
+                                    "title": title,
+                                    "link": (
+                                        link_elem.text if link_elem is not None else ""
+                                    ),
+                                    "description": (
+                                        desc_elem.text if desc_elem is not None else ""
+                                    ),
+                                    "published_date": (
+                                        pub_date_elem.text
+                                        if pub_date_elem is not None
+                                        else ""
+                                    ),
+                                }
+                            )
+
+                    return {"package_name": package_name, "releases": releases}
+                else:
+                    return {
+                        "releases": [],
+                        "error": {
+                            "message": "Invalid response format from RSS feed",
+                            "code": "parse_error",
+                        },
+                    }
+
+            except ImportError:
+                return {
+                    "releases": [],
+                    "error": {
+                        "message": "RSS parsing requires defusedxml for security (install with: pip install defusedxml)",
+                        "code": "missing_dependency",
+                    },
+                }
+
+        except Exception as e:
+            logger.exception(f"Error getting project releases feed: {e}")
+            return {"releases": [], "error": {"message": str(e), "code": "feed_error"}}
+
+    async def get_releases_feed(self) -> Dict[str, Any]:
+        """Get recent releases feed from PyPI RSS.
+
+        This is an alias for get_updates_feed() as PyPI's updates feed
+        shows the latest releases across all packages.
+
+        Returns:
+            Dict with list of recent releases
+        """
+        # PyPI's updates feed shows recent releases
+        result = await self.get_updates_feed()
+
+        # Transform the response to match expected format
+        if "updates" in result:
+            return {"releases": result["updates"], "error": result.get("error")}
+        return result
+
     async def get_package_changelog(
         self, package_name: str, version: Optional[str] = None
     ) -> str:
@@ -2038,7 +2244,8 @@ class PyPIClient:
                                 # Format releases into changelog
                                 changelog_parts = [f"# Changelog for {package_name}\n"]
 
-                                for release in releases[:10]:  # Show last 10 releases
+                                # Limit to 5 releases to avoid token limits
+                                for i, release in enumerate(releases[:5]):
                                     tag = release.get("tag_name", "")
                                     name = release.get("name", "")
                                     body = release.get("body", "")
@@ -2053,7 +2260,20 @@ class PyPIClient:
                                                 f"\n*Released: {published[:10]}*"
                                             )
                                         if body:
+                                            # Truncate long bodies to avoid token limits
+                                            max_body_length = 1000
+                                            if len(body) > max_body_length:
+                                                body = (
+                                                    body[:max_body_length]
+                                                    + "\n\n... (truncated)"
+                                                )
                                             changelog_parts.append(f"\n{body}")
+
+                                # Add note if there are more releases
+                                if len(releases) > 5:
+                                    changelog_parts.append(
+                                        f"\n\n---\n\n*Showing 5 of {len(releases)} releases. Visit {changelog_url} for the complete changelog.*"
+                                    )
 
                                 return "\n".join(changelog_parts)
                         except Exception as e:
