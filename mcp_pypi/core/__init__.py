@@ -1595,6 +1595,17 @@ class PyPIClient:
                 ))
             
             sanitized_name = sanitize_package_name(package_name)
+            
+            # Create cache key for vulnerability data
+            # Cache based on package + version (or "all" for all versions)
+            cache_key = f"osv:vulnerabilities:{sanitized_name}:{version or 'all'}"
+            
+            # Check cache first (vulnerability data changes slowly)
+            cached_result = await self.cache_manager.get(cache_key)
+            if cached_result:
+                logger.debug(f"Cache hit for vulnerability check: {cache_key}")
+                return cached_result
+            
             osv_url = "https://api.osv.dev/v1/query"
             
             # Build the query payload
@@ -1744,7 +1755,7 @@ class PyPIClient:
             medium_count = sum(1 for v in vulnerabilities if str(v.get("severity", "")).upper() == "MEDIUM")
             low_count = sum(1 for v in vulnerabilities if str(v.get("severity", "")).upper() == "LOW")
             
-            return {
+            result = {
                 "package": package_name,
                 "version": version or "all",
                 "vulnerabilities": vulnerabilities,
@@ -1755,6 +1766,14 @@ class PyPIClient:
                 "medium_count": medium_count,
                 "low_count": low_count
             }
+            
+            # Cache the result with configurable TTL
+            # Vulnerability data doesn't change frequently, default is 1 hour
+            cache_ttl = self.config.vulnerability_cache_ttl
+            await self.cache_manager.set(cache_key, result, ttl=cache_ttl)
+            logger.debug(f"Cached vulnerability data for {cache_key} with TTL {cache_ttl}s")
+            
+            return result
             
         except Exception as e:
             logger.exception(f"Error checking vulnerabilities for {package_name}: {e}")

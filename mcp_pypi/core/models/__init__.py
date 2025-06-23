@@ -92,6 +92,11 @@ class PyPIClientConfig:
     timeout: float = field(
         default_factory=lambda: float(os.environ.get("PYPI_TIMEOUT", 30.0))
     )
+    vulnerability_cache_ttl: int = field(
+        default_factory=lambda: int(
+            os.environ.get("PYPI_VULNERABILITY_CACHE_TTL", 3600)  # 1 hour default
+        )
+    )
     cache_strategy: str = field(
         default_factory=lambda: os.environ.get("PYPI_CACHE_STRATEGY", "hybrid")
     )

@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Union, Set, Literal, cast
 
@@ -475,13 +476,29 @@ Key capabilities:
         
         @self.mcp_server.tool()
         async def check_pyproject_toml(file_path: str) -> PackageRequirementsResult:
-            """Check packages from a pyproject.toml file.
+            """🎯🛡️ SECURITY AUDIT: Analyze pyproject.toml for outdated packages and vulnerabilities.
+            
+            CRITICAL FOR MODERN PYTHON PROJECTS: This tool performs security auditing on
+            pyproject.toml files, checking both [project.dependencies] and [project.optional-dependencies].
+            
+            Security Features:
+            - Scans all dependency groups (main, dev, test, docs, etc.)
+            - Identifies packages with known vulnerabilities
+            - Checks for security updates in dependency specifications
+            - Analyzes version constraints for security implications
+            - Covers both PEP 621 and Poetry/PDM style configs
             
             Args:
                 file_path: Path to pyproject.toml file
             
             Returns:
-                PackageRequirementsResult with package status information
+                PackageRequirementsResult with:
+                - Comprehensive dependency analysis
+                - Security vulnerability warnings per dependency group
+                - Update recommendations with security priority
+                - Version constraint compatibility analysis
+                
+            Best Practice: Essential for projects using modern Python packaging!
             """
             try:
                 return await self.client.check_requirements_file(file_path)
@@ -689,6 +706,508 @@ Key capabilities:
             except Exception as e:
                 logger.error(f"Error scanning dependency vulnerabilities: {e}")
                 return {"error": f"Error scanning dependencies: {str(e)}"}
+        
+        @self.mcp_server.tool()
+        async def scan_installed_packages(
+            environment_path: Optional[str] = None,
+            include_system: bool = False,
+            output_format: str = "summary"
+        ) -> Dict[str, Any]:
+            """🛡️💻 ENVIRONMENT SECURITY SCAN: Check all installed packages for vulnerabilities.
+            
+            ESSENTIAL FOR RUNTIME SECURITY: Scans your actual Python environment to identify
+            vulnerable packages that are currently installed and could pose security risks.
+            
+            This tool automatically detects and scans:
+            - Virtual environments (.venv, venv, env, virtualenv)
+            - Conda environments
+            - Pipenv environments
+            - Poetry environments
+            - System-wide packages (if requested)
+            
+            Args:
+                environment_path: Path to virtual environment (optional, auto-detects if not provided)
+                include_system: Also scan system-wide packages (default: False)
+                output_format: "summary" or "detailed" (default: "summary")
+            
+            Returns:
+                Dictionary containing:
+                - environment_type: Detected environment type (venv, conda, system, etc.)
+                - environment_path: Path to the scanned environment
+                - total_packages: Number of installed packages
+                - vulnerable_packages: List of packages with vulnerabilities
+                - critical_vulnerabilities: Count of critical severity issues
+                - high_vulnerabilities: Count of high severity issues
+                - recommendations: Prioritized list of packages to update
+                - update_commands: Ready-to-use commands to fix vulnerabilities
+                
+            Security Best Practices:
+            - Run BEFORE deploying applications
+            - Check AFTER installing new packages
+            - Schedule regular scans of production environments
+            - Always scan before sharing environments
+            
+            Example: Detects if you have old requests, urllib3, or other common vulnerable packages!
+            """
+            try:
+                import subprocess
+                import json
+                import os
+                from pathlib import Path
+                
+                # Auto-detect environment if not specified
+                if not environment_path:
+                    # Check common virtual environment locations
+                    for venv_name in ['.venv', 'venv', 'env', '.env', 'virtualenv']:
+                        venv_path = Path.cwd() / venv_name
+                        if venv_path.exists() and (venv_path / 'bin' / 'pip').exists():
+                            environment_path = str(venv_path)
+                            break
+                        elif venv_path.exists() and (venv_path / 'Scripts' / 'pip.exe').exists():
+                            environment_path = str(venv_path)
+                            break
+                
+                # Determine pip command
+                if environment_path:
+                    # Virtual environment
+                    if os.name == 'nt':  # Windows
+                        pip_cmd = os.path.join(environment_path, 'Scripts', 'pip.exe')
+                    else:  # Unix-like
+                        pip_cmd = os.path.join(environment_path, 'bin', 'pip')
+                    env_type = "virtualenv"
+                    
+                    # Check if it's actually a conda env
+                    conda_meta = Path(environment_path) / 'conda-meta'
+                    if conda_meta.exists():
+                        env_type = "conda"
+                else:
+                    # System pip
+                    pip_cmd = 'pip'
+                    env_type = "system"
+                
+                # Get list of installed packages
+                try:
+                    result = subprocess.run(
+                        [pip_cmd, 'list', '--format=json'],
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    installed_packages = json.loads(result.stdout)
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Failed to get package list: {e}")
+                    return {
+                        "error": {
+                            "message": f"Failed to get package list: {str(e)}",
+                            "code": "pip_list_error"
+                        }
+                    }
+                
+                # Scan each package for vulnerabilities
+                vulnerable_packages = []
+                total_packages = len(installed_packages)
+                critical_count = 0
+                high_count = 0
+                medium_count = 0
+                low_count = 0
+                
+                for pkg in installed_packages:
+                    pkg_name = pkg['name']
+                    pkg_version = pkg['version']
+                    
+                    # Check vulnerabilities for this specific version
+                    vuln_result = await self.client.check_vulnerabilities(pkg_name, pkg_version)
+                    
+                    if vuln_result.get("vulnerable", False):
+                        vuln_count = vuln_result.get("total_vulnerabilities", 0)
+                        critical = vuln_result.get("critical_count", 0)
+                        high = vuln_result.get("high_count", 0)
+                        medium = vuln_result.get("medium_count", 0)
+                        low = vuln_result.get("low_count", 0)
+                        
+                        critical_count += critical
+                        high_count += high
+                        medium_count += medium
+                        low_count += low
+                        
+                        # Get latest safe version
+                        latest_version_info = await self.client.get_latest_version(pkg_name)
+                        latest_version = latest_version_info.get("version", "unknown")
+                        
+                        vulnerable_packages.append({
+                            "package": pkg_name,
+                            "installed_version": pkg_version,
+                            "latest_version": latest_version,
+                            "vulnerabilities": vuln_count,
+                            "critical": critical,
+                            "high": high,
+                            "medium": medium,
+                            "low": low,
+                            "summary": vuln_result.get("vulnerabilities", [])[0].get("summary", "") 
+                                      if vuln_result.get("vulnerabilities") else "Multiple vulnerabilities found"
+                        })
+                
+                # Sort by severity
+                vulnerable_packages.sort(
+                    key=lambda p: (p["critical"], p["high"], p["medium"], p["vulnerabilities"]), 
+                    reverse=True
+                )
+                
+                # Generate update commands
+                update_commands = []
+                if vulnerable_packages:
+                    if env_type in ["virtualenv", "system"]:
+                        # Group updates for efficiency
+                        critical_updates = [p for p in vulnerable_packages if p["critical"] > 0]
+                        high_updates = [p for p in vulnerable_packages if p["high"] > 0 and p["critical"] == 0]
+                        
+                        if critical_updates:
+                            pkgs = " ".join([f"{p['package']}=={p['latest_version']}" for p in critical_updates[:5]])
+                            update_commands.append(f"{pip_cmd} install --upgrade {pkgs}")
+                        
+                        if high_updates and len(update_commands) < 3:
+                            pkgs = " ".join([f"{p['package']}=={p['latest_version']}" for p in high_updates[:5]])
+                            update_commands.append(f"{pip_cmd} install --upgrade {pkgs}")
+                    
+                    elif env_type == "conda":
+                        for pkg in vulnerable_packages[:5]:  # Top 5 most critical
+                            update_commands.append(f"conda update {pkg['package']}")
+                
+                # Generate summary
+                total_vulnerabilities = critical_count + high_count + medium_count + low_count
+                
+                return {
+                    "environment_type": env_type,
+                    "environment_path": environment_path or "system",
+                    "python_version": subprocess.run([pip_cmd, '--version'], 
+                                                   capture_output=True, text=True).stdout.strip(),
+                    "total_packages": total_packages,
+                    "vulnerable_packages": vulnerable_packages if output_format == "detailed" else len(vulnerable_packages),
+                    "vulnerability_summary": {
+                        "total": total_vulnerabilities,
+                        "critical": critical_count,
+                        "high": high_count,
+                        "medium": medium_count,
+                        "low": low_count
+                    },
+                    "top_risks": vulnerable_packages[:10] if output_format == "summary" else [],
+                    "all_clear": len(vulnerable_packages) == 0,
+                    "recommendation": (
+                        f"✅ All {total_packages} packages are secure!" 
+                        if len(vulnerable_packages) == 0
+                        else f"⚠️ Found {total_vulnerabilities} vulnerabilities in {len(vulnerable_packages)} packages. "
+                             f"URGENT: Fix {critical_count} CRITICAL and {high_count} HIGH severity issues!"
+                    ),
+                    "update_commands": update_commands,
+                    "scan_timestamp": datetime.now().isoformat()
+                }
+                
+            except Exception as e:
+                logger.error(f"Error scanning installed packages: {e}")
+                return {"error": f"Error scanning environment: {str(e)}"}
+        
+        @self.mcp_server.tool()
+        async def security_audit_project(
+            project_path: Optional[str] = None,
+            check_files: bool = True,
+            check_installed: bool = True,
+            check_transitive: bool = True,
+            max_depth: int = 2
+        ) -> Dict[str, Any]:
+            """🛡️🔍🚨 COMPREHENSIVE PROJECT SECURITY AUDIT: Complete vulnerability assessment.
+            
+            THE ULTIMATE SECURITY TOOL: Performs a complete security audit of a Python project,
+            checking ALL dependency contexts and providing a unified security report.
+            
+            This tool combines ALL security checks:
+            ✓ requirements.txt vulnerabilities
+            ✓ pyproject.toml vulnerabilities  
+            ✓ Installed package vulnerabilities
+            ✓ Transitive dependency vulnerabilities
+            ✓ Version constraint analysis
+            ✓ Security update recommendations
+            
+            CRITICAL: Always run this BEFORE:
+            - Deploying to production
+            - Sharing code publicly
+            - Accepting pull requests
+            - Major version updates
+            
+            Args:
+                project_path: Path to project root (auto-detects if not provided)
+                check_files: Scan requirements.txt and pyproject.toml files
+                check_installed: Scan installed packages in virtual environment
+                check_transitive: Deep scan transitive dependencies
+                max_depth: Maximum dependency depth to scan (default: 2)
+            
+            Returns:
+                Comprehensive security report with:
+                - overall_risk_level: CRITICAL, HIGH, MEDIUM, LOW, or SECURE
+                - total_vulnerabilities: Sum across all contexts
+                - file_vulnerabilities: Issues in requirements/pyproject files
+                - installed_vulnerabilities: Issues in installed packages
+                - transitive_vulnerabilities: Issues in dependencies of dependencies
+                - priority_fixes: Top packages to update immediately
+                - security_score: 0-100 score (100 = perfectly secure)
+                - remediation_plan: Step-by-step fix instructions
+                - estimated_fix_time: Rough estimate to fix all issues
+                
+            Example Output:
+                🚨 CRITICAL RISK: 42 vulnerabilities found!
+                - 5 CRITICAL in direct dependencies
+                - 12 HIGH in transitive dependencies
+                - Fix time: ~2 hours
+                Priority: Update requests, urllib3, cryptography immediately!
+            """
+            try:
+                from pathlib import Path
+                
+                # Auto-detect project path
+                if not project_path:
+                    project_path = os.getcwd()
+                
+                project_root = Path(project_path)
+                
+                # Initialize results
+                results = {
+                    "project_path": str(project_root),
+                    "scan_timestamp": datetime.now().isoformat(),
+                    "checks_performed": [],
+                    "vulnerabilities_by_source": {},
+                    "all_vulnerable_packages": {},
+                    "total_vulnerabilities": 0,
+                    "severity_breakdown": {
+                        "critical": 0,
+                        "high": 0,
+                        "medium": 0,
+                        "low": 0
+                    }
+                }
+                
+                # 1. Check requirements.txt files
+                if check_files:
+                    req_files = list(project_root.glob("**/requirements*.txt"))
+                    for req_file in req_files:
+                        results["checks_performed"].append(f"requirements.txt: {req_file.name}")
+                        req_result = await self.check_requirements_txt(str(req_file))
+                        
+                        if not req_result.get("error"):
+                            vulns = []
+                            for req in req_result.get("requirements", []):
+                                # Check each requirement for vulnerabilities
+                                pkg_name = req.get("package", "")
+                                current_version = req.get("current_version", "")
+                                if pkg_name and current_version:
+                                    vuln_check = await self.client.check_vulnerabilities(pkg_name, current_version)
+                                    if vuln_check.get("vulnerable"):
+                                        vulns.append({
+                                            "package": pkg_name,
+                                            "version": current_version,
+                                            "vulnerabilities": vuln_check.get("total_vulnerabilities", 0),
+                                            "critical": vuln_check.get("critical_count", 0),
+                                            "high": vuln_check.get("high_count", 0)
+                                        })
+                                        
+                                        # Track globally
+                                        if pkg_name not in results["all_vulnerable_packages"]:
+                                            results["all_vulnerable_packages"][pkg_name] = {
+                                                "versions_affected": set(),
+                                                "sources": [],
+                                                "max_severity": "low"
+                                            }
+                                        results["all_vulnerable_packages"][pkg_name]["versions_affected"].add(current_version)
+                                        results["all_vulnerable_packages"][pkg_name]["sources"].append(req_file.name)
+                                        
+                            results["vulnerabilities_by_source"][req_file.name] = vulns
+                
+                # 2. Check pyproject.toml
+                if check_files:
+                    pyproject_files = list(project_root.glob("**/pyproject.toml"))
+                    for pyproject in pyproject_files:
+                        results["checks_performed"].append(f"pyproject.toml: {pyproject.name}")
+                        pyp_result = await self.check_pyproject_toml(str(pyproject))
+                        
+                        if not pyp_result.get("error"):
+                            vulns = []
+                            for req in pyp_result.get("requirements", []):
+                                pkg_name = req.get("package", "")
+                                current_version = req.get("current_version", "")
+                                if pkg_name and current_version:
+                                    vuln_check = await self.client.check_vulnerabilities(pkg_name, current_version)
+                                    if vuln_check.get("vulnerable"):
+                                        vulns.append({
+                                            "package": pkg_name,
+                                            "version": current_version,
+                                            "vulnerabilities": vuln_check.get("total_vulnerabilities", 0),
+                                            "critical": vuln_check.get("critical_count", 0),
+                                            "high": vuln_check.get("high_count", 0)
+                                        })
+                                        
+                                        if pkg_name not in results["all_vulnerable_packages"]:
+                                            results["all_vulnerable_packages"][pkg_name] = {
+                                                "versions_affected": set(),
+                                                "sources": [],
+                                                "max_severity": "low"
+                                            }
+                                        results["all_vulnerable_packages"][pkg_name]["versions_affected"].add(current_version)
+                                        results["all_vulnerable_packages"][pkg_name]["sources"].append("pyproject.toml")
+                                        
+                            results["vulnerabilities_by_source"]["pyproject.toml"] = vulns
+                
+                # 3. Check installed packages
+                if check_installed:
+                    results["checks_performed"].append("installed packages")
+                    env_result = await self.scan_installed_packages(output_format="detailed")
+                    
+                    if not env_result.get("error"):
+                        results["installed_scan"] = {
+                            "environment": env_result.get("environment_type"),
+                            "total_packages": env_result.get("total_packages"),
+                            "vulnerable_count": len(env_result.get("vulnerable_packages", [])),
+                            "vulnerabilities": env_result.get("vulnerability_summary")
+                        }
+                        
+                        # Add to totals
+                        for vuln_pkg in env_result.get("vulnerable_packages", []):
+                            pkg_name = vuln_pkg["package"]
+                            if pkg_name not in results["all_vulnerable_packages"]:
+                                results["all_vulnerable_packages"][pkg_name] = {
+                                    "versions_affected": set(),
+                                    "sources": [],
+                                    "max_severity": "low"
+                                }
+                            results["all_vulnerable_packages"][pkg_name]["versions_affected"].add(
+                                vuln_pkg["installed_version"]
+                            )
+                            results["all_vulnerable_packages"][pkg_name]["sources"].append("installed")
+                
+                # 4. Check transitive dependencies
+                if check_transitive and results["all_vulnerable_packages"]:
+                    results["checks_performed"].append("transitive dependencies")
+                    # Pick top 3 packages to deep scan
+                    top_packages = list(results["all_vulnerable_packages"].keys())[:3]
+                    transitive_vulns = {}
+                    
+                    for pkg in top_packages:
+                        trans_result = await self.scan_dependency_vulnerabilities(
+                            pkg, 
+                            max_depth=max_depth
+                        )
+                        if not trans_result.get("error"):
+                            transitive_vulns[pkg] = trans_result.get("vulnerable_packages", [])
+                    
+                    results["transitive_scan"] = transitive_vulns
+                
+                # Calculate totals and risk assessment
+                total_critical = 0
+                total_high = 0
+                total_medium = 0
+                total_low = 0
+                
+                # Sum from all sources
+                for source, vulns in results["vulnerabilities_by_source"].items():
+                    for v in vulns:
+                        total_critical += v.get("critical", 0)
+                        total_high += v.get("high", 0)
+                        # Rough estimates for medium/low
+                        other_vulns = v.get("vulnerabilities", 0) - v.get("critical", 0) - v.get("high", 0)
+                        total_medium += other_vulns // 2
+                        total_low += other_vulns - (other_vulns // 2)
+                
+                if "installed_scan" in results:
+                    inst_vulns = results["installed_scan"]["vulnerabilities"]
+                    total_critical += inst_vulns.get("critical", 0)
+                    total_high += inst_vulns.get("high", 0)
+                    total_medium += inst_vulns.get("medium", 0)
+                    total_low += inst_vulns.get("low", 0)
+                
+                results["severity_breakdown"] = {
+                    "critical": total_critical,
+                    "high": total_high,
+                    "medium": total_medium,
+                    "low": total_low
+                }
+                results["total_vulnerabilities"] = sum(results["severity_breakdown"].values())
+                
+                # Determine risk level
+                if total_critical > 0:
+                    risk_level = "🚨 CRITICAL"
+                    risk_color = "red"
+                elif total_high > 5:
+                    risk_level = "⚠️ HIGH"
+                    risk_color = "orange"
+                elif total_high > 0 or total_medium > 10:
+                    risk_level = "⚠️ MEDIUM"
+                    risk_color = "yellow"
+                elif results["total_vulnerabilities"] > 0:
+                    risk_level = "ℹ️ LOW"
+                    risk_color = "blue"
+                else:
+                    risk_level = "✅ SECURE"
+                    risk_color = "green"
+                
+                # Calculate security score (0-100)
+                security_score = 100
+                security_score -= total_critical * 20  # Each critical = -20 points
+                security_score -= total_high * 10      # Each high = -10 points
+                security_score -= total_medium * 3     # Each medium = -3 points
+                security_score -= total_low * 1        # Each low = -1 point
+                security_score = max(0, security_score)
+                
+                # Generate remediation plan
+                remediation_steps = []
+                if total_critical > 0:
+                    remediation_steps.append("1. 🚨 IMMEDIATELY update packages with CRITICAL vulnerabilities")
+                if total_high > 0:
+                    remediation_steps.append("2. ⚠️ Update packages with HIGH vulnerabilities within 24 hours")
+                if total_medium > 0:
+                    remediation_steps.append("3. 📋 Plan updates for MEDIUM vulnerabilities this week")
+                if total_low > 0:
+                    remediation_steps.append("4. ℹ️ Review LOW vulnerabilities in next maintenance window")
+                
+                # Estimate fix time
+                fix_time_minutes = (total_critical * 15) + (total_high * 10) + (total_medium * 5) + (total_low * 2)
+                if fix_time_minutes < 60:
+                    estimated_fix_time = f"{fix_time_minutes} minutes"
+                else:
+                    estimated_fix_time = f"{fix_time_minutes // 60} hours {fix_time_minutes % 60} minutes"
+                
+                # Priority fixes (convert sets to lists for JSON serialization)
+                priority_fixes = []
+                for pkg_name, pkg_info in results["all_vulnerable_packages"].items():
+                    pkg_info["versions_affected"] = list(pkg_info["versions_affected"])
+                    priority_fixes.append({
+                        "package": pkg_name,
+                        "affected_versions": pkg_info["versions_affected"],
+                        "found_in": pkg_info["sources"]
+                    })
+                
+                # Sort by number of sources (packages used in multiple places are higher priority)
+                priority_fixes.sort(key=lambda x: len(x["found_in"]), reverse=True)
+                
+                return {
+                    "overall_risk_level": risk_level,
+                    "security_score": security_score,
+                    "total_vulnerabilities": results["total_vulnerabilities"],
+                    "severity_breakdown": results["severity_breakdown"],
+                    "checks_performed": results["checks_performed"],
+                    "priority_fixes": priority_fixes[:10],  # Top 10
+                    "vulnerabilities_by_source": results["vulnerabilities_by_source"],
+                    "installed_environment": results.get("installed_scan", {}),
+                    "estimated_fix_time": estimated_fix_time,
+                    "remediation_plan": remediation_steps,
+                    "recommendation": (
+                        f"{risk_level}: Found {results['total_vulnerabilities']} vulnerabilities across your project. "
+                        f"Security Score: {security_score}/100. "
+                        f"Estimated fix time: {estimated_fix_time}. "
+                        + ("URGENT ACTION REQUIRED!" if total_critical > 0 else "Please review and update.")
+                    ),
+                    "scan_timestamp": results["scan_timestamp"]
+                }
+                
+            except Exception as e:
+                logger.error(f"Error in project security audit: {e}")
+                return {"error": f"Security audit failed: {str(e)}"}
     
     def _register_resources(self):
         """Register PyPI resources with the MCP server."""

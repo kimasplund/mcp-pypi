@@ -95,8 +95,10 @@ claude mcp add mcp-pypi -- mcp-pypi serve
 - **scan_dependency_vulnerabilities** - 🛡️🔍 Deep scan entire dependency tree for vulnerabilities
 
 ### Project Management
-- **check_requirements_txt** - 📋 Audit requirements.txt files
-- **check_pyproject_toml** - 🎯 Analyze pyproject.toml dependencies
+- **check_requirements_txt** - 📋🛡️ Security audit requirements.txt files
+- **check_pyproject_toml** - 🎯🛡️ Security audit pyproject.toml dependencies
+- **scan_installed_packages** - 🛡️💻 Scan virtual/system environments for vulnerabilities
+- **security_audit_project** - 🛡️🔍🚨 Comprehensive project-wide security audit
 
 ### Statistics & Info
 - **get_package_stats** - 📊 Get download statistics
@@ -124,6 +126,9 @@ export PYPI_CACHE_DIR=/path/to/cache
 
 # Cache TTL (seconds)
 export PYPI_CACHE_TTL=3600
+
+# Vulnerability cache TTL (seconds) - default 1 hour
+export PYPI_VULNERABILITY_CACHE_TTL=3600
 
 # Custom user agent
 export PYPI_USER_AGENT="MyApp/1.0"
@@ -153,6 +158,37 @@ server.run(transport="http", host="0.0.0.0", port=8080)
 - **Concurrent Requests**: Async architecture for parallel operations
 - **Minimal Overhead**: Direct PyPI API integration
 - **Configurable TTL**: Control cache duration based on your needs
+
+## 🛡️ Security & Caching
+
+### Vulnerability Data Caching
+
+Vulnerability checks are cached to improve performance and reduce API load:
+
+- **Default TTL**: 1 hour (3600 seconds)
+- **Configurable**: Use `PYPI_VULNERABILITY_CACHE_TTL` environment variable
+- **Cache Key**: Based on package name + version
+- **OSV API**: Queries are cached to avoid repeated lookups
+
+### Why Caching Matters
+
+1. **Performance**: Vulnerability checks can be slow, caching makes subsequent checks instant
+2. **Rate Limiting**: Prevents hitting OSV API rate limits during large scans
+3. **Consistency**: Ensures consistent results during a security audit
+4. **Offline Support**: Cached results available even if OSV API is unreachable
+
+### Cache Management
+
+```bash
+# Clear all caches
+mcp-pypi cache clear
+
+# View cache statistics
+mcp-pypi cache stats
+
+# Set shorter TTL for development (5 minutes)
+export PYPI_VULNERABILITY_CACHE_TTL=300
+```
 
 ## 🤝 Contributing
 

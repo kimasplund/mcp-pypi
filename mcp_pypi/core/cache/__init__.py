@@ -54,12 +54,14 @@ class AsyncCacheManager:
                         data = json.load(f)
 
                 # Check if cache is expired
-                if time.time() - data.get("timestamp", 0) < self.config.cache_ttl:
+                # Use custom TTL if stored, otherwise use default
+                ttl = data.get("ttl") if data.get("ttl") is not None else self.config.cache_ttl
+                if time.time() - data.get("timestamp", 0) < ttl:
                     # Update access time
                     os.utime(cache_path, None)
                     return data.get("content")
                 else:
-                    logger.debug(f"Cache expired for {key}")
+                    logger.debug(f"Cache expired for {key} (TTL: {ttl}s)")
             except (json.JSONDecodeError, KeyError) as e:
                 logger.warning(f"Cache error for {key}: {e}")
             except PermissionError as e:
@@ -70,7 +72,7 @@ class AsyncCacheManager:
         return None
 
     async def set(
-        self, key: str, data: Dict[str, Any], etag: Optional[str] = None
+        self, key: str, data: Dict[str, Any], etag: Optional[str] = None, ttl: Optional[int] = None
     ) -> None:
         """Cache response data with timestamp and etag.
 
@@ -78,10 +80,16 @@ class AsyncCacheManager:
             key: The cache key
             data: The data to cache
             etag: Optional ETag for conditional requests
+            ttl: Optional TTL in seconds (overrides default TTL)
         """
         try:
             # Estimate the size of the serialized data
-            cache_data = {"timestamp": time.time(), "content": data, "etag": etag}
+            cache_data = {
+                "timestamp": time.time(), 
+                "content": data, 
+                "etag": etag,
+                "ttl": ttl  # Store custom TTL if provided
+            }
             serialized = json.dumps(cache_data)
             estimated_size = len(serialized.encode("utf-8"))
 
