@@ -116,9 +116,10 @@ class RPCServer:
         """Dispatch method calls to the appropriate client method."""
         # Special handling for method discovery and ping
         if method == "describe":
+            from mcp_pypi import __version__
             return {
                 "name": "mcp-pypi",
-                "version": "2.2.1",
+                "version": __version__,
                 "description": "PyPI package search and info via MCP",
                 "methods": [
                     "search_packages", "get_dependencies", "check_package_exists",
