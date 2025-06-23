@@ -91,7 +91,8 @@ claude mcp add mcp-pypi -- mcp-pypi serve
 ### Dependency Analysis
 - **get_dependencies** - 🔗 Analyze package dependencies
 - **get_dependency_tree** - 🌳 Visualize complete dependency tree
-- **check_vulnerabilities** - 🛡️ Scan for security vulnerabilities
+- **check_vulnerabilities** - 🛡️ Scan for security vulnerabilities using OSV database
+- **scan_dependency_vulnerabilities** - 🛡️🔍 Deep scan entire dependency tree for vulnerabilities
 
 ### Project Management
 - **check_requirements_txt** - 📋 Audit requirements.txt files

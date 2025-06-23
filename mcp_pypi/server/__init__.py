@@ -441,16 +441,27 @@ Key capabilities:
         
         @self.mcp_server.tool()
         async def check_requirements_txt(file_path: str) -> PackageRequirementsResult:
-            """📋 Analyze requirements.txt for outdated packages and security updates.
+            """📋🛡️ SECURITY AUDIT: Analyze requirements.txt for outdated packages and vulnerabilities.
             
-            Automate dependency audits to keep projects secure and up-to-date. Get
-            specific recommendations for compatible upgrades and security patches.
+            ESSENTIAL FOR PROJECT SECURITY: This tool not only checks for outdated packages
+            but also identifies security vulnerabilities in your dependencies.
+            
+            Security Features:
+            - Identifies packages with known vulnerabilities
+            - Highlights security updates available
+            - Checks for compatible upgrades that fix security issues
+            - Provides severity ratings for vulnerabilities found
             
             Args:
                 file_path: Path to requirements.txt file
             
             Returns:
-                PackageRequirementsResult with current vs latest versions
+                PackageRequirementsResult with:
+                - Current vs latest versions comparison
+                - Security vulnerability warnings
+                - Update recommendations prioritized by security
+                
+            Best Practice: Run this regularly and ALWAYS before deployment!
             """
             try:
                 return await self.client.check_requirements_file(file_path)
@@ -528,14 +539,27 @@ Key capabilities:
             package_name: str,
             version: Optional[str] = None
         ) -> Dict[str, Any]:
-            """Check for known vulnerabilities in a package.
+            """🛡️ SECURITY CHECK: Scan for known vulnerabilities using OSV (Open Source Vulnerabilities) database.
+            
+            IMPORTANT: Always run this BEFORE adding new dependencies to ensure security.
+            This tool checks Google's OSV database for CVEs and security advisories.
             
             Args:
-                package_name: Name of the package
-                version: Specific version (optional, defaults to latest)
+                package_name: Name of the package to check
+                version: Specific version (optional, checks all versions if not provided)
             
             Returns:
-                Dictionary with vulnerability information
+                Dictionary containing:
+                - vulnerabilities: List of vulnerability details (CVE, severity, affected versions)
+                - vulnerable: Boolean indicating if vulnerabilities exist
+                - total_vulnerabilities: Total count of vulnerabilities found
+                - critical_count, high_count, medium_count, low_count: Counts by severity
+                
+            Security Best Practices:
+            - ALWAYS check before adding new dependencies
+            - Check specific versions you plan to use
+            - Review all HIGH and CRITICAL vulnerabilities
+            - Consider checking transitive dependencies too
             """
             try:
                 result = await self.client.check_vulnerabilities(package_name, version)
@@ -543,6 +567,128 @@ Key capabilities:
             except Exception as e:
                 logger.error(f"Error checking vulnerabilities: {e}")
                 return {"error": f"Error checking vulnerabilities: {str(e)}"}
+        
+        @self.mcp_server.tool()
+        async def scan_dependency_vulnerabilities(
+            package_name: str,
+            version: Optional[str] = None,
+            max_depth: int = 2,
+            include_dev: bool = False
+        ) -> Dict[str, Any]:
+            """🛡️🔍 DEEP SECURITY SCAN: Check vulnerabilities in package AND all its dependencies.
+            
+            CRITICAL FOR SECURITY: This performs a comprehensive vulnerability scan of the entire
+            dependency tree, identifying security issues in both direct and transitive dependencies.
+            
+            Args:
+                package_name: Root package to analyze
+                version: Specific version (optional, uses latest if not provided)
+                max_depth: How deep to scan dependency tree (default: 2, max: 3)
+                include_dev: Include development dependencies (default: False)
+            
+            Returns:
+                Dictionary containing:
+                - package: Root package name and version
+                - total_packages_scanned: Number of packages checked
+                - vulnerable_packages: List of packages with vulnerabilities
+                - total_vulnerabilities: Sum of all vulnerabilities found
+                - severity_summary: Breakdown by severity across all packages
+                - dependency_tree: Full tree showing which packages depend on vulnerable ones
+                
+            Use Cases:
+            - BEFORE adding a new dependency to a project
+            - Auditing existing projects for security issues
+            - Evaluating the security posture of potential packages
+            - Finding which dependencies introduce vulnerabilities
+            
+            Example: If package A depends on B, and B has vulnerabilities, this will catch it!
+            """
+            try:
+                # First get the dependency tree
+                tree_result = await self.client.get_dependency_tree(package_name, version, max_depth)
+                if "error" in tree_result:
+                    return cast(Dict[str, Any], tree_result)
+                
+                # Track all packages to scan
+                packages_to_scan = set()
+                vulnerable_packages = []
+                total_vulnerabilities = 0
+                severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+                
+                # Helper to extract packages from tree
+                def extract_packages(node, depth=0):
+                    if depth > max_depth:
+                        return
+                    
+                    pkg_name = node.get("name", "")
+                    pkg_version = node.get("version", "")
+                    if pkg_name:
+                        packages_to_scan.add((pkg_name, pkg_version))
+                    
+                    # Process dependencies
+                    for dep in node.get("dependencies", []):
+                        extract_packages(dep, depth + 1)
+                    
+                    # Process dev dependencies if requested
+                    if include_dev:
+                        for dep in node.get("dev_dependencies", []):
+                            extract_packages(dep, depth + 1)
+                
+                # Extract all packages from the tree
+                extract_packages(tree_result)
+                
+                # Check each package for vulnerabilities
+                for pkg_name, pkg_version in packages_to_scan:
+                    vuln_result = await self.client.check_vulnerabilities(
+                        pkg_name, 
+                        pkg_version if pkg_version else None
+                    )
+                    
+                    if vuln_result.get("vulnerable", False):
+                        vuln_count = vuln_result.get("total_vulnerabilities", 0)
+                        total_vulnerabilities += vuln_count
+                        
+                        # Update severity counts
+                        severity_counts["critical"] += vuln_result.get("critical_count", 0)
+                        severity_counts["high"] += vuln_result.get("high_count", 0)
+                        severity_counts["medium"] += vuln_result.get("medium_count", 0)
+                        severity_counts["low"] += vuln_result.get("low_count", 0)
+                        
+                        vulnerable_packages.append({
+                            "package": pkg_name,
+                            "version": pkg_version or "latest",
+                            "vulnerabilities": vuln_count,
+                            "critical": vuln_result.get("critical_count", 0),
+                            "high": vuln_result.get("high_count", 0),
+                            "summary": vuln_result.get("vulnerabilities", [])[0].get("summary", "") 
+                                      if vuln_result.get("vulnerabilities") else ""
+                        })
+                
+                # Sort vulnerable packages by severity
+                vulnerable_packages.sort(
+                    key=lambda p: (p["critical"], p["high"], p["vulnerabilities"]), 
+                    reverse=True
+                )
+                
+                return {
+                    "package": f"{package_name} {version or 'latest'}",
+                    "total_packages_scanned": len(packages_to_scan),
+                    "vulnerable_packages": vulnerable_packages,
+                    "total_vulnerabilities": total_vulnerabilities,
+                    "severity_summary": severity_counts,
+                    "all_clear": len(vulnerable_packages) == 0,
+                    "recommendation": (
+                        "✅ No vulnerabilities found in dependency tree!" 
+                        if len(vulnerable_packages) == 0
+                        else f"⚠️ Found {total_vulnerabilities} vulnerabilities in {len(vulnerable_packages)} packages. "
+                             f"Review CRITICAL ({severity_counts['critical']}) and HIGH ({severity_counts['high']}) issues first."
+                    ),
+                    "dependency_tree": tree_result
+                }
+                
+            except Exception as e:
+                logger.error(f"Error scanning dependency vulnerabilities: {e}")
+                return {"error": f"Error scanning dependencies: {str(e)}"}
     
     def _register_resources(self):
         """Register PyPI resources with the MCP server."""
