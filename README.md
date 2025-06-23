@@ -65,6 +65,17 @@ Add to your Claude Desktop configuration (`claude.json`):
 }
 ```
 
+## 🖥️ Using with Claude Code (Terminal)
+
+Add the MCP server to Claude Code:
+
+```bash
+# Add the server
+claude mcp add mcp-pypi -- mcp-pypi serve
+
+# The server will be available in your next Claude Code session
+```
+
 ## 🛠️ Available Tools
 
 ### Package Discovery
