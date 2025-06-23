@@ -58,8 +58,22 @@ class PyPIMCPServer:
         self.config = config or PyPIClientConfig()
         self.client = PyPIClient(self.config)
         
-        # Initialize FastMCP server
-        self.mcp_server = FastMCP("PyPI MCP Server")
+        # Initialize FastMCP server with enhanced description
+        self.mcp_server = FastMCP(
+            name="PyPI MCP Server",
+            description="""🐍 Python Package Intelligence for AI Agents
+
+Access PyPI's 500,000+ packages with powerful discovery and analysis tools. 
+Perfect for finding libraries, managing dependencies, and keeping projects secure.
+
+Key capabilities:
+• 🔍 Smart package search and discovery
+• 📊 Download statistics and popularity metrics  
+• 🔗 Deep dependency analysis
+• 🛡️ Security vulnerability scanning
+• 📋 Requirements file auditing
+• 🚀 Version tracking and updates"""
+        )
         
         # Set the host and port in the FastMCP settings
         self.mcp_server.settings.host = host
@@ -87,14 +101,21 @@ class PyPIMCPServer:
         
         @self.mcp_server.tool()
         async def search_packages(query: str, limit: int = 10) -> SearchResult:
-            """Search for packages on PyPI.
+            """🔍 Search PyPI to discover Python packages for any task.
+            
+            Find the perfect library from 500,000+ packages. Returns ranked results
+            with names, descriptions, and versions to help you choose the best option.
             
             Args:
-                query: Search query string
-                limit: Maximum number of results to return (default: 10, max: 100)
+                query: Search terms (e.g. "web scraping", "machine learning")
+                limit: Maximum results (default: 10, max: 100)
             
             Returns:
-                SearchResult with list of matching packages
+                SearchResult with packages sorted by relevance
+            
+            Examples:
+                query="data visualization" → matplotlib, plotly, seaborn
+                query="testing framework" → pytest, unittest, nose2
             """
             try:
                 return await self.client.search(query, limit=min(limit, 100))
@@ -109,13 +130,22 @@ class PyPIMCPServer:
         
         @self.mcp_server.tool()
         async def get_package_info(package_name: str) -> PackageInfo:
-            """Get detailed information about a specific package.
+            """📦 Get comprehensive details about any Python package from PyPI.
+            
+            Essential for understanding packages before installation. Returns complete
+            metadata including description, license, author, URLs, and classifiers.
             
             Args:
-                package_name: Name of the package
+                package_name: Exact name of the Python package
             
             Returns:
-                PackageInfo with comprehensive package details
+                PackageInfo with description, license, URLs, dependencies, and more
+            
+            Use this to:
+                - Understand what a package does
+                - Check license compatibility
+                - Find documentation and source code
+                - View maintainer information
             """
             try:
                 return await self.client.get_package_info(package_name)
@@ -130,13 +160,16 @@ class PyPIMCPServer:
         
         @self.mcp_server.tool()
         async def get_latest_version(package_name: str) -> VersionInfo:
-            """Get the latest version of a package.
+            """🚀 Check the latest version of any Python package on PyPI.
+            
+            Instantly see if updates are available. Essential for keeping projects
+            current, secure, and compatible with the latest features.
             
             Args:
-                package_name: Name of the package
+                package_name: Name of the Python package
             
             Returns:
-                VersionInfo with the latest version details
+                VersionInfo with latest stable version and release date
             """
             try:
                 return await self.client.get_latest_version(package_name)
@@ -150,14 +183,18 @@ class PyPIMCPServer:
         
         @self.mcp_server.tool()
         async def get_dependencies(package_name: str, version: Optional[str] = None) -> DependenciesResult:
-            """Get dependencies for a package.
+            """🔗 Analyze Python package dependencies from PyPI.
+            
+            Critical for dependency management and security audits. See all required
+            and optional dependencies with version constraints to plan installations
+            and identify potential conflicts.
             
             Args:
-                package_name: Name of the package
+                package_name: Name of the Python package
                 version: Specific version (optional, defaults to latest)
             
             Returns:
-                DependenciesResult with install and dev dependencies
+                DependenciesResult with install_requires and extras_require
             """
             try:
                 return await self.client.get_dependencies(package_name, version)
@@ -200,13 +237,16 @@ class PyPIMCPServer:
         
         @self.mcp_server.tool()
         async def get_package_stats(package_name: str) -> StatsResult:
-            """Get download statistics for a package.
+            """📊 Get PyPI download statistics to gauge package popularity.
+            
+            Make informed decisions using real usage data from the Python community.
+            Compare alternatives and track adoption trends over time.
             
             Args:
-                package_name: Name of the package
+                package_name: Name of the Python package
             
             Returns:
-                StatsResult with download counts and trends
+                StatsResult with daily, weekly, and monthly download counts
             """
             try:
                 return await self.client.get_package_stats(package_name)
@@ -313,13 +353,16 @@ class PyPIMCPServer:
         
         @self.mcp_server.tool()
         async def check_requirements_txt(file_path: str) -> PackageRequirementsResult:
-            """Check packages from a requirements.txt file.
+            """📋 Analyze requirements.txt for outdated packages and security updates.
+            
+            Automate dependency audits to keep projects secure and up-to-date. Get
+            specific recommendations for compatible upgrades and security patches.
             
             Args:
                 file_path: Path to requirements.txt file
             
             Returns:
-                PackageRequirementsResult with package status information
+                PackageRequirementsResult with current vs latest versions
             """
             try:
                 return await self.client.check_requirements_txt(file_path)
