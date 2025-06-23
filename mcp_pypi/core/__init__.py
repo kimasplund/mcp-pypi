@@ -2175,7 +2175,7 @@ class PyPIClient:
         # Transform the response to match expected format
         if "updates" in result:
             return {"releases": result["updates"], "error": result.get("error")}
-        return result
+        return {"releases": [], "error": result.get("error") if isinstance(result, dict) else None}
 
     async def get_package_changelog(
         self, package_name: str, version: Optional[str] = None

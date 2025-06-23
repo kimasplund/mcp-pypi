@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🎉 New Features
 - **OSV Vulnerability Integration**: Implemented check_vulnerabilities using Google's OSV database for comprehensive security scanning
-- **Package Changelog Retrieval**: Added get_package_changelog method with GitHub releases integration and metadata parsing
-- **RSS Feed Support**: Fixed RSS/XML parsing for PyPI updates feed with proper raw data handling
+- **Package Changelog Retrieval**: Added get_package_changelog method with GitHub releases integration and metadata parsing (limited to 5 releases to avoid token limits)
+- **Complete RSS Feed Support**: Implemented all PyPI RSS feeds - packages.xml, updates.xml, and project releases
 - **Enhanced HTTP Client**: Added support for POST requests with JSON payloads for OSV API integration
 - **Version Parsing Improvements**: Better handling of git commit hashes and pre-release versions
 
@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed RSS feed parsing by properly handling raw XML responses from HTTP client
 - Fixed version parsing for packages using git commit hashes
 - Added error handling for non-existent packages in vulnerability checks
+- Fixed method naming mismatch for RSS feeds (get_packages_feed, get_releases_feed)
+- Fixed changelog token limit issue by truncating to 5 releases with 1000 char limit per release
 
 ### 📝 Documentation
 - Updated CLAUDE.md with latest build/test commands and code patterns
