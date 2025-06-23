@@ -1522,3 +1522,60 @@ class PyPIClient:
                     f"Error checking pyproject.toml file: {str(e)}",
                 ),
             )
+    
+    async def get_releases_feed(self) -> ReleasesFeed:
+        """Get recent releases feed from PyPI RSS."""
+        try:
+            # PyPI RSS feed for recent releases
+            url = "https://pypi.org/rss/updates.xml"
+            # For now, return empty feed as PyPI RSS parsing is not implemented
+            return {
+                "releases": [],
+                "error": {
+                    "message": "RSS feed parsing not implemented",
+                    "code": "not_implemented"
+                }
+            }
+        except Exception as e:
+            logger.exception(f"Error getting releases feed: {e}")
+            return {
+                "error": {"message": str(e), "code": "feed_error"}
+            }
+    
+    async def get_packages_feed(self) -> PackagesFeed:
+        """Get new packages feed from PyPI RSS."""
+        try:
+            # PyPI RSS feed for new packages
+            url = "https://pypi.org/rss/packages.xml"
+            # For now, return empty feed as PyPI RSS parsing is not implemented
+            return {
+                "packages": [],
+                "error": {
+                    "message": "RSS feed parsing not implemented",
+                    "code": "not_implemented"
+                }
+            }
+        except Exception as e:
+            logger.exception(f"Error getting packages feed: {e}")
+            return {
+                "error": {"message": str(e), "code": "feed_error"}
+            }
+    
+    async def get_updates_feed(self) -> UpdatesFeed:
+        """Get package updates feed from PyPI RSS."""
+        try:
+            # PyPI RSS feed for updates
+            url = "https://pypi.org/rss/updates.xml"
+            # For now, return empty feed as PyPI RSS parsing is not implemented
+            return {
+                "updates": [],
+                "error": {
+                    "message": "RSS feed parsing not implemented",
+                    "code": "not_implemented"
+                }
+            }
+        except Exception as e:
+            logger.exception(f"Error getting updates feed: {e}")
+            return {
+                "error": {"message": str(e), "code": "feed_error"}
+            }

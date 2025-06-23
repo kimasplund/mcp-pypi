@@ -118,18 +118,27 @@ Key capabilities:
                 query="testing framework" → pytest, unittest, nose2
             """
             try:
-                return await self.client.search(query, limit=min(limit, 100))
+                # Note: PyPI search API doesn't support limit parameter directly
+                # We'll get results and truncate if needed
+                result = await self.client.search_packages(query)
+                if not result.get("error") and limit < 100:
+                    # Limit the results if specified
+                    results = result.get("results", [])
+                    if len(results) > limit:
+                        result["results"] = results[:limit]
+                        result["total"] = limit
+                return result
             except Exception as e:
                 logger.error(f"Error searching packages: {e}")
-                return SearchResult(
-                    query=query,
-                    packages=[],
-                    total=0,
-                    error=ErrorResult(message=str(e), code="search_error")
-                )
+                return {
+                    "query": query,
+                    "packages": [],
+                    "total": 0,
+                    "error": {"message": str(e), "code": "search_error"}
+                }
         
         @self.mcp_server.tool()
-        async def get_package_info(package_name: str) -> PackageInfo:
+        async def get_package_info(package_name: str) -> Dict[str, Any]:
             """📦 Get comprehensive details about any Python package from PyPI.
             
             Essential for understanding packages before installation. Returns complete
@@ -148,15 +157,95 @@ Key capabilities:
                 - View maintainer information
             """
             try:
-                return await self.client.get_package_info(package_name)
+                full_info = await self.client.get_package_info(package_name)
+                
+                # If there's an error, return as-is
+                if "error" in full_info:
+                    return full_info
+                
+                # Extract essential info without the massive releases data
+                info = full_info.get("info", {})
+                releases = full_info.get("releases", {})
+                
+                # Build a condensed response
+                condensed = {
+                    "info": info,
+                    "release_count": len(releases),
+                    "available_versions": sorted(releases.keys(), reverse=True)[:10],  # Top 10 versions
+                    "latest_version": info.get("version", "")
+                }
+                
+                # Add URLs from the latest release if available
+                latest_version = info.get("version")
+                if latest_version and latest_version in releases:
+                    latest_files = releases[latest_version]
+                    condensed["latest_release_files"] = len(latest_files)
+                    condensed["latest_release_types"] = list(set(
+                        f.get("packagetype", "unknown") for f in latest_files
+                    ))
+                
+                return condensed
+                
             except Exception as e:
                 logger.error(f"Error getting package info: {e}")
-                return PackageInfo(
-                    name=package_name,
-                    version="",
-                    summary="",
-                    error=ErrorResult(message=str(e), code="package_info_error")
-                )
+                return {
+                    "error": {
+                        "message": str(e),
+                        "code": "package_info_error"
+                    }
+                }
+        
+        @self.mcp_server.tool()
+        async def get_package_releases(
+            package_name: str,
+            limit: Optional[int] = 10
+        ) -> Dict[str, Any]:
+            """Get detailed release information for a specific package.
+            
+            Provides full release data for packages when needed. Use this after
+            get_package_info to explore specific versions in detail.
+            
+            Args:
+                package_name: Name of the Python package
+                limit: Maximum number of releases to return (default: 10)
+            
+            Returns:
+                Dictionary with release versions and their file details
+            """
+            try:
+                full_info = await self.client.get_package_info(package_name)
+                
+                # If there's an error, return as-is
+                if "error" in full_info:
+                    return full_info
+                
+                releases = full_info.get("releases", {})
+                sorted_versions = sorted(releases.keys(), reverse=True)
+                
+                # Limit the number of releases
+                if limit:
+                    sorted_versions = sorted_versions[:limit]
+                
+                limited_releases = {
+                    version: releases[version]
+                    for version in sorted_versions
+                }
+                
+                return {
+                    "package_name": package_name,
+                    "total_releases": len(releases),
+                    "returned_releases": len(limited_releases),
+                    "releases": limited_releases
+                }
+                
+            except Exception as e:
+                logger.error(f"Error getting package releases: {e}")
+                return {
+                    "error": {
+                        "message": str(e),
+                        "code": "releases_error"
+                    }
+                }
         
         @self.mcp_server.tool()
         async def get_latest_version(package_name: str) -> VersionInfo:
@@ -464,12 +553,13 @@ Key capabilities:
             """Get recent package releases from PyPI."""
             try:
                 feed = await self.client.get_releases_feed()
-                if isinstance(feed, ReleasesFeed):
+                if not feed.get("error"):
                     releases = []
-                    for release in feed.releases[:20]:  # Limit to 20 recent releases
+                    feed_releases = feed.get("releases", [])
+                    for release in feed_releases[:20]:  # Limit to 20 recent releases
                         releases.append(
-                            f"- {release.package} {release.version} "
-                            f"(by {release.author}, {release.published})"
+                            f"- {release.get('title', 'Unknown')} "
+                            f"({release.get('published_date', 'Unknown date')})"
                         )
                     return "Recent PyPI Releases:\n\n" + "\n".join(releases)
                 return "No recent releases available"
@@ -482,11 +572,13 @@ Key capabilities:
             """Get newly created packages on PyPI."""
             try:
                 feed = await self.client.get_packages_feed()
-                if isinstance(feed, PackagesFeed):
+                if not feed.get("error"):
                     packages = []
-                    for pkg in feed.packages[:20]:  # Limit to 20 new packages
+                    feed_packages = feed.get("packages", [])
+                    for pkg in feed_packages[:20]:  # Limit to 20 new packages
                         packages.append(
-                            f"- {pkg.name} (by {pkg.author}, {pkg.created})"
+                            f"- {pkg.get('title', 'Unknown')} "
+                            f"({pkg.get('published_date', 'Unknown date')})"
                         )
                     return "New PyPI Packages:\n\n" + "\n".join(packages)
                 return "No new packages available"
@@ -499,12 +591,13 @@ Key capabilities:
             """Get recently updated packages on PyPI."""
             try:
                 feed = await self.client.get_updates_feed()
-                if isinstance(feed, UpdatesFeed):
+                if not feed.get("error"):
                     updates = []
-                    for update in feed.updates[:20]:  # Limit to 20 updates
+                    feed_updates = feed.get("updates", [])
+                    for update in feed_updates[:20]:  # Limit to 20 updates
                         updates.append(
-                            f"- {update.package} {update.version} "
-                            f"(updated {update.updated})"
+                            f"- {update.get('title', 'Unknown')} "
+                            f"({update.get('published_date', 'Unknown date')})"
                         )
                     return "Recently Updated PyPI Packages:\n\n" + "\n".join(updates)
                 return "No recent updates available"

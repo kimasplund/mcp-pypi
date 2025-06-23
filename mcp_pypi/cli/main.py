@@ -7,7 +7,7 @@ import json
 import os
 import logging
 import sys
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Mapping
 
 import typer
 from rich.console import Console
@@ -88,7 +88,7 @@ def get_config() -> PyPIClientConfig:
     return config
 
 
-def output_json(data: Dict[str, Any], color: bool = True) -> None:
+def output_json(data: Mapping[str, Any], color: bool = True) -> None:
     """Output JSON data to the console."""
     if color:
         json_str = json.dumps(data, indent=2)

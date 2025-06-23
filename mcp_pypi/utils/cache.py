@@ -487,7 +487,7 @@ class FileCache(BaseCache):
                 parsed = pickle.loads(data)
 
             return parsed["data"], parsed["timestamp"]
-        except (json.JSONDecodeError, pickle.UnpickleError, KeyError) as e:
+        except (json.JSONDecodeError, pickle.UnpicklingError, KeyError) as e:
             logger.warning(f"Failed to deserialize cache data: {e}")
             return None, 0
 
@@ -743,7 +743,7 @@ try:
                     return json.loads(data.decode("utf-8"))
                 else:  # Default to pickle
                     return pickle.loads(data)
-            except (json.JSONDecodeError, pickle.UnpickleError) as e:
+            except (json.JSONDecodeError, pickle.UnpicklingError) as e:
                 logger.warning(f"Failed to deserialize Redis data: {e}")
                 return None
 

@@ -1,0 +1,18 @@
+# Pyrefly configuration for mcp-pypi
+
+project-includes = ["mcp_pypi"]
+project-excludes = ["tests", "build", "dist", "*.egg-info"]
+
+# Use Python 3.10 as minimum supported version
+python-version = "3.10"
+
+# Enable strict type checking
+strict = true
+
+# Show error codes
+show-error-codes = true
+
+# Report unused imports
+warn-unused-ignores = true
+warn-return-any = true
+warn-redundant-casts = true

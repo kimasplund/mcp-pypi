@@ -3,7 +3,7 @@ Utility functions for the MCP-PyPI client.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from mcp_pypi.core.models import ErrorCode, format_error
 from mcp_pypi.utils.helpers import sanitize_package_name, sanitize_version
@@ -15,7 +15,7 @@ logger = logging.getLogger("mcp-pypi")
 def configure_logging(
     level: int = logging.INFO,
     format_str: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    file_path: str = None,
+    file_path: Optional[str] = None,
 ) -> None:
     """Configure logging for the MCP-PyPI client.
 
