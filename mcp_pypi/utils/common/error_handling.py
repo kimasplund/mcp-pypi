@@ -78,7 +78,7 @@ def error_handler(result_type: Any) -> Callable[[Callable[..., R]], Callable[...
         @wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> R:
             try:
-                return await func(*args, **kwargs)
+                return await func(*args, **kwargs)  # type: ignore[misc]
             except Exception as e:
                 func_name = func.__name__
                 error_result = handle_client_error(func_name, e)
@@ -94,7 +94,7 @@ def error_handler(result_type: Any) -> Callable[[Callable[..., R]], Callable[...
                 return cast(R, error_result)
 
         if asyncio := func.__code__.co_flags & 0x80:  # Check if it's an async function
-            return async_wrapper
-        return sync_wrapper
+            return cast(Callable[..., R], async_wrapper)
+        return cast(Callable[..., R], sync_wrapper)
 
     return decorator

@@ -2,7 +2,7 @@
 
 import logging
 import typer
-from typing import Optional
+from typing import Optional, Dict, Any, Literal
 
 from mcp_pypi.server import PyPIMCPServer
 from mcp_pypi.core.models import PyPIClientConfig
@@ -26,12 +26,13 @@ def serve_command(
     - http: HTTP server with SSE and streamable-http endpoints
     """
     # Configure logging
-    configure_logging(log_level)
+    log_level_int = getattr(logging, log_level.upper(), logging.INFO)
+    configure_logging(log_level_int)
     logger = logging.getLogger("mcp-pypi.cli.server")
     
     try:
         # Create client configuration with only non-None values
-        config_kwargs = {
+        config_kwargs: Dict[str, Any] = {
             "cache_strategy": cache_strategy,
             "cache_ttl": cache_ttl,
         }
@@ -55,7 +56,7 @@ def serve_command(
             logger.info(f"  Streamable-HTTP endpoint: http://{host}:{port}/mcp")
         
         # Run the server
-        server.run(transport=transport)
+        server.run(transport=transport)  # type: ignore[arg-type]
             
     except KeyboardInterrupt:
         logger.info("Server stopped by user")

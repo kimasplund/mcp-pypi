@@ -51,6 +51,7 @@ class ErrorCode:
     UNKNOWN_ERROR = "unknown_error"
     RATE_LIMIT_ERROR = "rate_limit_error"
     TIMEOUT_ERROR = "timeout_error"
+    MISSING_DEPENDENCY = "missing_dependency"
 
 
 # Helper function for formatting errors - moved here to break circular import
@@ -115,11 +116,13 @@ class PackageInfo(TypedDict):
 class VersionInfo(TypedDict):
     error: NotRequired[ErrorDict]
     version: NotRequired[str]
+    package_name: NotRequired[str]
 
 
 class ReleasesInfo(TypedDict):
     error: NotRequired[ErrorDict]
     releases: NotRequired[List[str]]
+    package_name: NotRequired[str]
 
 
 class UrlsInfo(TypedDict):
@@ -159,6 +162,9 @@ class SearchResult(TypedDict):
     search_url: NotRequired[str]
     results: NotRequired[List[Dict[str, str]]]
     message: NotRequired[str]
+    total: NotRequired[int]
+    query: NotRequired[str]
+    packages: NotRequired[List[Any]]
 
 
 class VersionComparisonResult(TypedDict):
@@ -168,6 +174,8 @@ class VersionComparisonResult(TypedDict):
     is_version1_greater: NotRequired[bool]
     is_version2_greater: NotRequired[bool]
     are_equal: NotRequired[bool]
+    package_name: NotRequired[str]
+    comparison: NotRequired[str]
 
 
 class Dependency(TypedDict):
@@ -180,11 +188,16 @@ class Dependency(TypedDict):
 class DependenciesResult(TypedDict):
     error: NotRequired[ErrorDict]
     dependencies: NotRequired[List[Dependency]]
+    package: NotRequired[str]
+    version: NotRequired[str]
+    install_requires: NotRequired[List[str]]
+    extras_require: NotRequired[Dict[str, List[str]]]
 
 
 class ExistsResult(TypedDict):
     error: NotRequired[ErrorDict]
     exists: NotRequired[bool]
+    package_name: NotRequired[str]
 
 
 class PackageMetadata(TypedDict):
@@ -205,6 +218,8 @@ class PackageMetadata(TypedDict):
 class MetadataResult(TypedDict):
     error: NotRequired[ErrorDict]
     metadata: NotRequired[PackageMetadata]
+    package_name: NotRequired[str]
+    version: NotRequired[str]
 
 
 class StatsResult(TypedDict):
@@ -213,6 +228,7 @@ class StatsResult(TypedDict):
     last_month: NotRequired[int]
     last_week: NotRequired[int]
     last_day: NotRequired[int]
+    package_name: NotRequired[str]
 
 
 class TreeNode(TypedDict):
@@ -227,22 +243,29 @@ class DependencyTreeResult(TypedDict):
     tree: NotRequired[TreeNode]
     flat_list: NotRequired[List[str]]
     visualization_url: NotRequired[Optional[str]]
+    package: NotRequired[str]
+    version: NotRequired[str]
 
 
 class DocumentationResult(TypedDict):
     error: NotRequired[ErrorDict]
     docs_url: NotRequired[str]
     summary: NotRequired[str]
+    package_name: NotRequired[str]
+    documentation_url: NotRequired[Optional[str]]
 
 
 class PackageRequirement(TypedDict):
     package: str
     current_version: str
     latest_version: NotRequired[str]
+    constraint: NotRequired[str]
 
 
 class PackageRequirementsResult(TypedDict):
     error: NotRequired[ErrorDict]
+    file_path: NotRequired[str]
+    requirements: NotRequired[List[PackageRequirement]]
     outdated: NotRequired[List[PackageRequirement]]
     up_to_date: NotRequired[List[PackageRequirement]]
 

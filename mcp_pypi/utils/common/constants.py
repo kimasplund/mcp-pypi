@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 # User agent for API requests
-USER_AGENT = "MCP-PyPI/2.1.0 (+https://github.com/kimasplund/mcp-pypi)"
+USER_AGENT = "MCP-PyPI/2.2.2 (+https://github.com/kimasplund/mcp-pypi)"
 
 # Cache settings
 DEFAULT_CACHE_DIR = os.path.join(Path.home(), ".cache", "mcp-pypi")

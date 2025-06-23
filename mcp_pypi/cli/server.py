@@ -116,9 +116,19 @@ class RPCServer:
         """Dispatch method calls to the appropriate client method."""
         # Special handling for method discovery and ping
         if method == "describe":
-            from mcp_pypi.cli.main import get_mcp_schema
-
-            return get_mcp_schema()
+            return {
+                "name": "mcp-pypi",
+                "version": "2.2.1",
+                "description": "PyPI package search and info via MCP",
+                "methods": [
+                    "search_packages", "get_dependencies", "check_package_exists",
+                    "get_package_metadata", "get_package_stats", "get_dependency_tree",
+                    "get_package_info", "get_latest_version", "get_package_releases",
+                    "get_release_urls", "get_newest_packages", "get_latest_updates",
+                    "get_project_releases", "get_documentation_url", 
+                    "check_requirements_file", "compare_versions"
+                ]
+            }
 
         if method == "ping":
             return "pong"
@@ -148,12 +158,13 @@ class RPCServer:
         method_func = method_map[method]
 
         # Convert params to args and kwargs based on method signature
-        if isinstance(params, dict):
-            return await method_func(**params)
-        elif isinstance(params, list):
-            return await method_func(*params)
+        if isinstance(params, dict) and params:
+            return await method_func(**params)  # type: ignore[misc]
+        elif isinstance(params, list) and params:
+            return await method_func(*params)  # type: ignore[misc]
         else:
-            return await method_func()
+            # Empty params - this is an error for methods that require args
+            raise ValueError(f"Method {method} requires parameters")
 
 
 async def process_mcp_stdin(verbose: bool = False):

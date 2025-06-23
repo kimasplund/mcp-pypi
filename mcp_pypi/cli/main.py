@@ -645,7 +645,7 @@ def check_requirements(
                             f"[bold]{package_name}[/bold]",
                             current_version,
                             f"[green]{latest_version}[/green]",
-                            constraint,
+                            str(constraint),
                         )
 
                     console.print(table)
@@ -672,7 +672,7 @@ def check_requirements(
                         constraint = pkg.get("constraint", pkg.get("specs", ""))
 
                         table.add_row(
-                            package_name, current_version, latest_version, constraint
+                            package_name, current_version, latest_version, str(constraint)
                         )
 
                     console.print(table)

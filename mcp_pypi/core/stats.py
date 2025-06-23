@@ -4,7 +4,7 @@ Package statistics service for the MCP-PyPI client.
 
 import logging
 import datetime
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, cast
 
 from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import StatsResult, ErrorCode, format_error
@@ -51,7 +51,7 @@ class PackageStatsService:
 
             # Check for error in result
             if isinstance(overall_result, dict) and "error" in overall_result:
-                return overall_result
+                return cast(StatsResult, overall_result)
 
             # Handle the new format where raw data might be returned
             overall_data_parsed = None
@@ -67,15 +67,15 @@ class PackageStatsService:
                         overall_data_parsed = json.loads(raw_data)
                     except json.JSONDecodeError as e:
                         logger.error(f"Error decoding JSON from raw_data: {e}")
-                        return format_error(
+                        return cast(StatsResult, format_error(
                             ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                        )
+                        ))
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
-                    return format_error(
+                    return cast(StatsResult, format_error(
                         ErrorCode.PARSE_ERROR,
                         f"Unexpected content type: {content_type}",
-                    )
+                    ))
             else:
                 # Already parsed JSON data
                 overall_data_parsed = overall_result
@@ -85,7 +85,7 @@ class PackageStatsService:
 
             # Check for error in result
             if isinstance(detailed_result, dict) and "error" in detailed_result:
-                return detailed_result
+                return cast(StatsResult, detailed_result)
 
             # Handle the new format where raw data might be returned
             detailed_data_parsed = None
@@ -101,15 +101,15 @@ class PackageStatsService:
                         detailed_data_parsed = json.loads(raw_data)
                     except json.JSONDecodeError as e:
                         logger.error(f"Error decoding JSON from raw_data: {e}")
-                        return format_error(
+                        return cast(StatsResult, format_error(
                             ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                        )
+                        ))
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
-                    return format_error(
+                    return cast(StatsResult, format_error(
                         ErrorCode.PARSE_ERROR,
                         f"Unexpected content type: {content_type}",
-                    )
+                    ))
             else:
                 # Already parsed JSON data
                 detailed_data_parsed = detailed_result
@@ -238,10 +238,10 @@ class PackageStatsService:
                 return self._generate_synthetic_stats(package_name, periods)
 
         except ValueError as e:
-            return format_error(ErrorCode.INVALID_INPUT, str(e))
+            return cast(StatsResult, format_error(ErrorCode.INVALID_INPUT, str(e)))
         except Exception as e:
             logger.exception(f"Unexpected error getting package stats: {e}")
-            return format_error(ErrorCode.UNKNOWN_ERROR, str(e))
+            return cast(StatsResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
     def _generate_synthetic_stats(
         self, package_name: str, periods: int = 6

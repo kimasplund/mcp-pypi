@@ -13,7 +13,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union, Set, Literal
+from typing import Dict, Any, List, Optional, Union, Set, Literal, cast
 
 from mcp.server import FastMCP
 from mcp.types import GetPromptResult, PromptMessage, TextContent
@@ -161,7 +161,7 @@ Key capabilities:
                 
                 # If there's an error, return as-is
                 if "error" in full_info:
-                    return full_info
+                    return cast(Dict[str, Any], full_info)
                 
                 # Extract essential info without the massive releases data
                 info = full_info.get("info", {})
@@ -217,7 +217,7 @@ Key capabilities:
                 
                 # If there's an error, return as-is
                 if "error" in full_info:
-                    return full_info
+                    return cast(Dict[str, Any], full_info)
                 
                 releases = full_info.get("releases", {})
                 sorted_versions = sorted(releases.keys(), reverse=True)
@@ -264,11 +264,11 @@ Key capabilities:
                 return await self.client.get_latest_version(package_name)
             except Exception as e:
                 logger.error(f"Error getting latest version: {e}")
-                return VersionInfo(
-                    package_name=package_name,
-                    version="",
-                    error=ErrorResult(message=str(e), code="version_error")
-                )
+                return {
+                    "package_name": package_name,
+                    "version": "",
+                    "error": {"message": str(e), "code": "version_error"}
+                }
         
         @self.mcp_server.tool()
         async def get_dependencies(package_name: str, version: Optional[str] = None) -> DependenciesResult:
@@ -289,13 +289,13 @@ Key capabilities:
                 return await self.client.get_dependencies(package_name, version)
             except Exception as e:
                 logger.error(f"Error getting dependencies: {e}")
-                return DependenciesResult(
-                    package=package_name,
-                    version=version or "latest",
-                    install_requires=[],
-                    extras_require={},
-                    error=ErrorResult(message=str(e), code="dependencies_error")
-                )
+                return {
+                    "package": package_name,
+                    "version": version or "latest",
+                    "install_requires": [],
+                    "extras_require": {},
+                    "error": {"message": str(e), "code": "dependencies_error"}
+                }
         
         @self.mcp_server.tool()
         async def get_dependency_tree(
@@ -317,12 +317,11 @@ Key capabilities:
                 return await self.client.get_dependency_tree(package_name, version, max_depth)
             except Exception as e:
                 logger.error(f"Error getting dependency tree: {e}")
-                return DependencyTreeResult(
-                    package=package_name,
-                    version=version or "latest",
-                    tree={},
-                    error=ErrorResult(message=str(e), code="dependency_tree_error")
-                )
+                return {
+                    "package": package_name,
+                    "version": version or "latest",
+                    "error": {"message": str(e), "code": "dependency_tree_error"}
+                }
         
         @self.mcp_server.tool()
         async def get_package_stats(package_name: str) -> StatsResult:
@@ -341,11 +340,11 @@ Key capabilities:
                 return await self.client.get_package_stats(package_name)
             except Exception as e:
                 logger.error(f"Error getting package stats: {e}")
-                return StatsResult(
-                    package_name=package_name,
-                    downloads={},
-                    error=ErrorResult(message=str(e), code="stats_error")
-                )
+                return {
+                    "package_name": package_name,
+                    "downloads": {},
+                    "error": {"message": str(e), "code": "stats_error"}
+                }
         
         @self.mcp_server.tool()
         async def check_package_exists(package_name: str) -> ExistsResult:
@@ -361,11 +360,11 @@ Key capabilities:
                 return await self.client.check_package_exists(package_name)
             except Exception as e:
                 logger.error(f"Error checking package existence: {e}")
-                return ExistsResult(
-                    package_name=package_name,
-                    exists=False,
-                    error=ErrorResult(message=str(e), code="exists_error")
-                )
+                return {
+                    "package_name": package_name,
+                    "exists": False,
+                    "error": {"message": str(e), "code": "exists_error"}
+                }
         
         @self.mcp_server.tool()
         async def get_package_metadata(
@@ -385,12 +384,12 @@ Key capabilities:
                 return await self.client.get_package_metadata(package_name, version)
             except Exception as e:
                 logger.error(f"Error getting package metadata: {e}")
-                return MetadataResult(
-                    package_name=package_name,
-                    version=version or "latest",
-                    metadata={},
-                    error=ErrorResult(message=str(e), code="metadata_error")
-                )
+                return {
+                    "package_name": package_name,
+                    "version": version or "latest",
+                    "metadata": {},
+                    "error": {"message": str(e), "code": "metadata_error"}
+                }
         
         @self.mcp_server.tool()
         async def list_package_versions(package_name: str) -> ReleasesInfo:
@@ -403,14 +402,14 @@ Key capabilities:
                 ReleasesInfo with all available versions
             """
             try:
-                return await self.client.list_package_versions(package_name)
+                return await self.client.get_package_releases(package_name)
             except Exception as e:
                 logger.error(f"Error listing package versions: {e}")
-                return ReleasesInfo(
-                    package_name=package_name,
-                    releases=[],
-                    error=ErrorResult(message=str(e), code="versions_error")
-                )
+                return {
+                    "package_name": package_name,
+                    "releases": [],
+                    "error": {"message": str(e), "code": "versions_error"}
+                }
         
         @self.mcp_server.tool()
         async def compare_versions(
@@ -432,13 +431,13 @@ Key capabilities:
                 return await self.client.compare_versions(package_name, version1, version2)
             except Exception as e:
                 logger.error(f"Error comparing versions: {e}")
-                return VersionComparisonResult(
-                    package_name=package_name,
-                    version1=version1,
-                    version2=version2,
-                    comparison="error",
-                    error=ErrorResult(message=str(e), code="comparison_error")
-                )
+                return {
+                    "package_name": package_name,
+                    "version1": version1,
+                    "version2": version2,
+                    "comparison": "error",
+                    "error": {"message": str(e), "code": "comparison_error"}
+                }
         
         @self.mcp_server.tool()
         async def check_requirements_txt(file_path: str) -> PackageRequirementsResult:
@@ -454,14 +453,14 @@ Key capabilities:
                 PackageRequirementsResult with current vs latest versions
             """
             try:
-                return await self.client.check_requirements_txt(file_path)
+                return await self.client.check_requirements_file(file_path)
             except Exception as e:
                 logger.error(f"Error checking requirements.txt: {e}")
-                return PackageRequirementsResult(
-                    file_path=file_path,
-                    requirements=[],
-                    error=ErrorResult(message=str(e), code="requirements_error")
-                )
+                return {
+                    "file_path": file_path,
+                    "requirements": [],
+                    "error": {"message": str(e), "code": "requirements_error"}
+                }
         
         @self.mcp_server.tool()
         async def check_pyproject_toml(file_path: str) -> PackageRequirementsResult:
@@ -474,14 +473,14 @@ Key capabilities:
                 PackageRequirementsResult with package status information
             """
             try:
-                return await self.client.check_pyproject_toml(file_path)
+                return await self.client.check_requirements_file(file_path)
             except Exception as e:
                 logger.error(f"Error checking pyproject.toml: {e}")
-                return PackageRequirementsResult(
-                    file_path=file_path,
-                    requirements=[],
-                    error=ErrorResult(message=str(e), code="pyproject_error")
-                )
+                return {
+                    "file_path": file_path,
+                    "requirements": [],
+                    "error": {"message": str(e), "code": "pyproject_error"}
+                }
         
         @self.mcp_server.tool()
         async def get_package_documentation(package_name: str) -> DocumentationResult:
@@ -494,14 +493,14 @@ Key capabilities:
                 DocumentationResult with documentation URLs
             """
             try:
-                return await self.client.get_package_documentation(package_name)
+                return await self.client.get_documentation_url(package_name)
             except Exception as e:
                 logger.error(f"Error getting package documentation: {e}")
-                return DocumentationResult(
-                    package_name=package_name,
-                    documentation_url=None,
-                    error=ErrorResult(message=str(e), code="documentation_error")
-                )
+                return {
+                    "package_name": package_name,
+                    "documentation_url": None,
+                    "error": {"message": str(e), "code": "documentation_error"}
+                }
         
         @self.mcp_server.tool()
         async def get_package_changelog(

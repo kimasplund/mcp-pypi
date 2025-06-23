@@ -6,7 +6,7 @@ import json
 import logging
 import asyncio
 import random
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, cast
 
 import aiohttp
 from aiohttp import ClientSession, ClientTimeout
@@ -30,7 +30,7 @@ class AsyncHTTPClient:
     async def _get_session(self) -> ClientSession:
         """Get or create an aiohttp ClientSession."""
         if self._session is None or self._session.closed:
-            timeout = ClientTimeout(total=self.config.timeout)
+            timeout = ClientTimeout(total=self.config.timeout)  # type: ignore[call-arg]
             self._session = ClientSession(timeout=timeout)
         return self._session
 
@@ -114,9 +114,9 @@ class AsyncHTTPClient:
 
                             if retry_response.status >= 400:
                                 error_message = f"HTTP error {retry_response.status}: {retry_response.reason}"
-                                return format_error(
+                                return cast(Dict[str, Any], format_error(
                                     ErrorCode.NETWORK_ERROR, error_message
-                                )
+                                ))
 
                             content_type = retry_response.headers.get(
                                 "Content-Type", ""
@@ -132,10 +132,10 @@ class AsyncHTTPClient:
                                         )
                                     return result
                                 except json.JSONDecodeError as e:
-                                    return format_error(
+                                    return cast(Dict[str, Any], format_error(
                                         ErrorCode.PARSE_ERROR,
                                         f"Invalid JSON response from {url}: {e}",
-                                    )
+                                    ))
                             else:
                                 # For non-JSON responses
                                 data = await retry_response.read()
@@ -177,9 +177,9 @@ class AsyncHTTPClient:
                         continue
 
                     if response.status == 404:
-                        return format_error(
+                        return cast(Dict[str, Any], format_error(
                             ErrorCode.NOT_FOUND, f"Resource not found: {url}"
-                        )
+                        ))
 
                     if response.status >= 400:
                         error_message = (
@@ -204,7 +204,7 @@ class AsyncHTTPClient:
                             await asyncio.sleep(retry_delay)
                             continue
                         else:  # Client errors are not retriable
-                            return format_error(ErrorCode.NETWORK_ERROR, error_message)
+                            return cast(Dict[str, Any], format_error(ErrorCode.NETWORK_ERROR, error_message))
 
                     # Extract content type and response data
                     content_type = response.headers.get("Content-Type", "")
@@ -229,10 +229,10 @@ class AsyncHTTPClient:
                             return result
                         except json.JSONDecodeError as e:
                             logger.error(f"JSON decode error for {url}: {e}")
-                            return format_error(
+                            return cast(Dict[str, Any], format_error(
                                 ErrorCode.PARSE_ERROR,
                                 f"Invalid JSON response from {url}: {e}",
-                            )
+                            ))
                     else:
                         # Return raw data for non-JSON responses
                         try:
@@ -265,10 +265,10 @@ class AsyncHTTPClient:
                                 return {"raw_data": data, "content_type": content_type}
                         except Exception as e:
                             logger.error(f"Error reading response data: {e}")
-                            return format_error(
+                            return cast(Dict[str, Any], format_error(
                                 ErrorCode.PARSE_ERROR,
                                 f"Error reading response data: {e}",
-                            )
+                            ))
 
             except aiohttp.ClientConnectorError as e:
                 last_error = str(e)
@@ -280,9 +280,9 @@ class AsyncHTTPClient:
                 last_error = "Request timed out"
                 logger.warning(f"Timeout for {url}")
             except json.JSONDecodeError as e:
-                return format_error(
+                return cast(Dict[str, Any], format_error(
                     ErrorCode.PARSE_ERROR, f"Invalid JSON response from {url}: {e}"
-                )
+                ))
             except Exception as e:
                 last_error = str(e)
                 logger.exception(f"Unexpected error for {url}: {e}")
@@ -297,12 +297,12 @@ class AsyncHTTPClient:
                 await asyncio.sleep(retry_delay)
 
         # All retries failed
-        return format_error(
+        return cast(Dict[str, Any], format_error(
             ErrorCode.NETWORK_ERROR,
             f"Failed to fetch {url} after {self.config.max_retries} retries: {last_error}",
-        )
+        ))
 
     def _get_next_retry_delay(self, current_delay: float) -> float:
         """Calculate the next retry delay using exponential backoff with jitter."""
         # Apply full jitter: https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
-        return min(60, current_delay * 2) * random.uniform(0.5, 1.0)
+        return min(60.0, current_delay * 2) * random.uniform(0.5, 1.0)

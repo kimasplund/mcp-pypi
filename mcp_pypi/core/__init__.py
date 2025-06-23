@@ -5,7 +5,7 @@ Core client for interacting with PyPI.
 import logging
 import asyncio
 import os
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from pathlib import Path
 from urllib.parse import quote_plus
 from typing import Dict, List, Any, Optional, Tuple, Union, cast
@@ -32,6 +32,7 @@ from mcp_pypi.core.models import (
     DependenciesResult,
     ExistsResult,
     MetadataResult,
+    PackageMetadata,
     StatsResult,
     DependencyTreeResult,
     DocumentationResult,
@@ -49,7 +50,7 @@ from mcp_pypi.utils.helpers import sanitize_package_name, sanitize_version
 
 # For Python < 3.11, use tomli for parsing TOML files
 if sys.version_info < (3, 11):
-    import tomli as tomllib
+    import tomli as tomllib  # type: ignore[import-not-found]
 else:
     import tomllib
 
@@ -391,9 +392,10 @@ class PyPIClient:
                 elif isinstance(raw_data, str):
                     data_str = raw_data
                 else:
-                    return format_error(
-                        ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(raw_data)}"
-                    )
+                    return {
+                        "packages": [],
+                        "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(raw_data)}"}
+                    }
             elif isinstance(data, (str, bytes)):
                 # Legacy format
                 if isinstance(data, bytes):
@@ -401,9 +403,10 @@ class PyPIClient:
                 else:
                     data_str = data
             else:
-                return format_error(
-                    ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(data)}"
-                )
+                return {
+                    "packages": [],
+                    "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(data)}"}
+                }
 
             # Parse the XML string
             try:
@@ -432,7 +435,7 @@ class PyPIClient:
                 return {"packages": packages}
             except ET.ParseError as e:
                 logger.error(f"XML parse error: {e}")
-                return format_error(ErrorCode.PARSE_ERROR, f"Invalid XML response: {e}")
+                return {"packages": [], "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Invalid XML response: {e}"}}
         except Exception as e:
             logger.exception(f"Error parsing newest packages feed: {e}")
             return cast(PackagesFeed, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
@@ -457,9 +460,9 @@ class PyPIClient:
                 elif isinstance(raw_data, str):
                     data_str = raw_data
                 else:
-                    return format_error(
-                        ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(raw_data)}"
-                    )
+                    return {
+                        "updates": [], "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(raw_data)}"}}
+                    
             elif isinstance(data, (str, bytes)):
                 # Legacy format
                 if isinstance(data, bytes):
@@ -467,9 +470,10 @@ class PyPIClient:
                 else:
                     data_str = data
             else:
-                return format_error(
-                    ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(data)}"
-                )
+                return {
+                    "updates": [],
+                    "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(data)}"}
+                }
 
             # Parse the XML string
             try:
@@ -498,10 +502,10 @@ class PyPIClient:
                 return {"updates": updates}
             except ET.ParseError as e:
                 logger.error(f"XML parse error: {e}")
-                return format_error(ErrorCode.PARSE_ERROR, f"Invalid XML response: {e}")
+                return {"updates": [], "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Invalid XML response: {e}"}}
         except Exception as e:
             logger.exception(f"Error parsing latest updates feed: {e}")
-            return cast(UpdatesFeed, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
+            return {"updates": [], "error": {"code": ErrorCode.UNKNOWN_ERROR, "message": str(e)}}
 
     async def get_project_releases(self, package_name: str) -> ReleasesFeed:
         """Get the releases feed for a project."""
@@ -524,9 +528,10 @@ class PyPIClient:
                 elif isinstance(raw_data, str):
                     data_str = raw_data
                 else:
-                    return format_error(
-                        ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(raw_data)}"
-                    )
+                    return {
+                        "releases": [],
+                        "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(raw_data)}"}
+                    }
             elif isinstance(data, (str, bytes)):
                 # Legacy format
                 if isinstance(data, bytes):
@@ -534,9 +539,10 @@ class PyPIClient:
                 else:
                     data_str = data
             else:
-                return format_error(
-                    ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(data)}"
-                )
+                return {
+                    "releases": [],
+                    "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(data)}"}
+                }
 
             # Parse the XML string
             try:
@@ -565,10 +571,10 @@ class PyPIClient:
                 return {"releases": releases}
             except ET.ParseError as e:
                 logger.error(f"XML parse error: {e}")
-                return format_error(ErrorCode.PARSE_ERROR, f"Invalid XML response: {e}")
+                return {"releases": [], "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Invalid XML response: {e}"}}
         except Exception as e:
             logger.exception(f"Error parsing project releases feed: {e}")
-            return cast(ReleasesFeed, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
+            return {"releases": [], "error": {"code": ErrorCode.UNKNOWN_ERROR, "message": str(e)}}
 
     async def search_packages(self, query: str, page: int = 1) -> SearchResult:
         """Search for packages on PyPI."""
@@ -592,9 +598,10 @@ class PyPIClient:
                 elif isinstance(raw_data, str):
                     html_content = raw_data
                 else:
-                    return format_error(
-                        ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(raw_data)}"
-                    )
+                    return {
+                        "results": [],
+                        "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(raw_data)}"}
+                    }
             elif isinstance(data, (str, bytes)):
                 # Legacy format
                 if isinstance(data, bytes):
@@ -602,9 +609,10 @@ class PyPIClient:
                 else:
                     html_content = data
             else:
-                return format_error(
-                    ErrorCode.PARSE_ERROR, f"Unexpected data type: {type(data)}"
-                )
+                return {
+                    "results": [],
+                    "error": {"code": ErrorCode.PARSE_ERROR, "message": f"Unexpected data type: {type(data)}"}
+                }
 
             # Handle case when we receive a Client Challenge page instead of search results
             if "Client Challenge" in html_content:
@@ -664,7 +672,7 @@ class PyPIClient:
             }
         except Exception as e:
             logger.exception(f"Error searching packages: {e}")
-            return cast(SearchResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
+            return {"results": [], "error": {"code": ErrorCode.UNKNOWN_ERROR, "message": str(e)}}
 
     async def compare_versions(
         self, package_name: str, version1: str, version2: str
@@ -866,25 +874,19 @@ class PyPIClient:
                 # Already parsed JSON data
                 info = result.get("info", {})
 
-            metadata = {
+            metadata: PackageMetadata = {
                 "name": info.get("name", ""),
                 "version": info.get("version", ""),
                 "summary": info.get("summary", ""),
                 "description": info.get("description", ""),
                 "author": info.get("author", ""),
                 "author_email": info.get("author_email", ""),
-                "maintainer": info.get("maintainer", ""),
-                "maintainer_email": info.get("maintainer_email", ""),
                 "license": info.get("license", ""),
-                "keywords": info.get("keywords", ""),
-                "classifiers": info.get("classifiers", []),
-                "platform": info.get("platform", ""),
-                "home_page": info.get("home_page", ""),
-                "download_url": info.get("download_url", ""),
+                "project_url": info.get("project_url", ""),
+                "homepage": info.get("home_page", ""),
                 "requires_python": info.get("requires_python", ""),
-                "requires_dist": info.get("requires_dist", []),
-                "project_urls": info.get("project_urls", {}),
-                "package_url": info.get("package_url", ""),
+                "classifiers": info.get("classifiers", []),
+                "keywords": info.get("keywords", "").split(",") if info.get("keywords") else [],
             }
 
             return {"metadata": metadata}
@@ -941,12 +943,12 @@ class PyPIClient:
 
             # Use iterative approach to avoid stack overflows with deep trees
             # Track visited packages to avoid cycles
-            visited: Dict[str, str] = {}
+            visited: Dict[str, Optional[str]] = {}
             flat_list: List[str] = []
 
             # Build dependency tree iteratively
             async def build_tree() -> TreeNode:
-                queue = [(sanitized_name, sanitized_version, 0, None)]
+                queue: List[Tuple[str, Optional[str], int, Optional[str]]] = [(sanitized_name, sanitized_version, 0, None)]
                 nodes: Dict[str, TreeNode] = {}
 
                 # Root node
@@ -1236,7 +1238,7 @@ class PyPIClient:
 
                     if req.specifier:
                         # Extract the version from the specifier
-                        for spec in req.specifier:
+                        for spec in req.specifier:  # type: ignore[assignment]
                             if spec.operator in ("==", "==="):
                                 current_version = str(spec.version)
                                 req_ver = Version(current_version)
@@ -1350,178 +1352,185 @@ class PyPIClient:
                 ),
             )
 
+    def _extract_dependencies_from_pyproject(self, pyproject_data: Dict[str, Any]) -> List[str]:
+        """Extract dependencies from various pyproject.toml formats.
+        
+        Args:
+            pyproject_data: Parsed pyproject.toml data
+            
+        Returns:
+            List of dependency strings
+        """
+        dependencies = []
+        
+        # 1. PEP 621 format - project.dependencies
+        if "project" in pyproject_data and "dependencies" in pyproject_data["project"]:
+            dependencies.extend(pyproject_data["project"]["dependencies"])
+        
+        # 2. Poetry format - tool.poetry.dependencies
+        if "tool" in pyproject_data and "poetry" in pyproject_data["tool"]:
+            if "dependencies" in pyproject_data["tool"]["poetry"]:
+                poetry_deps = pyproject_data["tool"]["poetry"]["dependencies"]
+                for name, constraint in poetry_deps.items():
+                    if name == "python":  # Skip python dependency
+                        continue
+                    if isinstance(constraint, str):
+                        dependencies.append(f"{name}{constraint}")
+                    elif isinstance(constraint, dict) and "version" in constraint:
+                        dependencies.append(f"{name}{constraint['version']}")
+        
+        # 3. PDM format - tool.pdm.dependencies
+        if "tool" in pyproject_data and "pdm" in pyproject_data["tool"]:
+            if "dependencies" in pyproject_data["tool"]["pdm"]:
+                pdm_deps = pyproject_data["tool"]["pdm"]["dependencies"]
+                for name, constraint in pdm_deps.items():
+                    if isinstance(constraint, str):
+                        dependencies.append(f"{name}{constraint}")
+                    elif isinstance(constraint, dict) and "version" in constraint:
+                        dependencies.append(f"{name}{constraint['version']}")
+        
+        # 4. Flit format - tool.flit.metadata.requires
+        if "tool" in pyproject_data and "flit" in pyproject_data["tool"]:
+            if ("metadata" in pyproject_data["tool"]["flit"] and 
+                "requires" in pyproject_data["tool"]["flit"]["metadata"]):
+                dependencies.extend(pyproject_data["tool"]["flit"]["metadata"]["requires"])
+        
+        return dependencies
+    
+    def _load_toml_module(self):
+        """Load the appropriate TOML parsing module.
+        
+        Returns:
+            The tomllib or tomli module, or None if not available
+        """
+        try:
+            import tomllib
+            return tomllib
+        except ImportError:
+            try:
+                import tomli as tomllib  # type: ignore[import-not-found]
+                return tomllib
+            except ImportError:
+                return None
+
     async def _check_pyproject_toml(self, path: Path) -> PackageRequirementsResult:
         """Check a pyproject.toml file for outdated packages."""
-        try:
-            # Try to import tomllib (Python 3.11+) or tomli (for older versions)
-            try:
-                import tomllib
-            except ImportError:
-                try:
-                    import tomli as tomllib
-                except ImportError:
-                    return cast(
-                        PackageRequirementsResult,
-                        format_error(
-                            ErrorCode.MISSING_DEPENDENCY,
-                            "Parsing pyproject.toml requires tomli package. Please install with: pip install tomli",
-                        ),
-                    )
-
-            try:
-                with path.open("rb") as f:  # Open in binary mode as required by tomllib
-                    pyproject_data = tomllib.load(f)
-            except PermissionError:
-                return cast(
-                    PackageRequirementsResult,
-                    format_error(
-                        ErrorCode.PERMISSION_ERROR,
-                        f"Permission denied when reading file: {str(path)}",
-                    ),
-                )
-            except Exception as e:
-                return cast(
-                    PackageRequirementsResult,
-                    format_error(
-                        ErrorCode.FILE_ERROR, f"Error reading TOML file: {str(e)}"
-                    ),
-                )
-
-            dependencies = []
-
-            # Extract dependencies from different formats
-
-            # 1. PEP 621 format - project.dependencies
-            if (
-                "project" in pyproject_data
-                and "dependencies" in pyproject_data["project"]
-            ):
-                deps = pyproject_data["project"]["dependencies"]
-                dependencies.extend(deps)
-
-            # 2. Poetry format - tool.poetry.dependencies
-            if "tool" in pyproject_data and "poetry" in pyproject_data["tool"]:
-                if "dependencies" in pyproject_data["tool"]["poetry"]:
-                    poetry_deps = pyproject_data["tool"]["poetry"]["dependencies"]
-                    for name, constraint in poetry_deps.items():
-                        if name == "python":  # Skip python dependency
-                            continue
-                        if isinstance(constraint, str):
-                            dependencies.append(f"{name}{constraint}")
-                        elif isinstance(constraint, dict) and "version" in constraint:
-                            dependencies.append(f"{name}{constraint['version']}")
-
-            # 3. PDM format - tool.pdm.dependencies
-            if "tool" in pyproject_data and "pdm" in pyproject_data["tool"]:
-                if "dependencies" in pyproject_data["tool"]["pdm"]:
-                    pdm_deps = pyproject_data["tool"]["pdm"]["dependencies"]
-                    for name, constraint in pdm_deps.items():
-                        if isinstance(constraint, str):
-                            dependencies.append(f"{name}{constraint}")
-                        elif isinstance(constraint, dict) and "version" in constraint:
-                            dependencies.append(f"{name}{constraint['version']}")
-
-            # 4. Flit format - tool.flit.metadata.requires
-            if "tool" in pyproject_data and "flit" in pyproject_data["tool"]:
-                if (
-                    "metadata" in pyproject_data["tool"]["flit"]
-                    and "requires" in pyproject_data["tool"]["flit"]["metadata"]
-                ):
-                    dependencies.extend(
-                        pyproject_data["tool"]["flit"]["metadata"]["requires"]
-                    )
-
-            # Process dependencies
-            outdated = []
-            up_to_date = []
-
-            for req_str in dependencies:
-                try:
-                    req = Requirement(req_str)
-                    package_name = sanitize_package_name(req.name)
-
-                    # Get package info from PyPI
-                    info_result = await self.get_latest_version(package_name)
-
-                    # Check if we got a valid result
-                    if "error" in info_result:
-                        logger.warning(
-                            f"Could not get latest version for {package_name}: {info_result['error']['message']}"
-                        )
-                        continue
-
-                    latest_version = info_result.get("version", "")
-                    if not latest_version:
-                        logger.warning(
-                            f"No version information found for {package_name}"
-                        )
-                        continue
-
-                    # Get current version from requirement specifier
-                    current_version = ""
-                    is_outdated = False
-
-                    # Handle different types of version specifiers
-                    if req.specifier:
-                        for spec in req.specifier:
-                            if spec.operator in ("==", "==="):
-                                # Exact version match
-                                current_version = str(spec.version)
-
-                                # Check if outdated
-                                try:
-                                    current_ver = Version(current_version)
-                                    latest_ver = Version(latest_version)
-                                    is_outdated = latest_ver > current_ver
-                                except Exception as e:
-                                    logger.warning(
-                                        f"Error comparing versions for {package_name}: {e}"
-                                    )
-                                    continue
-                            else:
-                                # For other operators (>=, >, etc.) use as constraint but don't mark as outdated
-                                if not current_version:
-                                    current_version = f"{spec.operator}{spec.version}"
-
-                    # If no version info could be determined, set to latest
-                    if not current_version:
-                        current_version = "unspecified (latest)"
-
-                    # Add to appropriate list
-                    if is_outdated:
-                        outdated.append(
-                            {
-                                "package": req.name,
-                                "current_version": current_version,
-                                "latest_version": latest_version,
-                                "constraint": str(req.specifier),
-                            }
-                        )
-                    else:
-                        up_to_date.append(
-                            {
-                                "package": req.name,
-                                "current_version": current_version,
-                                "latest_version": latest_version,
-                                "constraint": str(req.specifier),
-                            }
-                        )
-
-                except Exception as e:
-                    logger.warning(f"Error processing dependency {req_str}: {e}")
-                    continue
-
-            return {"outdated": outdated, "up_to_date": up_to_date}
-
-        except Exception as e:
-            logger.exception(f"Error checking pyproject.toml file: {e}")
+        # Load TOML module
+        tomllib = self._load_toml_module()
+        if not tomllib:
             return cast(
                 PackageRequirementsResult,
                 format_error(
-                    ErrorCode.UNKNOWN_ERROR,
-                    f"Error checking pyproject.toml file: {str(e)}",
+                    ErrorCode.MISSING_DEPENDENCY,
+                    "Parsing pyproject.toml requires tomli package. Please install with: pip install tomli",
                 ),
             )
+        
+        # Read and parse the TOML file
+        try:
+            with path.open("rb") as f:
+                pyproject_data = tomllib.load(f)
+        except PermissionError:
+            return cast(
+                PackageRequirementsResult,
+                format_error(
+                    ErrorCode.PERMISSION_ERROR,
+                    f"Permission denied when reading file: {str(path)}",
+                ),
+            )
+        except Exception as e:
+            return cast(
+                PackageRequirementsResult,
+                format_error(
+                    ErrorCode.FILE_ERROR, f"Error reading TOML file: {str(e)}"
+                ),
+            )
+        
+        # Extract dependencies using helper method
+        dependencies = self._extract_dependencies_from_pyproject(pyproject_data)
+
+        # Process dependencies
+        outdated = []
+        up_to_date = []
+
+        for req_str in dependencies:
+            try:
+                req = Requirement(req_str)
+                package_name = sanitize_package_name(req.name)
+
+                # Get package info from PyPI
+                info_result = await self.get_latest_version(package_name)
+
+                # Check if we got a valid result
+                if "error" in info_result:
+                    logger.warning(
+                        f"Could not get latest version for {package_name}: {info_result['error']['message']}"
+                    )
+                    continue
+
+                latest_version = info_result.get("version", "")
+                if not latest_version:
+                    logger.warning(
+                        f"No version information found for {package_name}"
+                    )
+                    continue
+
+                # Get current version from requirement specifier
+                current_version = ""
+                is_outdated = False
+
+                # Handle different types of version specifiers
+                if req.specifier:
+                    for spec in req.specifier:
+                        if spec.operator in ("==", "==="):
+                            # Exact version match
+                            current_version = str(spec.version)
+
+                            # Check if outdated
+                            try:
+                                current_ver = Version(current_version)
+                                latest_ver = Version(latest_version)
+                                is_outdated = latest_ver > current_ver
+                            except Exception as e:
+                                logger.warning(
+                                    f"Error comparing versions for {package_name}: {e}"
+                                )
+                                continue
+                        else:
+                            # For other operators (>=, >, etc.) use as constraint but don't mark as outdated
+                            if not current_version:
+                                current_version = f"{spec.operator}{spec.version}"
+
+                # If no version info could be determined, set to latest
+                if not current_version:
+                    current_version = "unspecified (latest)"
+
+                # Add to appropriate list
+                if is_outdated:
+                    outdated.append(
+                        {
+                            "package": req.name,
+                            "current_version": current_version,
+                            "latest_version": latest_version,
+                            "constraint": str(req.specifier),
+                        }
+                    )
+                else:
+                    up_to_date.append(
+                        {
+                            "package": req.name,
+                            "current_version": current_version,
+                            "latest_version": latest_version,
+                            "constraint": str(req.specifier),
+                        }
+                    )
+
+            except Exception as e:
+                logger.warning(f"Error processing dependency {req_str}: {e}")
+                continue
+
+        
+        return {"outdated": outdated, "up_to_date": up_to_date}
     
     async def get_releases_feed(self) -> ReleasesFeed:
         """Get recent releases feed from PyPI RSS."""
@@ -1539,6 +1548,7 @@ class PyPIClient:
         except Exception as e:
             logger.exception(f"Error getting releases feed: {e}")
             return {
+                "releases": [],
                 "error": {"message": str(e), "code": "feed_error"}
             }
     
@@ -1558,8 +1568,22 @@ class PyPIClient:
         except Exception as e:
             logger.exception(f"Error getting packages feed: {e}")
             return {
+                "packages": [],
                 "error": {"message": str(e), "code": "feed_error"}
             }
+    
+    async def get_package_changelog(self, package_name: str, version: Optional[str] = None) -> str:
+        """Get changelog for a package (placeholder implementation)."""
+        return f"Changelog retrieval not implemented for {package_name}"
+    
+    async def check_vulnerabilities(self, package_name: str, version: Optional[str] = None) -> Dict[str, Any]:
+        """Check for vulnerabilities in a package (placeholder implementation)."""
+        return {
+            "package": package_name,
+            "version": version or "latest",
+            "vulnerabilities": [],
+            "message": "Vulnerability checking not implemented"
+        }
     
     async def get_updates_feed(self) -> UpdatesFeed:
         """Get package updates feed from PyPI RSS."""
@@ -1577,5 +1601,6 @@ class PyPIClient:
         except Exception as e:
             logger.exception(f"Error getting updates feed: {e}")
             return {
+                "updates": [],
                 "error": {"message": str(e), "code": "feed_error"}
             }

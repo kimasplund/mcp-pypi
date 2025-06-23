@@ -3,7 +3,7 @@ Utility functions for the MCP-PyPI client.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from mcp_pypi.core.models import ErrorCode, format_error
 from mcp_pypi.utils.helpers import sanitize_package_name, sanitize_version
@@ -24,7 +24,7 @@ def configure_logging(
         format_str: The logging format string
         file_path: Optional file path for logging to a file
     """
-    handlers = []
+    handlers: List[logging.Handler] = []
 
     # Add console handler
     console_handler = logging.StreamHandler()

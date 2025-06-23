@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-pypi"
-version = "2.2.1"
+version = "2.2.2"
 description = "🐍 AI-powered Python package intelligence - search, analyze, and understand PyPI packages through MCP"
 readme = "README.md"
 authors = [
@@ -37,6 +37,7 @@ dependencies = [
     "typer>=0.9.0",
     "rich>=13.0.0",
     "pydantic>=2.0.0,<3.0.0",
+    "defusedxml>=0.7.1",  # For secure XML parsing
     "tomli>=2.0.0;python_version<'3.11'",  # For parsing pyproject.toml in Python <3.11
     "typing_extensions>=4.3.0;python_version<'3.11'",  # For NotRequired in Python 3.10
 ]

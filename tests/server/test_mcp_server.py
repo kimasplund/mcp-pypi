@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from mcp_pypi.server import PyPIMCPServer
 from mcp_pypi.core.models import PyPIClientConfig
-from mcp.types import ResourceResponse, GetPromptResult
+from mcp.types import GetPromptResult, Resource
 
 
 @pytest.fixture

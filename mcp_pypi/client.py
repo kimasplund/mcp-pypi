@@ -25,11 +25,11 @@ class MCPClient:
         self.server_info = None
         self.initialized = False
         self.client_info = {"name": "mcp-pypi-client", "version": "0.1.0"}
-        self.writer = None
-        self.reader = None
+        self.writer: Any = None
+        self.reader: Any = None
 
     async def connect_subprocess(
-        self, command: List[str], env: Dict[str, str] = None
+        self, command: List[str], env: Optional[Dict[str, str]] = None
     ) -> None:
         """Connect to an MCP server via subprocess"""
         if env is None:
@@ -52,11 +52,13 @@ class MCPClient:
 
         # Start a task to monitor stderr from the subprocess
         async def log_stderr():
-            while True:
-                line = await process.stderr.readline()
-                if not line:
-                    break
-                logger.info(f"Server stderr: {line.decode().strip()}")
+            stderr = process.stderr
+            if stderr is not None:
+                while True:
+                    line = await stderr.readline()
+                    if not line:
+                        break
+                    logger.info(f"Server stderr: {line.decode().strip()}")
 
         asyncio.create_task(log_stderr())
 
@@ -66,20 +68,25 @@ class MCPClient:
         await self.initialize()
 
     async def connect_stdio(
-        self, command: Optional[List[str]] = None, env: Dict[str, str] = None
+        self, command: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None
     ) -> None:
         """Connect to an MCP server via stdio"""
         if command is not None:
             await self.connect_subprocess(command, env)
             return
 
+        loop = asyncio.get_event_loop()
+        
+        # Set up stdin reader
         self.reader = asyncio.StreamReader()
         protocol = asyncio.StreamReaderProtocol(self.reader)
-
-        loop = asyncio.get_event_loop()
         await loop.connect_read_pipe(lambda: protocol, sys.stdin)
 
-        self.writer = asyncio.StreamWriter(sys.stdout.buffer, None, None, None)
+        # Set up stdout writer
+        transport, protocol = await loop.connect_write_pipe(
+            lambda: asyncio.Protocol(), sys.stdout
+        )
+        self.writer = asyncio.StreamWriter(transport, protocol, self.reader, loop)
         logger.info("Connected to stdio")
 
         await self.initialize()
@@ -140,10 +147,14 @@ class MCPClient:
             logger.debug(f"Sending request: {json.dumps(request, indent=2)}")
 
         # Send the request
+        if not self.writer:
+            raise Exception("Writer not initialized")
         self.writer.write((json.dumps(request) + "\n").encode())
         await self.writer.drain()
 
         # Read the response
+        if not self.reader:
+            raise Exception("Reader not initialized")
         response_line = await self.reader.readline()
         if not response_line:
             raise Exception("Server closed connection")

@@ -11,6 +11,7 @@ import logging
 import os
 import pickle
 import time
+import io
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -32,6 +33,38 @@ from typing import (
 T = TypeVar("T")
 
 logger = logging.getLogger("mcp_pypi.cache")
+
+
+class RestrictedUnpickler(pickle.Unpickler):
+    """Restricted unpickler that only allows safe types."""
+    
+    def find_class(self, module, name):
+        # Only allow specific safe types
+        ALLOWED_MODULES = {
+            'builtins',
+            '__builtin__',
+            'collections',
+            'datetime',
+            'mcp_pypi.core.models',  # Allow our own model classes
+        }
+        
+        # Allow basic types
+        if module in ALLOWED_MODULES:
+            return super().find_class(module, name)
+        
+        # Allow specific safe classes
+        if module == 'mcp_pypi.core.models' and name in [
+            'PackageInfo', 'VersionInfo', 'DependenciesResult',
+            'SearchResult', 'StatsResult', 'ErrorResult'
+        ]:
+            return super().find_class(module, name)
+            
+        raise pickle.UnpicklingError(f"Global '{module}.{name}' is not allowed")
+
+
+def restricted_loads(data: bytes) -> Any:
+    """Load pickle data with restrictions on allowed types."""
+    return RestrictedUnpickler(io.BytesIO(data)).load()
 
 
 class CacheProtocol(Protocol):
@@ -235,13 +268,14 @@ class BaseCache(ABC):
         namespaced_key = self._make_key(key)
         return await self._has(namespaced_key)
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> Dict[str, Union[int, float]]:
         """Get cache usage statistics.
 
         Returns:
             Dictionary of usage statistics
         """
-        stats = self._stats.copy()
+        stats: Dict[str, Union[int, float]] = {}
+        stats.update(self._stats)
         total = stats["hits"] + stats["misses"]
         stats["hit_ratio"] = stats["hits"] / total if total > 0 else 0
         return stats
@@ -484,7 +518,7 @@ class FileCache(BaseCache):
             if self.serializer == "json":
                 parsed = json.loads(data.decode("utf-8"))
             else:  # Default to pickle
-                parsed = pickle.loads(data)
+                parsed = restricted_loads(data)
 
             return parsed["data"], parsed["timestamp"]
         except (json.JSONDecodeError, pickle.UnpicklingError, KeyError) as e:
@@ -643,7 +677,7 @@ class FileCache(BaseCache):
 
 # Optional Redis cache if aioredis is available
 try:
-    import aioredis
+    import aioredis  # type: ignore[import-not-found]
 
     class RedisCache(BaseCache):
         """Redis-based distributed cache implementation."""
@@ -742,7 +776,7 @@ try:
                 if self.serializer == "json":
                     return json.loads(data.decode("utf-8"))
                 else:  # Default to pickle
-                    return pickle.loads(data)
+                    return restricted_loads(data)
             except (json.JSONDecodeError, pickle.UnpicklingError) as e:
                 logger.warning(f"Failed to deserialize Redis data: {e}")
                 return None
@@ -962,6 +996,7 @@ class StaleWhileRevalidateStrategy(CacheStrategy):
 
             async def refresh_task():
                 try:
+                    assert self.refresh_callback is not None
                     new_value = await self.refresh_callback(key, old_value)
                     if new_value is not None:
                         await self.cache.set(key, new_value)
@@ -1332,7 +1367,7 @@ def create_cache_from_config(config: Dict[str, Any]) -> BaseCache:
             ]
 
         return HierarchicalCache(
-            caches=caches, ttl=ttl, namespace=namespace, write_strategy=write_strategy
+            caches=cast(List[BaseCache], caches), ttl=ttl, namespace=namespace, write_strategy=write_strategy
         )
 
     else:
