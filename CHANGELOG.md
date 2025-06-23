@@ -5,6 +5,15 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.3] - 2025-06-24
+
+### 🐛 Bug Fixes
+- **Token Limit Issues**: Properly handle large responses that exceed MCP's 25K token limit
+  - check_vulnerabilities: Limited to 20 vulnerabilities with essential fields only
+  - get_package_changelog: Use GitHub API pagination (per_page=5) instead of fetching all
+  - Trimmed summaries (500 chars), CVE lists (5), and references (3) per vulnerability
+  - Added truncation notes when results are limited
+
 ## [2.6.2] - 2025-06-24
 
 ### 🎉 New Features
