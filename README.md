@@ -16,7 +16,7 @@ MCP-PyPI empowers AI assistants like Claude to interact with the Python package 
 - **🔍 Smart Package Search** - Find the perfect Python package from 500,000+ options
 - **📊 Download Statistics** - Gauge package popularity with real usage data  
 - **🔗 Dependency Analysis** - Understand package requirements and conflicts
-- **🛡️ Security Scanning** - Check for vulnerabilities and outdated dependencies
+- **🛡️ Security Scanning** - Check for vulnerabilities using OSV API and identify outdated dependencies
 - **📋 Requirements Auditing** - Analyze and update requirements.txt files
 - **🚀 Version Management** - Track releases, compare versions, check compatibility
 - **⚡ Lightning Fast** - Intelligent caching for instant responses

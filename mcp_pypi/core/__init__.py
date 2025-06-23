@@ -1577,13 +1577,193 @@ class PyPIClient:
         return f"Changelog retrieval not implemented for {package_name}"
     
     async def check_vulnerabilities(self, package_name: str, version: Optional[str] = None) -> Dict[str, Any]:
-        """Check for vulnerabilities in a package (placeholder implementation)."""
-        return {
-            "package": package_name,
-            "version": version or "latest",
-            "vulnerabilities": [],
-            "message": "Vulnerability checking not implemented"
-        }
+        """Check for vulnerabilities in a package using the OSV (Open Source Vulnerabilities) API.
+        
+        Args:
+            package_name: Name of the package to check
+            version: Specific version to check (optional, checks all versions if not provided)
+            
+        Returns:
+            Dictionary containing vulnerability information including CVEs, severity, and fixes
+        """
+        try:
+            # First check if the package exists
+            exists_result = await self.check_package_exists(package_name)
+            if not exists_result.get("exists", False):
+                return cast(Dict[str, Any], format_error(
+                    ErrorCode.NOT_FOUND, f"Package {package_name} not found on PyPI"
+                ))
+            
+            sanitized_name = sanitize_package_name(package_name)
+            osv_url = "https://api.osv.dev/v1/query"
+            
+            # Build the query payload
+            payload = {
+                "package": {
+                    "name": sanitized_name,
+                    "ecosystem": "PyPI"
+                }
+            }
+            
+            if version:
+                payload["version"] = sanitize_version(version)
+            
+            # Make the API request to OSV
+            logger.info(f"Checking vulnerabilities for {sanitized_name} {version or 'all versions'}")
+            
+            # OSV API expects POST with JSON payload
+            response = await self.http.fetch(
+                osv_url, 
+                method="POST",
+                headers={"Content-Type": "application/json"},
+                data=json.dumps(payload).encode()
+            )
+            
+            # Check for errors in response
+            if "error" in response:
+                logger.error(f"OSV API error: {response['error']}")
+                return {
+                    "package": package_name,
+                    "version": version or "all",
+                    "vulnerabilities": [],
+                    "error": response["error"]
+                }
+            
+            # Parse vulnerabilities from response
+            vulnerabilities = []
+            osv_vulns = response.get("vulns", [])
+            
+            for vuln in osv_vulns:
+                # Extract affected versions
+                affected_versions = []
+                for affected in vuln.get("affected", []):
+                    if affected.get("package", {}).get("ecosystem") == "PyPI":
+                        if affected.get("package", {}).get("name", "").lower() == sanitized_name.lower():
+                            for range_info in affected.get("ranges", []):
+                                events = range_info.get("events", [])
+                                for event in events:
+                                    if "introduced" in event:
+                                        affected_versions.append(f">={event['introduced']}")
+                                    if "fixed" in event:
+                                        affected_versions.append(f"<{event['fixed']}")
+                
+                # Extract CVE IDs
+                cve_ids = [alias for alias in vuln.get("aliases", []) if alias.startswith("CVE-")]
+                
+                # Extract severity information
+                severity = None
+                severity_score = None
+                database_specific = vuln.get("database_specific", {})
+                if "severity" in database_specific:
+                    severity = database_specific["severity"]
+                
+                # Check for CVSS scores in different formats
+                for detail in vuln.get("severity", []):
+                    if detail.get("type") == "CVSS_V3":
+                        severity_score = detail.get("score")
+                        break
+                
+                vulnerability = {
+                    "id": vuln.get("id", ""),
+                    "summary": vuln.get("summary", vuln.get("details", "No description available")),
+                    "severity": severity,
+                    "severity_score": severity_score,
+                    "cve": cve_ids,
+                    "affected_versions": affected_versions,
+                    "published": vuln.get("published", ""),
+                    "modified": vuln.get("modified", ""),
+                    "references": [ref.get("url", "") for ref in vuln.get("references", [])],
+                }
+                
+                # If a specific version was requested, only include if it's affected
+                if version:
+                    # Check if this version is affected
+                    version_obj = Version(version)
+                    is_affected = False
+                    
+                    for affected in vuln.get("affected", []):
+                        if affected.get("package", {}).get("ecosystem") == "PyPI":
+                            if affected.get("package", {}).get("name", "").lower() == sanitized_name.lower():
+                                for range_info in affected.get("ranges", []):
+                                    events = range_info.get("events", [])
+                                    introduced = None
+                                    fixed = None
+                                    
+                                    for event in events:
+                                        if "introduced" in event:
+                                            try:
+                                                introduced = Version(event["introduced"])
+                                            except:
+                                                # Skip non-version strings (like git hashes)
+                                                continue
+                                        if "fixed" in event:
+                                            try:
+                                                fixed = Version(event["fixed"])
+                                            except:
+                                                # Skip non-version strings (like git hashes)
+                                                continue
+                                    
+                                    # Check if version is in affected range
+                                    if introduced and version_obj >= introduced:
+                                        if fixed is None or version_obj < fixed:
+                                            is_affected = True
+                                            break
+                    
+                    if is_affected:
+                        vulnerabilities.append(vulnerability)
+                else:
+                    # No specific version requested, include all vulnerabilities
+                    vulnerabilities.append(vulnerability)
+            
+            # Sort by severity (critical > high > medium > low)
+            severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+            # Helper function to extract numeric score
+            def get_numeric_score(score_value):
+                if not score_value:
+                    return 0
+                if isinstance(score_value, (int, float)):
+                    return float(score_value)
+                # Handle CVSS strings like "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:N/A:N"
+                if isinstance(score_value, str) and "CVSS" in score_value:
+                    return 0  # Complex CVSS strings need parsing, default to 0
+                try:
+                    return float(score_value)
+                except:
+                    return 0
+            
+            vulnerabilities.sort(
+                key=lambda v: (
+                    severity_order.get(str(v.get("severity", "")).upper(), 999),
+                    -get_numeric_score(v.get("severity_score"))
+                )
+            )
+            
+            # Count vulnerabilities by severity
+            critical_count = sum(1 for v in vulnerabilities if str(v.get("severity", "")).upper() == "CRITICAL")
+            high_count = sum(1 for v in vulnerabilities if str(v.get("severity", "")).upper() == "HIGH")
+            medium_count = sum(1 for v in vulnerabilities if str(v.get("severity", "")).upper() == "MEDIUM")
+            low_count = sum(1 for v in vulnerabilities if str(v.get("severity", "")).upper() == "LOW")
+            
+            return {
+                "package": package_name,
+                "version": version or "all",
+                "vulnerabilities": vulnerabilities,
+                "vulnerable": len(vulnerabilities) > 0,
+                "total_vulnerabilities": len(vulnerabilities),
+                "critical_count": critical_count,
+                "high_count": high_count,
+                "medium_count": medium_count,
+                "low_count": low_count
+            }
+            
+        except Exception as e:
+            logger.exception(f"Error checking vulnerabilities for {package_name}: {e}")
+            return {
+                "package": package_name,
+                "version": version or "all",
+                "vulnerabilities": [],
+                "error": {"message": str(e), "code": "vulnerability_check_error"}
+            }
     
     async def get_updates_feed(self) -> UpdatesFeed:
         """Get package updates feed from PyPI RSS."""

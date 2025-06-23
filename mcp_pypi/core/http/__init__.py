@@ -54,29 +54,36 @@ class AsyncHTTPClient:
 
         self.last_request_time = time.time()
 
-    async def fetch(self, url: str, method: str = "GET") -> Dict[str, Any]:
+    async def fetch(self, url: str, method: str = "GET", headers: Optional[Dict[str, str]] = None, data: Optional[bytes] = None) -> Dict[str, Any]:
         """Fetch data from URL with caching, rate limiting, and retries.
 
         Args:
             url: The URL to fetch
             method: The HTTP method to use (default: GET)
+            headers: Optional additional headers to send
+            data: Optional request body data (for POST requests)
 
         Returns:
             The parsed response as a dictionary
         """
-        # Check cache first
-        cached_data = await self.cache_manager.get(url)
-        if cached_data:
-            logger.debug(f"Cache hit for {url}")
-            return cached_data
+        # Check cache first (only for GET requests)
+        if method == "GET" and data is None:
+            cached_data = await self.cache_manager.get(url)
+            if cached_data:
+                logger.debug(f"Cache hit for {url}")
+                return cached_data
 
         # Get ETag if available for conditional requests
-        etag = await self.cache_manager.get_etag(url)
+        etag = await self.cache_manager.get_etag(url) if method == "GET" else None
 
         # Prepare headers
-        headers = {"User-Agent": self.config.user_agent}
+        request_headers = {"User-Agent": self.config.user_agent}
         if etag:
-            headers["If-None-Match"] = etag
+            request_headers["If-None-Match"] = etag
+        
+        # Merge with any additional headers provided
+        if headers:
+            request_headers.update(headers)
 
         session = await self._get_session()
         retries_left = self.config.max_retries
@@ -89,7 +96,7 @@ class AsyncHTTPClient:
                 await self._apply_rate_limit()
 
                 logger.debug(f"Sending {method} request to {url}")
-                async with session.request(method, url, headers=headers) as response:
+                async with session.request(method, url, headers=request_headers, data=data) as response:
                     logger.debug(
                         f"Received response with status {response.status} and content type {response.headers.get('Content-Type', 'unknown')}"
                     )
@@ -105,8 +112,10 @@ class AsyncHTTPClient:
                         # Make a new request without any ETag or cache
                         logger.debug(f"Retrying request without cache headers")
                         retry_headers = {"User-Agent": self.config.user_agent}
+                        if headers:
+                            retry_headers.update(headers)
                         async with session.request(
-                            method, url, headers=retry_headers
+                            method, url, headers=retry_headers, data=data
                         ) as retry_response:
                             logger.debug(
                                 f"Retry response status: {retry_response.status}"
@@ -126,7 +135,7 @@ class AsyncHTTPClient:
                             if "application/json" in content_type:
                                 try:
                                     result = await retry_response.json()
-                                    if isinstance(result, dict):
+                                    if isinstance(result, dict) and method == "GET":
                                         await self.cache_manager.set(
                                             url, result, new_etag
                                         )
@@ -221,8 +230,8 @@ class AsyncHTTPClient:
                                 f"Successfully parsed JSON response with keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}"
                             )
 
-                            # Cache successful JSON responses
-                            if isinstance(result, dict):
+                            # Cache successful JSON responses (only for GET requests)
+                            if isinstance(result, dict) and method == "GET":
                                 logger.debug(f"Caching result for {url}")
                                 await self.cache_manager.set(url, result, new_etag)
 
