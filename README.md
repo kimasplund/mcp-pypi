@@ -5,21 +5,33 @@
 [![Python](https://img.shields.io/pypi/pyversions/mcp-pypi.svg)](https://pypi.org/project/mcp-pypi/)
 [![Downloads](https://img.shields.io/pypi/dm/mcp-pypi.svg)](https://pypi.org/project/mcp-pypi/)
 
-A Model Context Protocol (MCP) server that provides AI agents with intelligent access to PyPI - the Python Package Index. Search, analyze, and understand Python packages with unprecedented ease.
+A security-focused Model Context Protocol (MCP) server that helps AI agents write safer Python code. Search packages, scan for vulnerabilities, audit dependencies, and ensure security across your entire Python project.
 
 ## ✨ What is MCP-PyPI?
 
-MCP-PyPI empowers AI assistants like Claude to interact with the Python package ecosystem. It provides real-time access to package information, dependencies, version history, and more through an intuitive set of tools.
+MCP-PyPI is a security-focused Model Context Protocol server that empowers AI assistants to write safer Python code. Beyond basic package information, it provides comprehensive vulnerability scanning, dependency auditing, and proactive security recommendations to ensure AI-generated code uses secure, up-to-date dependencies.
+
+**🛡️ Security First**: Every tool is designed to encourage security best practices, from checking vulnerabilities before suggesting packages to scanning entire project dependency trees for hidden risks.
 
 ### 🎯 Key Features
 
-- **🔍 Smart Package Search** - Find the perfect Python package from 500,000+ options
-- **📊 Download Statistics** - Gauge package popularity with real usage data  
-- **🔗 Dependency Analysis** - Understand package requirements and conflicts
-- **🛡️ Security Scanning** - Check for vulnerabilities using OSV API and identify outdated dependencies
-- **📋 Requirements Auditing** - Analyze and update requirements.txt files
-- **🚀 Version Management** - Track releases, compare versions, check compatibility
-- **⚡ Lightning Fast** - Intelligent caching for instant responses
+- **🛡️ Comprehensive Security Scanning** - Check vulnerabilities using OSV database across packages, dependencies, and entire projects
+- **🔍 Security-Aware Package Search** - Find safe packages from 500,000+ options with vulnerability status
+- **📋 Project-Wide Security Audits** - Scan requirements.txt, pyproject.toml, and installed environments
+- **🔗 Deep Dependency Analysis** - Detect vulnerabilities in transitive dependencies others might miss
+- **🚨 Proactive Security Alerts** - Get warnings before adding vulnerable packages to projects
+- **📊 Risk Assessment & Scoring** - Security scores, fix time estimates, and prioritized remediation plans
+- **⚡ Smart Caching** - Fast vulnerability checks with configurable TTL for different data types
+- **🚀 Version Management** - Track releases, compare versions, identify security updates
+
+### 🤔 Why Security Matters
+
+When AI assistants suggest Python packages, they might unknowingly recommend packages with known vulnerabilities. MCP-PyPI ensures that:
+
+- **Before Installation**: AI checks for vulnerabilities before suggesting any package
+- **During Development**: Continuous scanning catches new vulnerabilities in existing dependencies  
+- **Before Deployment**: Comprehensive audits ensure production code is secure
+- **Transitive Safety**: Hidden vulnerabilities in dependencies-of-dependencies are detected
 
 ## 🚀 Quick Start
 
