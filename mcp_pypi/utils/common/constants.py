@@ -28,7 +28,6 @@ DEFAULT_CACHE_MAX_SIZE = 100 * 1024 * 1024  # 100 MB
 # API settings
 DEFAULT_API_TIMEOUT = 10  # seconds
 DEFAULT_API_RETRIES = 3
-DEFAULT_USER_AGENT = "MCP-PyPI/1.0"
 
 # Rate limiting
 DEFAULT_RATE_LIMIT = 10  # requests per second
