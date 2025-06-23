@@ -173,6 +173,18 @@ notes/
 *.bak
 *.backup
 
+# Claude AI related files
+CLAUDE.md
+.claude/
+claude.json
+.claude.json
+claude_artifacts/
+.claude-artifacts/
+.claude_cache/
+.claude-session/
+*.claude
+.clauderc
+
 # OS files
 .DS_Store
 .DS_Store?
