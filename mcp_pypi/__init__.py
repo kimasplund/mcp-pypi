@@ -7,7 +7,7 @@ PyPI package information, allowing AI assistants to search packages, check depen
 and analyze package data in real-time.
 """
 
-__version__ = "2.2.0"
+__version__ = "2.2.1"
 __author__ = "Kim Asplund"
 __email__ = "kim.asplund@gmail.com"
 
