@@ -249,3 +249,5 @@ dependency_tree_*.html
 !.gitkeep
 !.github/
 !tests/DOCKER_TESTS_README.md
+
+.mcp/
