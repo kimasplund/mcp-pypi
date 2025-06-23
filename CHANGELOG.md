@@ -5,6 +5,38 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.2] - 2025-06-24
+
+### 🎉 New Features
+- **Comprehensive Dependency File Support**: security_audit_project now scans ALL common Python dependency files:
+  - setup.py / setup.cfg
+  - Pipfile / Pipfile.lock
+  - poetry.lock
+  - environment.yml / conda.yml
+  - constraints.txt
+  - (in addition to existing requirements.txt and pyproject.toml support)
+
+- **Beautiful Security Reports**: Added formatted security reports with:
+  - Color-coded severity levels (🚨 RED=Critical, ⚠️ ORANGE=High, etc.)
+  - ASCII art tables showing vulnerability distribution
+  - Visual progress bars for each severity level
+  - Prioritized fix recommendations with clear action items
+  - Security score (0-100) with color indicators
+
+- **New Security Tools**:
+  - `get_security_report`: Returns a beautifully formatted, color-coded security report
+  - `quick_security_check`: Simple pass/fail check for CI/CD pipelines
+
+### 🐛 Bug Fixes
+- Fixed method reference errors in security_audit_project (changed from self.method to direct function calls)
+- Fixed vulnerability counting bug in scan_installed_packages (now correctly sums vulnerabilities)
+
+### 🔧 Improvements
+- Enhanced security_audit_project to be truly comprehensive, living up to its name
+- Better handling of different dependency file formats with specific parsers for each type
+- Added formatted_report field to security_audit_project output
+- Improved user experience with visual security reporting
+
 ## [2.6.1] - 2025-06-24
 
 ### 🎉 New Features
