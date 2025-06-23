@@ -1844,10 +1844,26 @@ class PyPIClient:
                 if str(v.get("severity", "")).upper() == "LOW"
             )
 
+            # Limit vulnerability details to avoid token limits
+            # Only include essential fields for each vulnerability
+            limited_vulnerabilities = []
+            for vuln in vulnerabilities[:20]:  # Limit to 20 vulnerabilities max
+                limited_vuln = {
+                    "id": vuln.get("id"),
+                    "summary": vuln.get("summary", "")[:500],  # Limit summary length
+                    "severity": vuln.get("severity"),
+                    "cve": vuln.get("cve", [])[:5],  # Limit CVE list
+                    "affected_versions": vuln.get("affected_versions", [])[:10],  # Limit versions
+                }
+                # Only include first 3 references to save space
+                if "references" in vuln and vuln["references"]:
+                    limited_vuln["references"] = vuln["references"][:3]
+                limited_vulnerabilities.append(limited_vuln)
+            
             result = {
                 "package": package_name,
                 "version": version or "all",
-                "vulnerabilities": vulnerabilities,
+                "vulnerabilities": limited_vulnerabilities,
                 "vulnerable": len(vulnerabilities) > 0,
                 "total_vulnerabilities": len(vulnerabilities),
                 "critical_count": critical_count,
@@ -1855,6 +1871,10 @@ class PyPIClient:
                 "medium_count": medium_count,
                 "low_count": low_count,
             }
+            
+            # Add note if vulnerabilities were truncated
+            if len(vulnerabilities) > 20:
+                result["note"] = f"Showing 20 of {len(vulnerabilities)} vulnerabilities. Use specific version parameter to reduce results."
 
             # Cache the result with configurable TTL
             # Vulnerability data doesn't change frequently, default is 1 hour
@@ -2224,8 +2244,9 @@ class PyPIClient:
                     if match:
                         owner, repo = match.groups()
                         # Use GitHub API to get releases
+                        # Limit to 5 releases using GitHub API parameter
                         api_url = (
-                            f"https://api.github.com/repos/{owner}/{repo}/releases"
+                            f"https://api.github.com/repos/{owner}/{repo}/releases?per_page=5"
                         )
 
                         try:
@@ -2269,11 +2290,10 @@ class PyPIClient:
                                                 )
                                             changelog_parts.append(f"\n{body}")
 
-                                # Add note if there are more releases
-                                if len(releases) > 5:
-                                    changelog_parts.append(
-                                        f"\n\n---\n\n*Showing 5 of {len(releases)} releases. Visit {changelog_url} for the complete changelog.*"
-                                    )
+                                # Add note about limited releases
+                                changelog_parts.append(
+                                    f"\n\n---\n\n*Showing up to 5 most recent releases. Visit {changelog_url} for the complete changelog.*"
+                                )
 
                                 return "\n".join(changelog_parts)
                         except Exception as e:
