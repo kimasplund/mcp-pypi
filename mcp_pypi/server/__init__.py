@@ -1133,7 +1133,9 @@ Key capabilities:
                         
                         if not req_result.get("error"):
                             vulns = []
-                            for req in req_result.get("requirements", []):
+                            # Check both outdated and up_to_date packages
+                            all_packages = req_result.get("outdated", []) + req_result.get("up_to_date", [])
+                            for req in all_packages:
                                 # Check each requirement for vulnerabilities
                                 pkg_name = req.get("package", "")
                                 current_version = req.get("current_version", "")
@@ -1258,7 +1260,9 @@ Key capabilities:
                         req_result = await check_requirements_txt(str(constraints_file))
                         if not req_result.get("error"):
                             vulns = []
-                            for req in req_result.get("requirements", []):
+                            # Check both outdated and up_to_date packages
+                            all_packages = req_result.get("outdated", []) + req_result.get("up_to_date", [])
+                            for req in all_packages:
                                 pkg_name = req.get("package", "")
                                 current_version = req.get("current_version", "")
                                 if pkg_name and current_version:
