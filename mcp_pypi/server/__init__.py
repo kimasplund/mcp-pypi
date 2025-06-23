@@ -1141,6 +1141,7 @@ Key capabilities:
                                 current_version = req.get("current_version", "")
                                 if pkg_name and current_version:
                                     vuln_check = await self.client.check_vulnerabilities(pkg_name, current_version)
+                                    logger.debug(f"Checking {pkg_name}=={current_version}: vulnerable={vuln_check.get('vulnerable')}, count={vuln_check.get('total_vulnerabilities', 0)}")
                                     if vuln_check.get("vulnerable"):
                                         vulns.append({
                                             "package": pkg_name,
@@ -1176,6 +1177,7 @@ Key capabilities:
                                 current_version = req.get("current_version", "")
                                 if pkg_name and current_version:
                                     vuln_check = await self.client.check_vulnerabilities(pkg_name, current_version)
+                                    logger.debug(f"Checking {pkg_name}=={current_version}: vulnerable={vuln_check.get('vulnerable')}, count={vuln_check.get('total_vulnerabilities', 0)}")
                                     if vuln_check.get("vulnerable"):
                                         vulns.append({
                                             "package": pkg_name,
@@ -1267,6 +1269,7 @@ Key capabilities:
                                 current_version = req.get("current_version", "")
                                 if pkg_name and current_version:
                                     vuln_check = await self.client.check_vulnerabilities(pkg_name, current_version)
+                                    logger.debug(f"Checking {pkg_name}=={current_version}: vulnerable={vuln_check.get('vulnerable')}, count={vuln_check.get('total_vulnerabilities', 0)}")
                                     if vuln_check.get("vulnerable"):
                                         vulns.append({
                                             "package": pkg_name,
@@ -1409,15 +1412,39 @@ Key capabilities:
                 # Priority fixes (convert sets to lists for JSON serialization)
                 priority_fixes = []
                 for pkg_name, pkg_info in results["all_vulnerable_packages"].items():
+                    # Calculate total vulnerabilities for this package across all sources
+                    pkg_vulns = {"critical": 0, "high": 0, "medium": 0, "low": 0, "total": 0}
+                    for source, vulns in results["vulnerabilities_by_source"].items():
+                        for v in vulns:
+                            if v.get("package") == pkg_name:
+                                pkg_vulns["critical"] += v.get("critical", 0)
+                                pkg_vulns["high"] += v.get("high", 0)
+                                # Estimate medium/low from remaining
+                                other = v.get("vulnerabilities", 0) - v.get("critical", 0) - v.get("high", 0)
+                                pkg_vulns["medium"] += other // 2
+                                pkg_vulns["low"] += other - (other // 2)
+                                pkg_vulns["total"] += v.get("vulnerabilities", 0)
+                    
                     pkg_info["versions_affected"] = list(pkg_info["versions_affected"])
                     priority_fixes.append({
                         "package": pkg_name,
-                        "affected_versions": pkg_info["versions_affected"],
-                        "found_in": pkg_info["sources"]
+                        "versions": pkg_info["versions_affected"],
+                        "found_in": pkg_info["sources"],
+                        "total_vulnerabilities": pkg_vulns["total"],
+                        "critical": pkg_vulns["critical"],
+                        "high": pkg_vulns["high"],
+                        "medium": pkg_vulns["medium"],
+                        "low": pkg_vulns["low"]
                     })
                 
-                # Sort by number of sources (packages used in multiple places are higher priority)
-                priority_fixes.sort(key=lambda x: len(x["found_in"]), reverse=True)
+                # Sort by severity and number of sources
+                priority_fixes.sort(key=lambda x: (
+                    x["critical"] * 1000 +  # Critical vulnerabilities are highest priority
+                    x["high"] * 100 +       # Then high
+                    x["medium"] * 10 +      # Then medium  
+                    x["low"] +              # Then low
+                    len(x["found_in"]) * 0.1  # Tie-breaker: packages used in multiple places
+                ), reverse=True)
                 
                 audit_data = {
                     "overall_risk_level": risk_level,
@@ -1958,7 +1985,9 @@ Key capabilities:
             
             for fix in priority_fixes[:10]:  # Top 10
                 pkg_name = fix.get('package', 'Unknown')[:23]
-                versions = list(fix.get('versions', []))
+                versions = fix.get('versions', fix.get('affected_versions', []))
+                if not isinstance(versions, list):
+                    versions = list(versions) if versions else []
                 version = versions[0][:10] if versions else 'Unknown'
                 vuln_count = fix.get('total_vulnerabilities', 0)
                 
