@@ -41,14 +41,6 @@ dependencies = [
     "typing_extensions>=4.3.0;python_version<'3.11'",  # For NotRequired in Python 3.10
 ]
 
-[project.urls]
-"Homepage" = "https://github.com/kimasplund/mcp-pypi"
-"Bug Tracker" = "https://github.com/kimasplund/mcp-pypi/issues"
-"Documentation" = "https://github.com/kimasplund/mcp-pypi#readme"
-"Source Code" = "https://github.com/kimasplund/mcp-pypi"
-"Changelog" = "https://github.com/kimasplund/mcp-pypi/releases"
-
-[project.keywords]
 keywords = [
     "mcp",
     "model-context-protocol",
@@ -63,6 +55,13 @@ keywords = [
     "version-tracking",
     "security-scanning"
 ]
+
+[project.urls]
+"Homepage" = "https://github.com/kimasplund/mcp-pypi"
+"Bug Tracker" = "https://github.com/kimasplund/mcp-pypi/issues"
+"Documentation" = "https://github.com/kimasplund/mcp-pypi#readme"
+"Source Code" = "https://github.com/kimasplund/mcp-pypi"
+"Changelog" = "https://github.com/kimasplund/mcp-pypi/releases"
 
 [project.optional-dependencies]
 all = [
