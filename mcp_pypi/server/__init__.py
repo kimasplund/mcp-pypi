@@ -62,18 +62,21 @@ class PyPIMCPServer:
         # Initialize FastMCP server with enhanced description
         self.mcp_server = FastMCP(
             name="PyPI MCP Server",
-            description="""🐍 Python Package Intelligence for AI Agents
+            description="""🐍 Security-First Python Package Intelligence
 
-Access PyPI's 500,000+ packages with powerful discovery and analysis tools. 
-Perfect for finding libraries, managing dependencies, and keeping projects secure.
+Helps AI assistants write safer Python code by providing comprehensive package 
+analysis with integrated security scanning. Search, evaluate, and verify packages
+before recommending them.
+
+Core philosophy: Great code starts with secure dependencies.
 
 Key capabilities:
-• 🔍 Smart package search and discovery
-• 📊 Download statistics and popularity metrics  
-• 🔗 Deep dependency analysis
-• 🛡️ Security vulnerability scanning
-• 📋 Requirements file auditing
-• 🚀 Version tracking and updates"""
+• 🛡️ Proactive vulnerability scanning for all packages
+• 🔍 Smart search with security awareness
+• 📊 Package evaluation with safety metrics
+• 🔗 Deep dependency security analysis
+• 📋 Project-wide security auditing
+• 🚀 Safe version recommendations"""
         )
         
         # Set the host and port in the FastMCP settings
@@ -106,6 +109,9 @@ Key capabilities:
             
             Find the perfect library from 500,000+ packages. Returns ranked results
             with names, descriptions, and versions to help you choose the best option.
+            
+            💡 Pro tip: After finding interesting packages, use get_package_info for details
+            and check_vulnerabilities to ensure they're safe to recommend.
             
             Args:
                 query: Search terms (e.g. "web scraping", "machine learning")
@@ -144,6 +150,9 @@ Key capabilities:
             
             Essential for understanding packages before installation. Returns complete
             metadata including description, license, author, URLs, and classifiers.
+            
+            🛡️ Recommendation: When evaluating packages for use, follow up with
+            check_vulnerabilities to ensure security. Quality packages deserve security verification.
             
             Args:
                 package_name: Exact name of the Python package
@@ -442,27 +451,29 @@ Key capabilities:
         
         @self.mcp_server.tool()
         async def check_requirements_txt(file_path: str) -> PackageRequirementsResult:
-            """📋🛡️ SECURITY AUDIT: Analyze requirements.txt for outdated packages and vulnerabilities.
+            """📋 Analyze requirements.txt for outdated packages and security issues.
             
-            ESSENTIAL FOR PROJECT SECURITY: This tool not only checks for outdated packages
-            but also identifies security vulnerabilities in your dependencies.
+            Audits your project dependencies to identify outdated packages and potential
+            security vulnerabilities. Helps maintain healthy, secure dependency management.
             
-            Security Features:
-            - Identifies packages with known vulnerabilities
-            - Highlights security updates available
-            - Checks for compatible upgrades that fix security issues
-            - Provides severity ratings for vulnerabilities found
+            Provides insights on:
+            • Version currency - how outdated are your packages?
+            • Security status - any known vulnerabilities?
+            • Update priority - which updates are most important?
+            • Compatibility - will updates break your project?
             
             Args:
                 file_path: Path to requirements.txt file
             
             Returns:
                 PackageRequirementsResult with:
-                - Current vs latest versions comparison
-                - Security vulnerability warnings
-                - Update recommendations prioritized by security
-                
-            Best Practice: Run this regularly and ALWAYS before deployment!
+                - Package-by-package analysis
+                - Security alerts for vulnerable packages
+                - Prioritized update recommendations
+                - Version compatibility information
+            
+            💡 Tip: Run before deployments and as part of regular maintenance.
+            Consider using with scan_dependency_vulnerabilities for deeper analysis.
             """
             try:
                 return await self.client.check_requirements_file(file_path)
@@ -476,29 +487,28 @@ Key capabilities:
         
         @self.mcp_server.tool()
         async def check_pyproject_toml(file_path: str) -> PackageRequirementsResult:
-            """🎯🛡️ SECURITY AUDIT: Analyze pyproject.toml for outdated packages and vulnerabilities.
+            """🎯 Analyze pyproject.toml for outdated packages and security issues.
             
-            CRITICAL FOR MODERN PYTHON PROJECTS: This tool performs security auditing on
-            pyproject.toml files, checking both [project.dependencies] and [project.optional-dependencies].
+            Modern Python projects use pyproject.toml for dependency management. This tool
+            audits all dependency groups to ensure security and currency.
             
-            Security Features:
-            - Scans all dependency groups (main, dev, test, docs, etc.)
-            - Identifies packages with known vulnerabilities
-            - Checks for security updates in dependency specifications
-            - Analyzes version constraints for security implications
-            - Covers both PEP 621 and Poetry/PDM style configs
+            Comprehensive coverage:
+            • [project.dependencies] - main dependencies
+            • [project.optional-dependencies] - extras like dev, test, docs
+            • Poetry/PDM style configurations
+            • Version constraints and compatibility
             
             Args:
                 file_path: Path to pyproject.toml file
             
             Returns:
                 PackageRequirementsResult with:
-                - Comprehensive dependency analysis
-                - Security vulnerability warnings per dependency group
-                - Update recommendations with security priority
-                - Version constraint compatibility analysis
-                
-            Best Practice: Essential for projects using modern Python packaging!
+                - Analysis of all dependency groups
+                - Security status for each package
+                - Update recommendations by priority
+                - Constraint compatibility warnings
+            
+            💡 Works with all modern Python packaging tools (pip, poetry, pdm, hatch).
             """
             try:
                 return await self.client.check_requirements_file(file_path)
@@ -556,10 +566,16 @@ Key capabilities:
             package_name: str,
             version: Optional[str] = None
         ) -> Dict[str, Any]:
-            """🛡️ SECURITY CHECK: Scan for known vulnerabilities using OSV (Open Source Vulnerabilities) database.
+            """🛡️ Check for known vulnerabilities in a Python package.
             
-            IMPORTANT: Always run this BEFORE adding new dependencies to ensure security.
-            This tool checks Google's OSV database for CVEs and security advisories.
+            Uses Google's OSV (Open Source Vulnerabilities) database to identify CVEs,
+            security advisories, and known issues. Essential for responsible package recommendations.
+            
+            When to use:
+            ✓ Before recommending any package for production use
+            ✓ When evaluating package options for security-sensitive contexts
+            ✓ During security audits or dependency updates
+            ✓ When users ask about package safety
             
             Args:
                 package_name: Name of the package to check
@@ -571,12 +587,8 @@ Key capabilities:
                 - vulnerable: Boolean indicating if vulnerabilities exist
                 - total_vulnerabilities: Total count of vulnerabilities found
                 - critical_count, high_count, medium_count, low_count: Counts by severity
-                
-            Security Best Practices:
-            - ALWAYS check before adding new dependencies
-            - Check specific versions you plan to use
-            - Review all HIGH and CRITICAL vulnerabilities
-            - Consider checking transitive dependencies too
+            
+            Note: No vulnerabilities doesn't mean a package is perfect, but it's a good security indicator.
             """
             try:
                 result = await self.client.check_vulnerabilities(package_name, version)
@@ -592,10 +604,14 @@ Key capabilities:
             max_depth: int = 2,
             include_dev: bool = False
         ) -> Dict[str, Any]:
-            """🛡️🔍 DEEP SECURITY SCAN: Check vulnerabilities in package AND all its dependencies.
+            """🛡️🔍 Deep scan for vulnerabilities in a package's entire dependency tree.
             
-            CRITICAL FOR SECURITY: This performs a comprehensive vulnerability scan of the entire
-            dependency tree, identifying security issues in both direct and transitive dependencies.
+            Goes beyond surface-level checks to analyze transitive dependencies - the hidden
+            packages that your dependencies depend on. Crucial for comprehensive security assessment.
+            
+            Why this matters:
+            Many vulnerabilities hide in transitive dependencies. A package might be secure,
+            but if it depends on vulnerable packages, your project inherits those risks.
             
             Args:
                 package_name: Root package to analyze
@@ -605,20 +621,16 @@ Key capabilities:
             
             Returns:
                 Dictionary containing:
-                - package: Root package name and version
-                - total_packages_scanned: Number of packages checked
+                - all_clear: Boolean for quick security status check
                 - vulnerable_packages: List of packages with vulnerabilities
-                - total_vulnerabilities: Sum of all vulnerabilities found
-                - severity_summary: Breakdown by severity across all packages
-                - dependency_tree: Full tree showing which packages depend on vulnerable ones
+                - severity_summary: Breakdown by severity level
+                - recommendation: Human-readable security assessment
+                - dependency_tree: Full tree for understanding relationships
                 
-            Use Cases:
-            - BEFORE adding a new dependency to a project
-            - Auditing existing projects for security issues
-            - Evaluating the security posture of potential packages
-            - Finding which dependencies introduce vulnerabilities
-            
-            Example: If package A depends on B, and B has vulnerabilities, this will catch it!
+            Best for:
+            - Comprehensive security evaluation before adoption
+            - Understanding the full security impact of a package
+            - Finding hidden vulnerabilities in dependency chains
             """
             try:
                 # First get the dependency tree
@@ -713,41 +725,37 @@ Key capabilities:
             include_system: bool = False,
             output_format: str = "summary"
         ) -> Dict[str, Any]:
-            """🛡️💻 ENVIRONMENT SECURITY SCAN: Check all installed packages for vulnerabilities.
+            """🛡️💻 Scan installed packages in Python environments for vulnerabilities.
             
-            ESSENTIAL FOR RUNTIME SECURITY: Scans your actual Python environment to identify
-            vulnerable packages that are currently installed and could pose security risks.
+            Analyzes your actual installed packages to identify security risks. Automatically
+            detects common virtual environment locations or accepts specific paths.
             
-            This tool automatically detects and scans:
-            - Virtual environments (.venv, venv, env, virtualenv)
-            - Conda environments
-            - Pipenv environments
-            - Poetry environments
-            - System-wide packages (if requested)
+            Smart detection includes:
+            • Virtual environments (.venv, venv, env, virtualenv)
+            • Conda environments
+            • Poetry/Pipenv environments
+            • System packages (with explicit permission)
+            
+            Perfect timing:
+            ⏰ After installing new packages - catch issues immediately
+            ⏰ Before deploying - ensure production safety
+            ⏰ During code reviews - verify environment security
+            ⏰ Regular audits - catch newly discovered vulnerabilities
             
             Args:
-                environment_path: Path to virtual environment (optional, auto-detects if not provided)
-                include_system: Also scan system-wide packages (default: False)
+                environment_path: Path to environment (auto-detects if not provided)
+                include_system: Include system packages (default: False)
                 output_format: "summary" or "detailed" (default: "summary")
             
             Returns:
                 Dictionary containing:
-                - environment_type: Detected environment type (venv, conda, system, etc.)
-                - environment_path: Path to the scanned environment
-                - total_packages: Number of installed packages
-                - vulnerable_packages: List of packages with vulnerabilities
-                - critical_vulnerabilities: Count of critical severity issues
-                - high_vulnerabilities: Count of high severity issues
-                - recommendations: Prioritized list of packages to update
-                - update_commands: Ready-to-use commands to fix vulnerabilities
-                
-            Security Best Practices:
-            - Run BEFORE deploying applications
-            - Check AFTER installing new packages
-            - Schedule regular scans of production environments
-            - Always scan before sharing environments
+                - all_clear: Quick boolean security status
+                - vulnerability_summary: Count by severity level
+                - top_risks: Most critical packages to fix
+                - update_commands: Copy-paste commands for fixes
+                - recommendation: Human-readable assessment
             
-            Example: Detects if you have old requests, urllib3, or other common vulnerable packages!
+            Tip: Regular scans catch vulnerabilities discovered after installation.
             """
             try:
                 import subprocess
@@ -914,50 +922,41 @@ Key capabilities:
             check_transitive: bool = True,
             max_depth: int = 2
         ) -> Dict[str, Any]:
-            """🛡️🔍🚨 COMPREHENSIVE PROJECT SECURITY AUDIT: Complete vulnerability assessment.
+            """🛡️🔍 Comprehensive security audit of an entire Python project.
             
-            THE ULTIMATE SECURITY TOOL: Performs a complete security audit of a Python project,
-            checking ALL dependency contexts and providing a unified security report.
+            The most thorough security check available - analyzes every aspect of your
+            project's dependencies to provide a complete security assessment with actionable insights.
             
-            This tool combines ALL security checks:
-            ✓ requirements.txt vulnerabilities
-            ✓ pyproject.toml vulnerabilities  
-            ✓ Installed package vulnerabilities
-            ✓ Transitive dependency vulnerabilities
-            ✓ Version constraint analysis
-            ✓ Security update recommendations
+            Unified analysis includes:
+            ✓ All dependency files (requirements.txt, pyproject.toml, etc.)
+            ✓ Installed packages in detected environments
+            ✓ Transitive dependencies (dependencies of dependencies)
+            ✓ Version constraints and compatibility
+            ✓ Prioritized remediation recommendations
             
-            CRITICAL: Always run this BEFORE:
-            - Deploying to production
-            - Sharing code publicly
-            - Accepting pull requests
-            - Major version updates
+            Perfect for critical checkpoints:
+            📍 Pre-deployment security verification
+            📍 Pull request security reviews
+            📍 Periodic security audits
+            📍 Compliance documentation
             
             Args:
-                project_path: Path to project root (auto-detects if not provided)
-                check_files: Scan requirements.txt and pyproject.toml files
-                check_installed: Scan installed packages in virtual environment
-                check_transitive: Deep scan transitive dependencies
-                max_depth: Maximum dependency depth to scan (default: 2)
+                project_path: Project root directory (auto-detects if not provided)
+                check_files: Analyze dependency files (default: True)
+                check_installed: Scan virtual environments (default: True)
+                check_transitive: Deep dependency analysis (default: True)
+                max_depth: Dependency tree depth (default: 2)
             
             Returns:
-                Comprehensive security report with:
-                - overall_risk_level: CRITICAL, HIGH, MEDIUM, LOW, or SECURE
-                - total_vulnerabilities: Sum across all contexts
-                - file_vulnerabilities: Issues in requirements/pyproject files
-                - installed_vulnerabilities: Issues in installed packages
-                - transitive_vulnerabilities: Issues in dependencies of dependencies
-                - priority_fixes: Top packages to update immediately
-                - security_score: 0-100 score (100 = perfectly secure)
-                - remediation_plan: Step-by-step fix instructions
-                - estimated_fix_time: Rough estimate to fix all issues
+                Executive summary with:
+                - overall_risk_level: Your security posture (CRITICAL/HIGH/MEDIUM/LOW/SECURE)
+                - security_score: 0-100 rating for quick assessment
+                - priority_fixes: What to fix first for maximum impact
+                - remediation_plan: Step-by-step security improvements
+                - estimated_fix_time: Realistic time to resolve issues
                 
-            Example Output:
-                🚨 CRITICAL RISK: 42 vulnerabilities found!
-                - 5 CRITICAL in direct dependencies
-                - 12 HIGH in transitive dependencies
-                - Fix time: ~2 hours
-                Priority: Update requests, urllib3, cryptography immediately!
+            💡 Pro tip: Run monthly or before major releases. The security score helps track
+            improvement over time. Export results for compliance records.
             """
             try:
                 from pathlib import Path
