@@ -1,0 +1,14 @@
+# OSV Scanner Configuration
+# This file configures how OSV Scanner runs in our project
+
+[[IgnoredVulns]]
+id = "GHSA-5jqp-qgf6-3pvh"
+reason = "This vulnerability affects pydantic < 1.8.2, we're using 2.11.7"
+
+[[IgnoredVulns]]
+id = "PYSEC-2021-47"
+reason = "This vulnerability affects pydantic < 1.8.2, we're using 2.11.7"
+
+[[IgnoredVulns]]
+id = "GHSA-mr82-8j83-vxmv"
+reason = "This vulnerability affects pydantic < 2.4.0, we're using 2.11.7"
