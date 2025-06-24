@@ -1,4 +1,6 @@
-name: Publish to TestPyPI ${{ github.event_name == 'release' && github.ref_name || '' }}
+name: Publish to TestPyPI
+
+run-name: Publish to TestPyPI ${{ github.event_name == 'release' && github.ref_name || 'manual' }} by @${{ github.actor }}
 
 on:
   release:
@@ -6,19 +8,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  get-version:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.extract_version.outputs.version }}
-    steps:
-    - uses: actions/checkout@v4
-    - name: Extract version
-      id: extract_version
-      run: |
-        VERSION=$(grep -m 1 'version = ' pyproject.toml | cut -d'"' -f2)
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Package version: $VERSION"
-
   test-utils:
     runs-on: ubuntu-latest
     timeout-minutes: 5  # Hard timeout after 5 minutes
@@ -134,16 +123,13 @@ jobs:
 
   # Special build job with minimal tests for publishing
   build-and-publish:
-    needs: [get-version, test-utils]  # Get version and depend on utils tests
+    needs: [test-utils]  # Only depend on utils tests which are most likely to succeed
     if: always()
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - name: Display version being published
-      run: |
-        echo "Publishing version: ${{ needs.get-version.outputs.version }}"
     - name: Set up Python 3.13
       uses: actions/setup-python@v4
       with:
