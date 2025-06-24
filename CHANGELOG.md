@@ -5,6 +5,47 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.1] - 2025-06-24
+
+### 🔧 Improvements
+- **Enhanced dependency file hierarchy guidance**:
+  - Clear instructions that pyproject.toml is the PRIMARY source
+  - Requirements.txt is SECONDARY (often generated)
+  - Update workflow: pyproject.toml → requirements.txt → setup.py
+- **Improved next_steps logic**:
+  - Detects if pyproject.toml exists and guides accordingly
+  - Different guidance based on which files are present
+  - Emphasizes "trickle down" approach for consistency
+- **Updated tool descriptions**:
+  - POST-AUDIT checklist now shows correct update order
+  - Warnings about common mistakes (updating wrong file first)
+  - Clear commit message suggestions for all files
+
+### 📚 Documentation
+- Updated TOOL_DESCRIPTION_IMPROVEMENTS.md with:
+  - Python dependency file priority order
+  - Correct update workflow for LLMs
+  - Key principles for maintaining consistency
+
+## [2.7.0] - 2025-06-24
+
+### 🚀 New Features
+- **Enhanced tool descriptions for better LLM guidance**:
+  - Added explicit action directives (e.g., "UPDATE ALL dependency files")
+  - Clear warnings about checking multiple dependency locations
+  - POST-AUDIT ACTION CHECKLIST for comprehensive fixes
+- **Improved tool outputs**:
+  - Added `action_required` and `next_steps` fields when vulnerabilities found
+  - Automatic detection of other dependency files in the project
+  - Specific guidance on maintaining consistency across files
+
+### 📚 Documentation
+- Added TOOL_DESCRIPTION_IMPROVEMENTS.md with detailed guidance on:
+  - How LLMs should handle security findings
+  - Ensuring all dependency files are updated
+  - Maintaining version consistency
+  - Future improvements roadmap
+
 ## [2.6.9] - 2025-06-24
 
 ### 🔐 Security Updates

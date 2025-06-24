@@ -484,15 +484,19 @@ Key capabilities:
             2. Check OTHER dependency files → pyproject.toml, setup.py, setup.cfg
             3. Ensure CONSISTENCY → All files should have matching constraints
 
+            📋 DEPENDENCY FILE HIERARCHY:
+            • pyproject.toml is the PRIMARY source (modern standard)
+            • requirements.txt is SECONDARY (often generated from pyproject.toml)
+            • setup.py/setup.cfg are LEGACY (should mirror pyproject.toml)
+            
+            ⚠️ If pyproject.toml exists in the project:
+            1. Check if it's more authoritative (has [project] section)
+            2. Consider updating pyproject.toml FIRST, then sync to other files
+            3. Ensure requirements.txt doesn't have stricter constraints
+
             Common errors:
                 - "File not found" - Ensure you use the full absolute path
                 - "Invalid format" - Check requirements.txt syntax
-
-            ⚠️ Dependencies may exist in multiple files - always check:
-                - requirements.txt (this file)
-                - pyproject.toml ([project.dependencies])
-                - setup.py (install_requires)
-                - setup.cfg ([options] install_requires)
             """
             try:
                 return await self.client.check_requirements_file(file_path)
@@ -531,13 +535,23 @@ Key capabilities:
             💡 Works with all modern Python packaging tools (pip, poetry, pdm, hatch).
 
             ⚠️ IMPORTANT ACTIONS AFTER RUNNING THIS TOOL:
-            1. If vulnerabilities found → UPDATE constraints in this file
-            2. Check OTHER dependency files → requirements.txt, setup.py, setup.cfg
+            1. If vulnerabilities found → UPDATE constraints in THIS file FIRST
+            2. TRICKLE DOWN changes → Update requirements.txt, setup.py, setup.cfg
             3. Ensure CONSISTENCY → All files should have matching constraints
 
-            Note: Always use absolute paths, not relative paths like "pyproject.toml"
+            🎯 PYPROJECT.TOML IS THE PRIMARY SOURCE:
+            • This is the modern Python standard (PEP 621)
+            • Other files should be generated from or match this file
+            • When updating dependencies, start here then propagate changes
             
-            ⚠️ Dependencies may exist in multiple files - always check ALL locations!
+            📋 UPDATE WORKFLOW:
+            1. Update pyproject.toml with secure versions
+            2. If requirements.txt exists → Update to match or regenerate
+            3. If setup.py exists → Update install_requires to match
+            4. If setup.cfg exists → Update to match (or consider removing)
+            5. Commit with message: "chore: Update dependencies for security (all files)"
+
+            Note: Always use absolute paths, not relative paths like "pyproject.toml"
             """
             try:
                 return await self.client.check_requirements_file(file_path)
@@ -1219,14 +1233,20 @@ Key capabilities:
             improvement over time. Export results for compliance records.
             
             📋 POST-AUDIT ACTION CHECKLIST:
-            If vulnerabilities are found, you MUST:
-            1. ✅ UPDATE ALL dependency files (not just requirements.txt!)
-            2. ✅ Check that all files have CONSISTENT version constraints
-            3. ✅ Test that updates don't break functionality
-            4. ✅ Commit with message listing ALL updated files
+            If vulnerabilities are found, you MUST follow this ORDER:
+            1. ✅ UPDATE pyproject.toml FIRST (if it exists - it's the primary source)
+            2. ✅ TRICKLE DOWN changes to requirements.txt, setup.py, setup.cfg
+            3. ✅ VERIFY all files have IDENTICAL version constraints
+            4. ✅ Test that updates don't break functionality
+            5. ✅ Commit with message: "chore: Update dependencies for security (all files)"
             
-            ⚠️ COMMON MISTAKE: Only updating requirements.txt when dependencies
-               are also in pyproject.toml, setup.py, etc. Always update ALL files!
+            🎯 CORRECT UPDATE ORDER:
+            pyproject.toml (PRIMARY) → requirements.txt → setup.py → setup.cfg
+            
+            ⚠️ COMMON MISTAKES TO AVOID:
+            • Only updating requirements.txt (wrong - it's secondary!)
+            • Having different versions in different files (breaks consistency)
+            • Not checking if pyproject.toml exists (it's the modern standard)
             """
             try:
                 from pathlib import Path

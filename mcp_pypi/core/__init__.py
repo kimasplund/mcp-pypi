@@ -1418,11 +1418,27 @@ class PyPIClient:
             # Add actionable next steps if vulnerabilities found
             if outdated and any("recommendation" in pkg for pkg in outdated):
                 result["action_required"] = True
-                result["next_steps"] = [
-                    "UPDATE this file with the recommended secure versions",
-                    f"CHECK other dependency files for consistency: {', '.join(other_dep_files)}" if other_dep_files else None,
-                    "COMMIT changes with message mentioning all updated files"
-                ]
+                
+                # Check if pyproject.toml exists (it's the primary source)
+                has_pyproject = any("pyproject.toml" in f for f in other_dep_files)
+                
+                if has_pyproject:
+                    # requirements.txt is secondary - suggest updating pyproject.toml first
+                    result["next_steps"] = [
+                        "CHECK pyproject.toml FIRST - it's the primary dependency source",
+                        "UPDATE pyproject.toml with the recommended secure versions",
+                        "THEN update this requirements.txt to match pyproject.toml",
+                        f"VERIFY consistency with other files: {', '.join(f for f in other_dep_files if 'pyproject.toml' not in f)}" if any(f for f in other_dep_files if 'pyproject.toml' not in f) else None,
+                        "COMMIT changes with message: 'chore: Update dependencies for security (all files)'"
+                    ]
+                else:
+                    # No pyproject.toml - requirements.txt is primary
+                    result["next_steps"] = [
+                        "UPDATE this file with the recommended secure versions",
+                        f"CHECK other dependency files for consistency: {', '.join(other_dep_files)}" if other_dep_files else None,
+                        "COMMIT changes with message mentioning all updated files"
+                    ]
+                
                 result["next_steps"] = [step for step in result["next_steps"] if step]
                 
             return result
@@ -1636,10 +1652,15 @@ class PyPIClient:
         # Add actionable next steps if vulnerabilities found
         if outdated and any("recommendation" in pkg for pkg in outdated):
             result["action_required"] = True
+            result["file_priority"] = "PRIMARY - This is the modern Python standard"
+            
+            # pyproject.toml is primary - changes should trickle down
             result["next_steps"] = [
-                "UPDATE this file with the recommended secure versions",
-                f"CHECK other dependency files for consistency: {', '.join(other_dep_files)}" if other_dep_files else None,
-                "COMMIT changes with message mentioning all updated files"
+                "UPDATE this pyproject.toml FIRST with the recommended secure versions",
+                f"TRICKLE DOWN changes to secondary files: {', '.join(other_dep_files)}" if other_dep_files else None,
+                "ENSURE all files have IDENTICAL version constraints",
+                "REGENERATE requirements.txt if using pip-tools: pip-compile pyproject.toml",
+                "COMMIT changes with message: 'chore: Update dependencies for security (all files)'"
             ]
             result["next_steps"] = [step for step in result["next_steps"] if step]
             

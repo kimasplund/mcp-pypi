@@ -1,5 +1,53 @@
 # Tool Description Improvements for Better LLM Guidance
 
+## Update: Dependency File Hierarchy (2025-06-24)
+
+### Python Dependency File Priority Order
+
+1. **pyproject.toml** (PRIMARY - Modern Standard)
+   - The authoritative source for dependencies
+   - PEP 621 standard since 2020
+   - All modern tools use this (Poetry, PDM, Hatch, pip)
+   - Changes should flow FROM here TO other files
+
+2. **requirements.txt** (SECONDARY - Often Generated)
+   - Should be generated from or match pyproject.toml
+   - Used for deployment, Docker, CI/CD
+   - Can be auto-generated: `pip-compile pyproject.toml`
+   - Should NEVER have looser constraints than pyproject.toml
+
+3. **setup.py / setup.cfg** (LEGACY - Being Phased Out)
+   - Older projects may still use these
+   - Should mirror pyproject.toml if both exist
+   - Consider migrating to pyproject.toml
+
+### Correct Update Workflow for LLMs
+
+When security vulnerabilities are found:
+
+```
+1. CHECK which files exist in the project
+2. IF pyproject.toml exists:
+   a. UPDATE pyproject.toml FIRST
+   b. TRICKLE DOWN changes to requirements.txt
+   c. UPDATE setup.py/setup.cfg to match
+   d. VERIFY all files have IDENTICAL constraints
+3. ELSE IF only requirements.txt exists:
+   a. UPDATE requirements.txt
+   b. CHECK for other dependency files
+   c. ENSURE consistency
+4. COMMIT with message: "chore: Update dependencies for security (all files)"
+```
+
+### Key Principles for LLMs
+
+1. **pyproject.toml is the source of truth** - always update it first
+2. **Changes flow downward** - from pyproject.toml to other files
+3. **Never have inconsistent versions** - all files must match exactly
+4. **Don't make requirements.txt stricter** - it should match or be looser than pyproject.toml
+
+---
+
 ## Problem Analysis
 When LLMs use our security tools, they often:
 1. Only update one file (requirements.txt) when dependencies exist in multiple files
