@@ -18,6 +18,7 @@ def serve_command(
     cache_ttl: int = typer.Option(604800, "--cache-ttl", help="Cache TTL in seconds (default: 1 week)"),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging level"),
     user_agent: Optional[str] = typer.Option(None, "--user-agent", help="Custom user agent string"),
+    help_connecting: bool = typer.Option(False, "--help-connecting", help="Show connection examples for Claude"),
 ):
     """Start the MCP server for PyPI operations.
     
@@ -25,6 +26,16 @@ def serve_command(
     - stdio: Direct process communication (default, for MCP clients)
     - http: HTTP server with SSE and streamable-http endpoints
     """
+    # Import the help functions from main
+    from mcp_pypi.cli.main import show_stdio_connection_help, show_http_connection_help
+    
+    # Show connection help if requested
+    if help_connecting:
+        if transport == "stdio":
+            show_stdio_connection_help()
+        else:
+            show_http_connection_help(host, port)
+        raise typer.Exit()
     # Configure logging
     log_level_int = getattr(logging, log_level.upper(), logging.INFO)
     configure_logging(log_level_int)

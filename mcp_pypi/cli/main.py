@@ -29,6 +29,104 @@ console = Console()
 stderr_console = Console(stderr=True)
 
 
+def show_stdio_connection_help():
+    """Show connection examples for stdio transport."""
+    console.print("\n[bold cyan]📚 Connection Examples for MCP-PyPI (stdio transport)[/bold cyan]\n")
+    
+    console.print("[bold]1️⃣  Claude Desktop Configuration[/bold]")
+    console.print("Add to your Claude Desktop configuration file:")
+    console.print("[dim]• macOS: ~/Library/Application Support/Claude/claude.json[/dim]")
+    console.print("[dim]• Windows: %APPDATA%\\Claude\\claude.json[/dim]\n")
+    
+    config_example = '''{
+  "servers": {
+    "pypi": {
+      "command": "mcp-pypi",
+      "args": ["stdio"],
+      "description": "Access Python package information from PyPI"
+    }
+  }
+}'''
+    syntax = Syntax(config_example, "json", theme="monokai", line_numbers=False)
+    console.print(Panel(syntax, title="claude.json", border_style="green"))
+    
+    console.print("\n[bold]2️⃣  Claude Code (Terminal)[/bold]")
+    console.print("Add the server using the Claude CLI:\n")
+    console.print("[green]claude mcp add mcp-pypi -- mcp-pypi stdio[/green]")
+    
+    console.print("\n[bold]3️⃣  Custom Configuration Options[/bold]")
+    console.print("You can add additional arguments in the configuration:\n")
+    
+    custom_example = '''{
+  "servers": {
+    "pypi": {
+      "command": "mcp-pypi",
+      "args": ["stdio", "--cache-dir", "/path/to/cache", "--log-level", "DEBUG"],
+      "description": "PyPI server with custom cache"
+    }
+  }
+}'''
+    syntax = Syntax(custom_example, "json", theme="monokai", line_numbers=False)
+    console.print(Panel(syntax, title="Advanced Example", border_style="yellow"))
+    
+    console.print("\n[bold]💡 Tips:[/bold]")
+    console.print("• The server will start automatically when Claude connects")
+    console.print("• Check logs if connection fails: [dim]--log-level DEBUG[/dim]")
+    console.print("• Use custom cache directory for persistence: [dim]--cache-dir ~/.pypi-cache[/dim]")
+    console.print("• All 21 PyPI tools will be available in your Claude conversation\n")
+
+
+def show_http_connection_help(host: str = "127.0.0.1", port: int = 8080):
+    """Show connection examples for HTTP transport."""
+    console.print("\n[bold cyan]📚 Connection Examples for MCP-PyPI (HTTP transport)[/bold cyan]\n")
+    
+    console.print(f"[bold]🌐 Server will be available at:[/bold] http://{host}:{port}\n")
+    
+    console.print("[bold]1️⃣  MCP Client Configuration[/bold]")
+    console.print("Configure your MCP client to connect to the HTTP endpoints:\n")
+    
+    console.print(f"• [bold]SSE Endpoint:[/bold] http://{host}:{port}/sse")
+    console.print(f"• [bold]HTTP Endpoint:[/bold] http://{host}:{port}/mcp\n")
+    
+    config_example = f'''{{
+  "servers": {{
+    "pypi": {{
+      "url": "http://{host}:{port}/sse",
+      "transport": "sse",
+      "description": "PyPI server via HTTP/SSE"
+    }}
+  }}
+}}'''
+    syntax = Syntax(config_example, "json", theme="monokai", line_numbers=False)
+    console.print(Panel(syntax, title="MCP Client Configuration", border_style="green"))
+    
+    console.print("\n[bold]2️⃣  Testing the Connection[/bold]")
+    console.print("You can test the server is running with curl:\n")
+    console.print(f"[green]curl http://{host}:{port}/sse[/green]")
+    
+    console.print("\n[bold]3️⃣  Direct API Usage[/bold]")
+    console.print("You can also interact with the server directly:\n")
+    
+    api_example = f'''# List available tools
+curl -X POST http://{host}:{port}/mcp \\
+  -H "Content-Type: application/json" \\
+  -d '{{"method": "tools/list"}}'
+
+# Search for packages
+curl -X POST http://{host}:{port}/mcp \\
+  -H "Content-Type: application/json" \\
+  -d '{{"method": "tools/call", "params": {{"name": "search_packages", "arguments": {{"query": "requests"}}}}}}'
+'''
+    syntax = Syntax(api_example, "bash", theme="monokai", line_numbers=False)
+    console.print(Panel(syntax, title="API Examples", border_style="yellow"))
+    
+    console.print("\n[bold]💡 Tips:[/bold]")
+    console.print(f"• Server is running at http://{host}:{port}")
+    console.print("• Both SSE and HTTP transports are supported on the same port")
+    console.print("• Use --host 0.0.0.0 to allow external connections")
+    console.print("• Check server logs: [dim]--log-level DEBUG[/dim]\n")
+
+
 # Define version callback first
 def version_callback(value: bool):
     """Show the version and exit."""
@@ -36,6 +134,88 @@ def version_callback(value: bool):
         from mcp_pypi import __version__
 
         print(f"MCP-PyPI version: {__version__}")
+        raise typer.Exit()
+
+
+def get_markdown_file(filename: str) -> Optional[str]:
+    """Get markdown file content from package or filesystem."""
+    import importlib.resources
+    from pathlib import Path
+    
+    content = None
+    
+    # Try to get from package resources first (for installed package)
+    try:
+        if hasattr(importlib.resources, 'files'):
+            # Python 3.9+
+            package_files = importlib.resources.files('mcp_pypi')
+            file_resource = package_files / filename
+            if file_resource.is_file():
+                content = file_resource.read_text(encoding='utf-8')
+        else:
+            # Python 3.8
+            import pkg_resources
+            content = pkg_resources.resource_string('mcp_pypi', filename).decode('utf-8')
+    except Exception:
+        pass
+    
+    # If not found, try file system paths (for development)
+    if not content:
+        package_dir = Path(__file__).parent.parent
+        file_path = package_dir / filename
+        
+        if not file_path.exists():
+            # Try one more level up
+            file_path = package_dir.parent / filename
+        
+        if file_path.exists():
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+    
+    return content
+
+
+def readme_callback(value: bool):
+    """Show the README and exit."""
+    if value:
+        from rich.markdown import Markdown
+        
+        readme_content = get_markdown_file("README.md")
+        
+        if readme_content:
+            # Create markdown object with custom width
+            md = Markdown(readme_content, code_theme="monokai", justify="left")
+            
+            # Print with pager for long content
+            with console.pager():
+                console.print(md)
+        else:
+            console.print("[red]README.md file not found![/red]")
+            console.print("[dim]This might happen if the package was installed without including README.md[/dim]")
+            console.print("\n[bold]View online at:[/bold] https://github.com/kimasplund/mcp-pypi#readme")
+        
+        raise typer.Exit()
+
+
+def changelog_callback(value: bool):
+    """Show the CHANGELOG and exit."""
+    if value:
+        from rich.markdown import Markdown
+        
+        changelog_content = get_markdown_file("CHANGELOG.md")
+        
+        if changelog_content:
+            # Create markdown object with custom width
+            md = Markdown(changelog_content, code_theme="monokai", justify="left")
+            
+            # Print with pager for long content
+            with console.pager():
+                console.print(md)
+        else:
+            console.print("[red]CHANGELOG.md file not found![/red]")
+            console.print("[dim]This might happen if the package was installed without including CHANGELOG.md[/dim]")
+            console.print("\n[bold]View online at:[/bold] https://github.com/kimasplund/mcp-pypi/blob/main/CHANGELOG.md")
+        
         raise typer.Exit()
 
 
@@ -61,6 +241,42 @@ app.add_typer(feed_app)
 
 # Add the serve command to the main app
 app.command("serve")(serve_command)
+
+# Add stdio command as an alias for serve with stdio transport
+@app.command("stdio")
+def stdio_command(
+    cache_dir: Optional[str] = typer.Option(None, "--cache-dir", help="Custom cache directory"),
+    cache_strategy: str = typer.Option("hybrid", "--cache-strategy", help="Cache strategy: memory, disk, or hybrid"),
+    cache_ttl: int = typer.Option(604800, "--cache-ttl", help="Cache TTL in seconds (default: 1 week)"),
+    log_level: str = typer.Option("INFO", "--log-level", help="Logging level"),
+    user_agent: Optional[str] = typer.Option(None, "--user-agent", help="Custom user agent string"),
+    help_connecting: bool = typer.Option(False, "--help-connecting", help="Show connection examples for Claude"),
+):
+    """
+    Start the MCP server with stdio transport (alias for 'serve').
+    
+    This command is provided for compatibility as many LLMs default to trying 'mcp-pypi stdio'.
+    It's equivalent to running 'mcp-pypi serve' or 'mcp-pypi serve --transport stdio'.
+    """
+    if help_connecting:
+        show_stdio_connection_help()
+        raise typer.Exit()
+    
+    # Import serve_command parameters
+    from mcp_pypi.cli.server_command import serve_command
+    
+    # Call serve_command with stdio transport explicitly set
+    serve_command(
+        transport="stdio",
+        host="127.0.0.1",  # Ignored for stdio
+        port=8143,  # Ignored for stdio but use default
+        cache_dir=cache_dir,
+        cache_strategy=cache_strategy,
+        cache_ttl=cache_ttl,
+        log_level=log_level,
+        user_agent=user_agent,
+        help_connecting=False  # Already handled above
+    )
 
 
 # Global options
@@ -121,6 +337,20 @@ def main(
         is_flag=True,
         callback=version_callback,
         help="Show version and exit",
+    ),
+    readme: bool = typer.Option(
+        None,
+        "--readme",
+        is_flag=True,
+        callback=readme_callback,
+        help="Show README documentation and exit",
+    ),
+    changelog: bool = typer.Option(
+        None,
+        "--changelog",
+        is_flag=True,
+        callback=changelog_callback,
+        help="Show CHANGELOG and exit",
     ),
 ):
     """MCP-PyPI: A client for interacting with PyPI (Python Package Index)"""

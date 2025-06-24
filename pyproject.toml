@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-pypi"
-version = "2.6.3"
+version = "2.6.5"
 description = "🐍 AI-powered Python package intelligence - search, analyze, and understand PyPI packages through MCP"
 readme = "README.md"
 authors = [

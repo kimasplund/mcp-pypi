@@ -5,6 +5,51 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.5] - 2025-06-24
+
+### 🐛 Bug Fixes
+- **Fixed `mcp-pypi stdio` command** - Now properly passes all required parameters
+  - Added missing `cache_ttl` and `user_agent` parameters
+  - Fixed port to use correct default (8143)
+  - Ensures stdio command works as exact alias for serve
+
+## [2.6.4] - 2025-06-24
+
+### 🎉 New Features
+- **Added `mcp-pypi stdio` command** for better LLM compatibility
+  - Many LLMs default to trying `stdio` as a subcommand
+  - This is now an alias for `mcp-pypi serve` with stdio transport
+  - Improves user experience and reduces configuration errors
+
+- **Added `--help-connecting` option** to both `serve` and `stdio` commands
+  - Shows detailed connection examples for Claude Desktop and Claude Code
+  - Displays JSON configuration snippets with syntax highlighting
+  - Provides platform-specific file paths (macOS/Windows)
+  - Includes advanced configuration examples and troubleshooting tips
+  - For HTTP transport, shows API usage examples with curl
+
+- **Added `--readme` option** to main command
+  - Displays the full README documentation in a formatted, readable way
+  - Uses Rich library for beautiful markdown rendering
+  - Includes syntax highlighting for code blocks
+  - Automatically uses pager for long content
+  - Works both in development and when installed as a package
+
+- **Added `--changelog` option** to main command
+  - Shows the complete version history in formatted markdown
+  - Helps users quickly see what's new and what has changed
+  - Uses the same beautiful rendering as --readme
+  - Provides fallback link to GitHub if file not found
+
+### 🔧 Improvements
+- **Enhanced tool parameter descriptions** for better LLM understanding
+  - Added type information (str, int, bool) and required/optional status
+  - Included concrete examples for all parameters
+  - Clarified default values for optional parameters
+  - Added platform-specific examples for file paths (Linux/Mac/Windows)
+  - Included common error sections to help avoid mistakes
+  - Updated all file-related tools to explicitly require absolute paths
+
 ## [2.6.3] - 2025-06-24
 
 ### 🐛 Bug Fixes

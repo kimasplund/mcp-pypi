@@ -114,15 +114,22 @@ Key capabilities:
             and check_vulnerabilities to ensure they're safe to recommend.
             
             Args:
-                query: Search terms (e.g. "web scraping", "machine learning")
-                limit: Maximum results (default: 10, max: 100)
+                query (str, required): Search terms describing what you're looking for.
+                    Examples: "web scraping", "machine learning", "async http client"
+                limit (int, optional): Maximum number of results to return.
+                    Default: 10, Min: 1, Max: 100
             
             Returns:
-                SearchResult with packages sorted by relevance
+                SearchResult with packages sorted by relevance, including:
+                - packages: List of matching packages with name, description, version
+                - total: Total number of matching packages found
             
-            Examples:
-                query="data visualization" → matplotlib, plotly, seaborn
-                query="testing framework" → pytest, unittest, nose2
+            Example usage:
+                search_packages("data visualization")
+                → Returns: matplotlib, plotly, seaborn, bokeh, altair...
+                
+                search_packages("testing framework", limit=5)
+                → Returns: pytest, unittest, nose2, testify, green
             """
             try:
                 # Note: PyPI search API doesn't support limit parameter directly
@@ -155,16 +162,25 @@ Key capabilities:
             check_vulnerabilities to ensure security. Quality packages deserve security verification.
             
             Args:
-                package_name: Exact name of the Python package
+                package_name (str, required): Exact name of the Python package.
+                    Must match PyPI package name exactly (case-insensitive).
+                    Examples: "requests", "django", "numpy", "beautifulsoup4"
             
             Returns:
-                PackageInfo with description, license, URLs, dependencies, and more
+                Dict containing:
+                - info: Package metadata (description, license, author, etc.)
+                - release_count: Number of releases available
+                - available_versions: List of recent versions
+                - latest_version: Current latest version
+                - latest_release_files: Number of distribution files
             
-            Use this to:
-                - Understand what a package does
-                - Check license compatibility
-                - Find documentation and source code
-                - View maintainer information
+            Example usage:
+                get_package_info("requests")
+                → Returns full metadata for the requests library
+                
+            Common errors:
+                - "Package not found" - Check spelling and try search_packages first
+                - Use exact names: "beautifulsoup4" not "beautifulsoup" or "bs4"
             """
             try:
                 full_info = await self.client.get_package_info(package_name)
@@ -463,17 +479,30 @@ Key capabilities:
             • Compatibility - will updates break your project?
             
             Args:
-                file_path: Path to requirements.txt file
+                file_path (str, required): Absolute path to requirements.txt file.
+                    Must be a complete path from root directory.
+                    Examples: 
+                    - Linux/Mac: "/home/user/project/requirements.txt"
+                    - Windows: "C:\\Users\\user\\project\\requirements.txt"
+                    - WSL: "/mnt/c/Users/user/project/requirements.txt"
             
             Returns:
-                PackageRequirementsResult with:
-                - Package-by-package analysis
-                - Security alerts for vulnerable packages
-                - Prioritized update recommendations
-                - Version compatibility information
+                PackageRequirementsResult containing:
+                - outdated: List of packages that need updates
+                - up_to_date: List of current packages
+                - Each package includes: name, current_version, latest_version, constraint
+                - error: Error details if file cannot be read or parsed
+            
+            Example usage:
+                check_requirements_txt("/home/john/myapp/requirements.txt")
+                → Returns analysis of all packages in the requirements file
             
             💡 Tip: Run before deployments and as part of regular maintenance.
             Consider using with scan_dependency_vulnerabilities for deeper analysis.
+            
+            Common errors:
+                - "File not found" - Ensure you use the full absolute path
+                - "Invalid format" - Check requirements.txt syntax
             """
             try:
                 return await self.client.check_requirements_file(file_path)
@@ -499,7 +528,8 @@ Key capabilities:
             • Version constraints and compatibility
             
             Args:
-                file_path: Path to pyproject.toml file
+                file_path: Absolute path to pyproject.toml file
+                         (e.g., /home/user/project/pyproject.toml)
             
             Returns:
                 PackageRequirementsResult with:
@@ -509,6 +539,8 @@ Key capabilities:
                 - Constraint compatibility warnings
             
             💡 Works with all modern Python packaging tools (pip, poetry, pdm, hatch).
+            
+            Note: Always use absolute paths, not relative paths like "pyproject.toml"
             """
             try:
                 return await self.client.check_requirements_file(file_path)
@@ -578,17 +610,34 @@ Key capabilities:
             ✓ When users ask about package safety
             
             Args:
-                package_name: Name of the package to check
-                version: Specific version (optional, checks all versions if not provided)
+                package_name (str, required): Name of the package to check.
+                    Must match PyPI package name exactly.
+                    Examples: "django", "flask", "requests", "pillow"
+                version (str, optional): Specific version to check.
+                    If not provided, checks all known vulnerabilities for the package.
+                    Format: Semantic version string
+                    Examples: "2.28.1", "3.2.0", "1.0.0a1"
+                    Default: None (checks all versions)
             
             Returns:
                 Dictionary containing:
-                - vulnerabilities: List of vulnerability details (CVE, severity, affected versions)
-                - vulnerable: Boolean indicating if vulnerabilities exist
-                - total_vulnerabilities: Total count of vulnerabilities found
-                - critical_count, high_count, medium_count, low_count: Counts by severity
+                - vulnerable (bool): True if vulnerabilities found
+                - total_vulnerabilities (int): Total count of vulnerabilities
+                - critical_count (int): Number of CRITICAL severity issues
+                - high_count (int): Number of HIGH severity issues  
+                - medium_count (int): Number of MEDIUM severity issues
+                - low_count (int): Number of LOW severity issues
+                - vulnerabilities (list): Detailed vulnerability information (limited to 20)
+                  Each item includes: id, summary, severity, cve list, affected_versions
             
-            Note: No vulnerabilities doesn't mean a package is perfect, but it's a good security indicator.
+            Example usage:
+                check_vulnerabilities("django", "3.2.0")
+                → Returns vulnerabilities specific to Django 3.2.0
+                
+                check_vulnerabilities("requests")
+                → Returns all known vulnerabilities across all versions
+            
+            Note: No vulnerabilities doesn't guarantee perfect security, but indicates no known issues in OSV database.
             """
             try:
                 result = await self.client.check_vulnerabilities(package_name, version)
@@ -614,10 +663,19 @@ Key capabilities:
             but if it depends on vulnerable packages, your project inherits those risks.
             
             Args:
-                package_name: Root package to analyze
-                version: Specific version (optional, uses latest if not provided)
-                max_depth: How deep to scan dependency tree (default: 2, max: 3)
-                include_dev: Include development dependencies (default: False)
+                package_name (str, required): Root package to analyze.
+                    The starting point for dependency tree analysis.
+                    Examples: "flask", "django", "fastapi", "pandas"
+                version (str, optional): Specific version to analyze.
+                    Format: Semantic version string (e.g., "2.0.1")
+                    Default: None (uses latest stable version)
+                max_depth (int, optional): How deep to scan the dependency tree.
+                    Controls how many levels of transitive dependencies to check.
+                    Range: 1-3, where 1=direct deps only, 3=deps of deps of deps
+                    Default: 2 (recommended for balance of thoroughness and speed)
+                include_dev (bool, optional): Include development dependencies.
+                    Whether to scan optional/dev dependencies in addition to required ones.
+                    Default: False (only scans required dependencies)
             
             Returns:
                 Dictionary containing:
@@ -743,7 +801,9 @@ Key capabilities:
             ⏰ Regular audits - catch newly discovered vulnerabilities
             
             Args:
-                environment_path: Path to environment (auto-detects if not provided)
+                environment_path: Absolute path to Python environment directory 
+                               (e.g., /home/user/project/.venv)
+                               Auto-detects common locations if not provided
                 include_system: Include system packages (default: False)
                 output_format: "summary" or "detailed" (default: "summary")
             
@@ -926,7 +986,9 @@ Key capabilities:
             pass/fail status based on vulnerability thresholds.
             
             Args:
-                project_path: Project root directory (auto-detects if not provided)
+                project_path: Absolute path to project root directory 
+                            (e.g., /home/user/myproject)
+                            Auto-detects current directory if not provided
                 fail_on_critical: Fail if any CRITICAL vulnerabilities (default: True)
                 fail_on_high: Fail if any HIGH vulnerabilities (default: True)
             
@@ -1024,7 +1086,9 @@ Key capabilities:
             priority fixes, and actionable remediation steps.
             
             Args:
-                project_path: Project root directory (auto-detects if not provided)
+                project_path: Absolute path to project root directory 
+                            (e.g., /home/user/myproject)
+                            Auto-detects current directory if not provided
                 check_files: Analyze dependency files (default: True)
                 check_installed: Scan virtual environments (default: True)
                 check_transitive: Deep dependency analysis (default: True)
@@ -1082,7 +1146,9 @@ Key capabilities:
             📍 Compliance documentation
             
             Args:
-                project_path: Project root directory (auto-detects if not provided)
+                project_path: Absolute path to project root directory 
+                            (e.g., /home/user/myproject)
+                            Auto-detects current directory if not provided
                 check_files: Analyze dependency files (default: True)
                 check_installed: Scan virtual environments (default: True)
                 check_transitive: Deep dependency analysis (default: True)

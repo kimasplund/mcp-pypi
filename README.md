@@ -54,6 +54,9 @@ pip install "mcp-pypi[all]"
 # Start with default stdio transport (for Claude Desktop)
 mcp-pypi serve
 
+# Alternative stdio command (for compatibility)
+mcp-pypi stdio
+
 # Start with HTTP transport
 mcp-pypi serve --transport http
 
@@ -75,6 +78,17 @@ Add to your Claude Desktop configuration (`claude.json`):
     }
   }
 }
+
+// Alternative using stdio command (equivalent to above)
+{
+  "servers": {
+    "pypi": {
+      "command": "mcp-pypi",
+      "args": ["stdio"],
+      "description": "Access Python package information from PyPI"
+    }
+  }
+}
 ```
 
 ## 🖥️ Using with Claude Code (Terminal)
@@ -82,8 +96,11 @@ Add to your Claude Desktop configuration (`claude.json`):
 Add the MCP server to Claude Code:
 
 ```bash
-# Add the server
+# Add the server (using serve command)
 claude mcp add mcp-pypi -- mcp-pypi serve
+
+# Alternative using stdio command
+claude mcp add mcp-pypi -- mcp-pypi stdio
 
 # The server will be available in your next Claude Code session
 ```

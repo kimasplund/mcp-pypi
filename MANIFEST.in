@@ -1,5 +1,7 @@
 include README.md
+include CHANGELOG.md
 include LICENSE
+include LICENSE-COMMERCIAL
 include requirements.txt
 include .mcp.json
 include pypi_mcp_server.sh
