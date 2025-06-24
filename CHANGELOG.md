@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔐 Security Updates
 - **Updated minimum version constraints** to eliminate all security vulnerabilities:
-  - aiohttp: `>=3.10.11` → `>=3.12.13`
-  - pydantic: `>=2.0.0` → `>=2.11.7`
+  - aiohttp: `>=3.10.11` → `>=3.12.13` (in both requirements.txt and pyproject.toml)
+  - pydantic: `>=2.0.0` → `>=2.11.7` (in both requirements.txt and pyproject.toml)
 - Now fully compliant with OSV scanner requirements - no vulnerable versions allowed
 
 ## [2.6.8] - 2025-06-24
