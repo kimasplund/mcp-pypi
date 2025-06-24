@@ -5,6 +5,17 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.6] - 2025-06-24
+
+### 📚 Documentation
+- **Enhanced README** with comprehensive updates:
+  - Added missing tools to Available Tools section (4 tools were undocumented)
+  - Added System Requirements section (Python 3.10+)
+  - Added CLI Usage section with examples for all commands
+  - Added Troubleshooting section with common issues and solutions
+  - Added personal website to Support section
+  - Now documents all 21 available tools
+
 ## [2.6.5] - 2025-06-24
 
 ### 🐛 Bug Fixes

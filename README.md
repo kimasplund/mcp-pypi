@@ -35,6 +35,12 @@ When AI assistants suggest Python packages, they might unknowingly recommend pac
 
 ## 🚀 Quick Start
 
+### System Requirements
+
+- Python 3.10 or higher
+- pip package manager
+- Virtual environment (recommended)
+
 ### Installation
 
 ```bash
@@ -114,6 +120,7 @@ claude mcp add mcp-pypi -- mcp-pypi stdio
 
 ### Version Management  
 - **get_latest_version** - 🚀 Check the latest available version
+- **get_package_releases** - 📅 Get detailed release information for a package
 - **list_package_versions** - 📚 List all available versions
 - **compare_versions** - 🔄 Compare two package versions
 
@@ -128,11 +135,14 @@ claude mcp add mcp-pypi -- mcp-pypi stdio
 - **check_pyproject_toml** - 🎯🛡️ Security audit pyproject.toml dependencies
 - **scan_installed_packages** - 🛡️💻 Scan virtual/system environments for vulnerabilities
 - **security_audit_project** - 🛡️🔍🚨 Comprehensive project-wide security audit
+- **quick_security_check** - 🚦 Quick pass/fail security check for CI/CD
+- **get_security_report** - 🛡️📊 Beautiful, color-coded security report
 
 ### Statistics & Info
 - **get_package_stats** - 📊 Get download statistics
 - **get_package_metadata** - 📋 Access complete metadata
 - **get_package_documentation** - 📖 Find documentation links
+- **get_package_changelog** - 📝 Get changelog information from GitHub releases
 
 ## 💡 Example Usage
 
@@ -219,6 +229,89 @@ mcp-pypi cache stats
 export PYPI_VULNERABILITY_CACHE_TTL=300
 ```
 
+## 🖥️ CLI Usage
+
+MCP-PyPI includes a full-featured command-line interface for direct package operations:
+
+### Help and Documentation
+```bash
+# Show version
+mcp-pypi --version
+
+# Display README documentation
+mcp-pypi --readme
+
+# Show changelog
+mcp-pypi --changelog
+
+# Get connection examples
+mcp-pypi serve --help-connecting
+mcp-pypi stdio --help-connecting
+```
+
+### Package Information
+```bash
+# Search for packages
+mcp-pypi search "web scraping"
+
+# Get package info
+mcp-pypi package info requests
+
+# Check latest version
+mcp-pypi package version django
+
+# List all versions
+mcp-pypi package releases numpy
+
+# Get dependencies
+mcp-pypi package dependencies flask
+
+# Compare versions
+mcp-pypi package compare pandas 2.0.0 2.1.0
+```
+
+### Security Checks
+```bash
+# Check requirements file
+mcp-pypi check-requirements /path/to/requirements.txt
+
+# View package statistics
+mcp-pypi stats downloads requests
+```
+
+### Cache Management
+```bash
+# Clear cache
+mcp-pypi cache clear
+
+# View cache statistics
+mcp-pypi cache stats
+```
+
+## ❓ Troubleshooting
+
+### Common Issues
+
+**Connection Issues with stdio**
+- Ensure you're using the absolute path to `mcp-pypi` in your configuration
+- Try using `mcp-pypi stdio` instead of `mcp-pypi serve` for better compatibility
+- Check logs with `--log-level DEBUG` for detailed error messages
+
+**Token Limit Errors**
+- Some operations like changelog retrieval are automatically limited to prevent token overflow
+- Use more specific queries when searching for packages
+- Check individual packages rather than bulk operations
+
+**Cache Issues**
+- Clear cache with `mcp-pypi cache clear` if you see stale data
+- Adjust cache TTL with environment variables for your use case
+- Default cache location is `~/.cache/mcp-pypi/`
+
+**Import Errors**
+- Ensure you have Python 3.10+ installed
+- Install with `pip install "mcp-pypi[all]"` for all dependencies
+- Use a virtual environment to avoid conflicts
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please check out our [Contributing Guide](CONTRIBUTING.md) for details.
@@ -260,6 +353,7 @@ This project is dual-licensed:
 
 ## 📞 Support
 
+- 🌐 Website: [asplund.kim](https://asplund.kim)
 - 📧 Email: kim.asplund@gmail.com
 - 🐛 Issues: [GitHub Issues](https://github.com/kimasplund/mcp-pypi/issues)
 - 💬 Discussions: [GitHub Discussions](https://github.com/kimasplund/mcp-pypi/discussions)
