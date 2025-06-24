@@ -1403,7 +1403,29 @@ class PyPIClient:
                         # Skip lines we can't parse at all
                         continue
 
-            return {"outdated": outdated, "up_to_date": up_to_date}
+            # Check if other dependency files exist in the same directory
+            from pathlib import Path
+            req_path = Path(str(path))
+            project_dir = req_path.parent
+            
+            other_dep_files = []
+            for pattern in ["pyproject.toml", "setup.py", "setup.cfg", "Pipfile"]:
+                if (project_dir / pattern).exists() and pattern != req_path.name:
+                    other_dep_files.append(str(project_dir / pattern))
+            
+            result = {"outdated": outdated, "up_to_date": up_to_date}
+            
+            # Add actionable next steps if vulnerabilities found
+            if outdated and any("recommendation" in pkg for pkg in outdated):
+                result["action_required"] = True
+                result["next_steps"] = [
+                    "UPDATE this file with the recommended secure versions",
+                    f"CHECK other dependency files for consistency: {', '.join(other_dep_files)}" if other_dep_files else None,
+                    "COMMIT changes with message mentioning all updated files"
+                ]
+                result["next_steps"] = [step for step in result["next_steps"] if step]
+                
+            return result
         except Exception as e:
             logger.exception(f"Error checking requirements.txt file: {e}")
             return cast(
@@ -1593,7 +1615,35 @@ class PyPIClient:
                 logger.warning(f"Error processing dependency {req_str}: {e}")
                 continue
 
-        return {"outdated": outdated, "up_to_date": up_to_date}
+        # Check if other dependency files exist in the same directory
+        from pathlib import Path
+        toml_path = Path(str(path))
+        project_dir = toml_path.parent
+        
+        other_dep_files = []
+        for pattern in ["requirements.txt", "requirements-*.txt", "setup.py", "setup.cfg", "Pipfile"]:
+            if pattern.startswith("requirements-"):
+                # Handle wildcard pattern
+                for req_file in project_dir.glob(pattern):
+                    if req_file.exists() and req_file.name != toml_path.name:
+                        other_dep_files.append(str(req_file))
+            else:
+                if (project_dir / pattern).exists() and pattern != toml_path.name:
+                    other_dep_files.append(str(project_dir / pattern))
+        
+        result = {"outdated": outdated, "up_to_date": up_to_date}
+        
+        # Add actionable next steps if vulnerabilities found
+        if outdated and any("recommendation" in pkg for pkg in outdated):
+            result["action_required"] = True
+            result["next_steps"] = [
+                "UPDATE this file with the recommended secure versions",
+                f"CHECK other dependency files for consistency: {', '.join(other_dep_files)}" if other_dep_files else None,
+                "COMMIT changes with message mentioning all updated files"
+            ]
+            result["next_steps"] = [step for step in result["next_steps"] if step]
+            
+        return result
 
     async def get_releases_feed(self) -> ReleasesFeed:
         """Get recent releases feed from PyPI RSS."""

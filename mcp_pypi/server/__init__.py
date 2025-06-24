@@ -479,9 +479,20 @@ Key capabilities:
             💡 Tip: Run before deployments and as part of regular maintenance.
             Consider using with scan_dependency_vulnerabilities for deeper analysis.
 
+            ⚠️ IMPORTANT ACTIONS AFTER RUNNING THIS TOOL:
+            1. If vulnerabilities found → UPDATE constraints in this file
+            2. Check OTHER dependency files → pyproject.toml, setup.py, setup.cfg
+            3. Ensure CONSISTENCY → All files should have matching constraints
+
             Common errors:
                 - "File not found" - Ensure you use the full absolute path
                 - "Invalid format" - Check requirements.txt syntax
+
+            ⚠️ Dependencies may exist in multiple files - always check:
+                - requirements.txt (this file)
+                - pyproject.toml ([project.dependencies])
+                - setup.py (install_requires)
+                - setup.cfg ([options] install_requires)
             """
             try:
                 return await self.client.check_requirements_file(file_path)
@@ -519,7 +530,14 @@ Key capabilities:
 
             💡 Works with all modern Python packaging tools (pip, poetry, pdm, hatch).
 
+            ⚠️ IMPORTANT ACTIONS AFTER RUNNING THIS TOOL:
+            1. If vulnerabilities found → UPDATE constraints in this file
+            2. Check OTHER dependency files → requirements.txt, setup.py, setup.cfg
+            3. Ensure CONSISTENCY → All files should have matching constraints
+
             Note: Always use absolute paths, not relative paths like "pyproject.toml"
+            
+            ⚠️ Dependencies may exist in multiple files - always check ALL locations!
             """
             try:
                 return await self.client.check_requirements_file(file_path)
@@ -1199,6 +1217,16 @@ Key capabilities:
 
             💡 Pro tip: Run monthly or before major releases. The security score helps track
             improvement over time. Export results for compliance records.
+            
+            📋 POST-AUDIT ACTION CHECKLIST:
+            If vulnerabilities are found, you MUST:
+            1. ✅ UPDATE ALL dependency files (not just requirements.txt!)
+            2. ✅ Check that all files have CONSISTENT version constraints
+            3. ✅ Test that updates don't break functionality
+            4. ✅ Commit with message listing ALL updated files
+            
+            ⚠️ COMMON MISTAKE: Only updating requirements.txt when dependencies
+               are also in pyproject.toml, setup.py, etc. Always update ALL files!
             """
             try:
                 from pathlib import Path
