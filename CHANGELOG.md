@@ -5,6 +5,20 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.8] - 2025-06-24
+
+### 📚 Documentation
+- **Comprehensively updated all outdated documentation**:
+  - Updated pypi.md from version 2.0.1 to current version with all 21 tools
+  - Removed references to non-existent scripts (run_mcp_server.py, enhanced_mcp_server.py)
+  - Updated server.md with current PyPIMCPServer architecture
+  - Created complete API reference in docs/pypi.md
+  - Fixed all documentation to reflect current implementation
+
+### 🔧 Maintenance
+- Reverted version numbering to proper sequence (2.6.8)
+- Ensured all documentation is consistent with codebase
+
 ## [2.7.1] - 2025-06-24
 
 ### 🔧 Improvements

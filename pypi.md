@@ -3,7 +3,7 @@ mcp:
   - name: MCP-PyPI
     description: Security-focused MCP server for PyPI package management. Search packages, scan for vulnerabilities, audit dependencies, and ensure security across your entire Python project.
     icon: https://upload.wikimedia.org/wikipedia/commons/0/04/PyPI-Logo-notext.svg
-    version: 2.7.1
+    version: 2.6.8
     tools:
       # Package Information Tools
       - name: search_packages
