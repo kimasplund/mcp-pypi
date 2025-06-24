@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-pypi"
-version = "2.6.6"
+version = "2.6.7"
 description = "🐍 AI-powered Python package intelligence - search, analyze, and understand PyPI packages through MCP"
 readme = "README.md"
 authors = [
@@ -14,6 +14,8 @@ license = {text = "MIT OR Commercial"}
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
     "License :: Other/Proprietary License",
     "Operating System :: OS Independent",
@@ -26,7 +28,11 @@ classifiers = [
     "Topic :: System :: Software Distribution",
     "Topic :: Internet :: WWW/HTTP",
     "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Security",
+    "Topic :: System :: Monitoring",
     "Framework :: AsyncIO",
+    "Environment :: Console",
     "Natural Language :: English",
     "Typing :: Typed",
 ]

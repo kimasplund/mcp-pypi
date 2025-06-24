@@ -5,6 +5,16 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.7] - 2025-06-24
+
+### 🔧 Improvements
+- **Enhanced pyproject.toml classifiers** for better PyPI discoverability:
+  - Added "Topic :: Software Development :: Quality Assurance"
+  - Added "Topic :: Security" 
+  - Added "Topic :: System :: Monitoring"
+  - Added "Environment :: Console"
+  - Added additional intended audiences (Information Technology, System Administrators)
+
 ## [2.6.6] - 2025-06-24
 
 ### 📚 Documentation

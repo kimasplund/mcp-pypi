@@ -349,6 +349,7 @@ This project is dual-licensed:
 
 - Built on the [Model Context Protocol](https://modelcontextprotocol.io/)
 - Powered by the [Python Package Index](https://pypi.org/)
+- Security scanning via [OSV (Open Source Vulnerabilities)](https://osv.dev/) database by Google
 - Enhanced with [FastMCP](https://github.com/modelcontextprotocol/python-sdk)
 
 ## 📞 Support
