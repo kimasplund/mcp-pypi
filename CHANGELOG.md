@@ -5,6 +5,14 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.9] - 2025-06-24
+
+### 🔐 Security Updates
+- **Updated minimum version constraints** to eliminate all security vulnerabilities:
+  - aiohttp: `>=3.10.11` → `>=3.12.13`
+  - pydantic: `>=2.0.0` → `>=2.11.7`
+- Now fully compliant with OSV scanner requirements - no vulnerable versions allowed
+
 ## [2.6.8] - 2025-06-24
 
 ### 🔐 Security Enhancements
