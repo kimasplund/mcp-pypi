@@ -1,228 +1,380 @@
-# Enhanced MCP-PyPI Server
+# MCP-PyPI Server Architecture
 
-This document provides detailed information about the enhanced MCP-PyPI server implementation that supports multiple transport mechanisms and configuration options.
+This document provides detailed information about the MCP-PyPI server implementation, architecture, and capabilities.
 
 ## Overview
 
-The enhanced server (`enhanced_mcp_server.py`) provides a unified interface for running the MCP-PyPI server with different transport mechanisms:
+MCP-PyPI is a security-focused Model Context Protocol server that provides comprehensive PyPI package management capabilities. Built on FastMCP, it offers:
 
-- **STDIO**: Standard input/output for command-line and subprocess communication
-- **HTTP**: RESTful and long-polling HTTP communication
-- **WebSocket**: Full-duplex communication over a single TCP connection
-- **SSE**: Server-Sent Events for real-time server-to-client streaming
+- 21 tools for package discovery, security scanning, and dependency analysis
+- Multiple transport options (STDIO and HTTP)
+- Advanced caching strategies
+- Real-time vulnerability checking
+- Comprehensive error handling
 
-This flexibility allows the server to integrate with various client environments and communication patterns.
+## Architecture
 
-## Usage
+### Core Components
 
-### Basic Usage
-
-To start the server with default settings (STDIO transport):
-
-```bash
-python enhanced_mcp_server.py
+```
+mcp_pypi/
+├── server/
+│   └── __init__.py      # PyPIMCPServer class (main server)
+├── core/
+│   ├── __init__.py      # PyPIClient (async PyPI API client)
+│   ├── cache.py         # Caching implementations
+│   └── models/          # Pydantic models for data validation
+└── cli/
+    ├── main.py          # Unified CLI entry point
+    └── server_command.py # MCP server command implementation
 ```
 
-To specify a different transport type:
+### PyPIMCPServer
 
-```bash
-python enhanced_mcp_server.py --transport http --host 127.0.0.1 --port 8143
+The main server class that:
+- Inherits from FastMCP for protocol compliance
+- Registers all 21 tools with proper typing
+- Manages the PyPI client instance
+- Handles transport negotiation
+
+```python
+class PyPIMCPServer:
+    """A fully compliant MCP server for PyPI functionality."""
+    
+    def __init__(self, config: Optional[PyPIClientConfig] = None):
+        self.client = PyPIClient(config or PyPIClientConfig())
+        self.mcp_server = FastMCP(name="mcp-pypi")
+        self._register_tools()
 ```
 
-### Command-Line Arguments
+### PyPIClient
 
-The server supports the following command-line arguments:
+Async client for PyPI API interactions:
+- Configurable caching (memory/disk/hybrid)
+- ETag support for efficient updates
+- Rate limiting and retry logic
+- User agent customization
 
-#### Transport Options
+## Transport Mechanisms
 
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| `--transport`, `-t` | string | `stdio` | Transport type to use (`stdio`, `http`, `websocket`, `sse`) |
-| `--host` | string | `127.0.0.1` | Hostname to bind to (for network transports) |
-| `--port` | int | `8143` | Port number to listen on (for network transports) |
-| `--message-format` | string | `auto` | Message format for STDIO transport (`auto`, `binary`, `newline`) |
-| `--timeout` | float | `30.0` | Operation timeout in seconds |
+### STDIO Transport (Default)
 
-#### Protocol Options
-
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| `--protocol-version` | string | (latest) | MCP protocol version to use |
-
-#### Cache Options
-
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| `--cache-dir` | string | None | Directory for caching PyPI data |
-| `--cache-ttl` | int | `3600` | Cache TTL in seconds |
-
-#### Debug Options
-
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| `--debug`, `-d` | flag | `False` | Enable debug logging |
-| `--log-level` | string | `INFO` | Set logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-
-## Transport Types
-
-### STDIO Transport
-
-The STDIO transport uses standard input and output streams for communication. This is ideal for command-line tools and integration with systems that can spawn subprocesses.
-
-Example usage:
+Used for integration with MCP clients like Claude Desktop:
 
 ```bash
-python enhanced_mcp_server.py --transport stdio --message-format binary
+mcp-pypi serve
 ```
 
-The STDIO transport supports two message formats:
-- `binary`: Length-prefixed binary format (more efficient)
-- `newline`: Newline-delimited JSON format (more human-readable)
-- `auto`: Auto-detect the format based on incoming messages
+Features:
+- Direct process communication
+- No network overhead
+- Ideal for local integrations
 
 ### HTTP Transport
 
-The HTTP transport provides RESTful API access to the MCP-PyPI server. This is suitable for web applications and services that communicate over HTTP.
-
-Example usage:
+Provides both SSE and streamable-HTTP endpoints:
 
 ```bash
-python enhanced_mcp_server.py --transport http --host 0.0.0.0 --port 8080
+mcp-pypi serve --transport http --port 8080
 ```
 
-The HTTP server provides the following endpoints:
-- `POST /`: Main endpoint for JSON-RPC requests and responses
+Endpoints:
+- `/sse` - Server-Sent Events for real-time updates
+- `/mcp` - Streamable HTTP for request/response
 
-### WebSocket Transport
+## Tool Categories
 
-The WebSocket transport enables full-duplex communication over a single TCP connection. This is ideal for real-time applications that require bidirectional messaging.
+### 1. Package Information Tools
 
-Example usage:
+Tools for discovering and analyzing packages:
 
-```bash
-python enhanced_mcp_server.py --transport websocket --host 0.0.0.0 --port 8765
-```
+- `search_packages` - Full-text search across PyPI
+- `get_package_info` - Comprehensive package metadata
+- `get_latest_version` - Quick version check
+- `get_package_stats` - Download statistics
+- `list_package_versions` - Version history
 
-### SSE Transport
+### 2. Dependency Analysis Tools
 
-The Server-Sent Events (SSE) transport provides a streaming connection for server-to-client communication. This is suitable for applications that need real-time updates from the server.
+Tools for understanding package relationships:
 
-Example usage:
+- `get_dependencies` - Direct dependencies with constraints
+- `get_dependency_tree` - Recursive dependency graph
+- `compare_versions` - Version comparison logic
 
-```bash
-python enhanced_mcp_server.py --transport sse --host 0.0.0.0 --port 8090
-```
+### 3. Security Scanning Tools
 
-The SSE server provides the following endpoints:
-- `GET /events`: SSE endpoint for event streaming
-- `POST /message`: Endpoint for sending messages to the server
+Advanced security analysis capabilities:
 
-## Protocol Version Negotiation
+- `check_vulnerabilities` - OSV database integration
+- `scan_dependency_vulnerabilities` - Deep tree scanning
+- `scan_installed_packages` - Environment auditing
+- `security_audit_project` - Complete project analysis
 
-The server supports protocol version negotiation to ensure compatibility between clients and servers. You can specify the protocol version to use with the `--protocol-version` argument:
+### 4. File Analysis Tools
 
-```bash
-python enhanced_mcp_server.py --protocol-version 2025-03-26
-```
+Project-level dependency management:
 
-If not specified, the server will use the latest supported version and negotiate with clients based on their requested version.
+- `check_requirements_txt` - Requirements file analysis
+- `check_pyproject_toml` - Modern Python project files
 
-## Cache Configuration
+### 5. Documentation Tools
 
-The server supports caching PyPI data to improve performance and reduce load on the PyPI servers. You can configure the cache directory and TTL:
+Package documentation and changelogs:
 
-```bash
-python enhanced_mcp_server.py --cache-dir /tmp/pypi-cache --cache-ttl 7200
-```
+- `get_package_documentation` - Find documentation URLs
+- `get_package_changelog` - Extract changelog data
 
-## Debug and Logging
+## Security Features
 
-For troubleshooting and development, you can enable debug mode and set the logging level:
+### Vulnerability Detection
 
-```bash
-python enhanced_mcp_server.py --debug --log-level DEBUG
-```
-
-This will output detailed information about transport initialization, message handling, and server operations.
-
-## Integration Examples
-
-### Integration with FastAPI
-
-You can integrate the MCP-PyPI server with a FastAPI application:
+Integration with Google's OSV (Open Source Vulnerabilities) database:
 
 ```python
-from fastapi import FastAPI
-from enhanced_mcp_server import EnhancedMCPServer
-
-app = FastAPI()
-mcp_server = EnhancedMCPServer(transport_type="http")
-
-@app.on_event("startup")
-async def startup():
-    # Start the MCP server
-    await mcp_server.start()
-
-@app.on_event("shutdown")
-async def shutdown():
-    # Clean up resources
-    await mcp_server.server.client.close()
+async def check_vulnerabilities(self, package_name: str, version: Optional[str] = None):
+    """Check for known vulnerabilities using OSV API."""
+    # Queries OSV database for CVEs and security advisories
+    # Returns severity-classified vulnerability list
 ```
 
-### Integration with WebSocket Service
+### Version Constraint Analysis
 
-You can integrate the MCP-PyPI server with a WebSocket service:
+Detects when version constraints allow vulnerable versions:
 
 ```python
-import asyncio
-import websockets
-from enhanced_mcp_server import EnhancedMCPServer
+# Checks if constraints like ">=2.0.0" allow vulnerable versions
+# Recommends safe version ranges
+```
 
-async def main():
-    # Initialize server
-    server = EnhancedMCPServer(
-        transport_type="websocket",
-        host="0.0.0.0",
-        port=8765,
-        debug=True
-    )
+### Transitive Dependency Scanning
+
+Recursive scanning of dependency trees:
+
+```python
+async def scan_dependency_vulnerabilities(
+    self, 
+    package_name: str,
+    max_depth: int = 2,
+    include_dev: bool = False
+):
+    """Deep scan for hidden vulnerabilities in dependencies."""
+```
+
+## Caching System
+
+### Cache Strategies
+
+1. **Memory Cache**
+   - Fast, in-memory storage
+   - Limited by available RAM
+   - Lost on restart
+
+2. **Disk Cache**
+   - Persistent storage
+   - Survives restarts
+   - Slower than memory
+
+3. **Hybrid Cache** (Default)
+   - Memory cache with disk backup
+   - Best performance/persistence balance
+   - Automatic promotion/demotion
+
+### Cache Implementation
+
+```python
+class HybridCache(CacheProtocol):
+    """Two-tier cache: memory (L1) and disk (L2)."""
     
-    # Start the server
-    await server.start()
-
-# Run the server
-asyncio.run(main())
+    def __init__(self, cache_dir: Optional[Path] = None):
+        self.memory_cache = MemoryCache()
+        self.disk_cache = DiskCache(cache_dir)
 ```
 
-## Implementation Details
+## Error Handling
 
-The enhanced server provides several key features:
+Comprehensive error handling with typed responses:
 
-1. **Transport Abstraction**: Unified interface for all transport types
-2. **Fallback Mechanisms**: Built-in methods with fallback to manual implementations
-3. **Flexible Configuration**: Extensive command-line options for all aspects of the server
-4. **Protocol Version Management**: Support for different MCP protocol versions
-5. **Error Handling**: Comprehensive error handling and reporting
-6. **Logging**: Detailed logging for troubleshooting
+```python
+class ErrorResult(TypedDict):
+    error: ErrorDict
 
-The server first attempts to use the built-in methods provided by FastMCP (if available) and falls back to manual implementations using our transport classes when necessary.
+class ErrorDict(TypedDict):
+    code: str
+    message: str
+    details: NotRequired[Dict[str, Any]]
+```
 
-## Debugging Tips
+Error codes follow a consistent pattern:
+- `not_found` - Resource not found
+- `invalid_input` - Validation failure
+- `network_error` - Connection issues
+- `parse_error` - Data parsing failure
 
-If you encounter issues with the server:
+## Configuration
 
-1. Enable debug mode with `--debug` and set log level to `DEBUG`
-2. Check the server logs for transport initialization messages
-3. Verify that the correct transport type is being used
-4. Ensure that required dependencies are installed for the selected transport
-5. Check for port conflicts when using network transports
+### Environment Variables
 
-## Required Dependencies
+- `MCP_PYPI_CACHE_DIR` - Cache directory location
+- `MCP_PYPI_LOG_LEVEL` - Logging verbosity
+- `MCP_PYPI_USER_AGENT` - Custom user agent
 
-The enhanced server requires the following dependencies:
+### Server Configuration
 
-- `fastmcp`: For core MCP server functionality
-- `mcp_pypi`: For PyPI client implementation
-- `uvicorn`: For HTTP and SSE servers
-- `websockets`: For WebSocket server
-- `fastapi`: For HTTP and SSE APIs 
+```python
+config = PyPIClientConfig(
+    cache_dir=Path("~/.cache/mcp-pypi"),
+    cache_strategy="hybrid",
+    user_agent="MCP-PyPI/2.7.1",
+    request_timeout=30.0,
+    max_retries=3
+)
+```
+
+## Performance Optimization
+
+### Async Operations
+
+All I/O operations are async for maximum concurrency:
+
+```python
+async def get_package_info(self, package_name: str) -> PackageInfo:
+    """Async package info retrieval."""
+    return await self.client.get_package_info(package_name)
+```
+
+### Parallel Processing
+
+Dependency trees are processed in parallel:
+
+```python
+# Fetch all dependencies concurrently
+tasks = [self._fetch_dep(dep) for dep in dependencies]
+results = await asyncio.gather(*tasks)
+```
+
+### Efficient Caching
+
+- ETag validation reduces unnecessary downloads
+- Selective cache invalidation for security data
+- Configurable TTL for different data types
+
+## Monitoring and Logging
+
+### Structured Logging
+
+```python
+logger.info(
+    "Package vulnerability check",
+    extra={
+        "package": package_name,
+        "version": version,
+        "vulnerabilities_found": len(vulns)
+    }
+)
+```
+
+### Performance Metrics
+
+- Request latency tracking
+- Cache hit/miss ratios
+- API rate limit monitoring
+
+## Integration Patterns
+
+### With Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "mcp-pypi": {
+      "command": "mcp-pypi",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+### With Custom MCP Clients
+
+```python
+from mcp import Client
+import httpx
+
+async with httpx.AsyncClient() as http:
+    async with Client("http://localhost:8080/mcp", http) as client:
+        result = await client.invoke_tool(
+            "security_audit_project",
+            {"project_path": "/path/to/project"}
+        )
+```
+
+### In CI/CD Pipelines
+
+```yaml
+- name: Security Audit
+  run: |
+    mcp-pypi serve --transport http &
+    SERVER_PID=$!
+    # Run security checks
+    kill $SERVER_PID
+```
+
+## Future Enhancements
+
+Planned improvements include:
+
+1. **WebSocket Transport** - Real-time bidirectional communication
+2. **GraphQL Interface** - Flexible query capabilities
+3. **Webhook Support** - Event-driven notifications
+4. **Multi-tenant Support** - Isolated environments
+5. **Plugin Architecture** - Extensible tool system
+
+## Technical Details
+
+### Protocol Compliance
+
+MCP-PyPI implements the full MCP specification:
+- Protocol version negotiation
+- Capability advertisement
+- Tool discovery and invocation
+- Error handling standards
+
+### Security Considerations
+
+- No credentials stored or transmitted
+- Rate limiting to prevent abuse
+- Input validation on all parameters
+- Safe file path handling
+
+### Performance Characteristics
+
+- Startup time: <1 second
+- Tool response time: 50-500ms (cached)
+- Memory usage: 50-200MB
+- Concurrent requests: Unlimited (async)
+
+## Troubleshooting
+
+Common issues and solutions:
+
+1. **Port Already in Use**
+   ```bash
+   mcp-pypi serve --transport http --port 8081
+   ```
+
+2. **Cache Corruption**
+   ```bash
+   mcp-pypi cache clear
+   ```
+
+3. **SSL Certificate Issues**
+   ```bash
+   export REQUESTS_CA_BUNDLE=/path/to/cert
+   ```
+
+## Support
+
+- GitHub: https://github.com/kimasplund/mcp-pypi
+- Author: Kim Asplund (kim.asplund@gmail.com)
+- License: MIT

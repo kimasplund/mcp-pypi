@@ -1,437 +1,509 @@
-# MCP-PyPI API Documentation
+# MCP-PyPI API Reference
 
-This document describes the API for accessing package information from the Python Package Index (PyPI) through the Model Context Protocol.
+Complete API documentation for all 21 tools provided by the MCP-PyPI server.
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Core Features](#core-features)
-3. [Architecture](#architecture)
-4. [Methods and Endpoints](#methods-and-endpoints)
-5. [Configuration](#configuration)
-6. [Error Handling](#error-handling)
-7. [Caching](#caching)
-8. [Advanced Usage](#advanced-usage)
-9. [Integration Examples](#integration-examples)
+1. [Package Information Tools](#package-information-tools)
+2. [Security Scanning Tools](#security-scanning-tools)
+3. [Documentation Tools](#documentation-tools)
+4. [Error Handling](#error-handling)
+5. [Type Definitions](#type-definitions)
 
-## Overview
+## Package Information Tools
 
-The MCP PyPI client provides a modern, asynchronous interface for interacting with the Python Package Index. It enables applications to search for packages, retrieve package metadata, analyze dependencies, and track download statistics through a standardized API.
+### search_packages
 
-The implementation follows a microservice architecture, with a clear separation between the client interface, transport mechanisms, and data models. This design supports easy extension and customization while maintaining compatibility with the broader MCP ecosystem.
+Search PyPI to discover Python packages for any task.
 
-## Core Features
+**Parameters:**
+- `query` (string, required): Search terms describing what you're looking for
+- `limit` (integer, optional): Maximum number of results (1-100, default: 10)
 
-- **Package Information**: Retrieve detailed information about packages
-- **Version Management**: Get latest versions, all releases, and compare versions
-- **Dependency Analysis**: Analyze package dependencies and build dependency trees
-- **Statistics**: Access download statistics for packages
-- **Search Capabilities**: Search for packages with advanced filtering
-- **Documentation Access**: Retrieve documentation URLs and resources
-- **Requirements Analysis**: Check requirements files for outdated packages
-
-## Architecture
-
-The MCP PyPI client is structured around the following components:
-
-### Core Components
-
-- **PyPIClient**: Main entry point providing access to all client functionality
-- **Transport Layer**: Handles communication with PyPI servers via multiple protocols
-- **Data Models**: Type-annotated models for representing PyPI data
-- **Cache Manager**: Optional caching layer for improved performance
-- **Error Handlers**: Standardized error handling and reporting
-
-### Transport Integrations
-
-The client supports multiple transport mechanisms for MCP communication:
-
-- **HTTP/HTTPS**: RESTful API communication with PyPI 
-- **WebSocket**: Real-time updates for package changes (when available)
-- **Server-Sent Events (SSE)**: One-way notification stream for package updates
-- **Binary & Newline**: Lower-level transports for direct communication
-
-## Methods and Endpoints
-
-The MCP PyPI client exposes the following core methods:
-
-### Package Information Methods
-
-- `get_package_info(package_name: str) -> PackageInfo`
-  - Retrieves comprehensive information about a package
-  - Includes metadata, current version, homepage, documentation links
-
-- `get_latest_version(package_name: str) -> str`
-  - Returns the latest stable version of a package
-  - Filters pre-releases unless explicitly requested
-
-- `get_package_releases(package_name: str) -> List[str]`
-  - Returns all version numbers for a package
-  - Ordered from newest to oldest
-
-- `get_project_releases(package_name: str) -> Dict[str, datetime]`
-  - Returns version numbers with their release timestamps
-  - Useful for understanding release cadence
-
-- `get_package_metadata(package_name: str, version: Optional[str] = None) -> Dict[str, Any]`
-  - Returns detailed metadata for a specific package version
-  - Includes maintainers, classifiers, and platform information
-
-- `get_documentation_url(package_name: str) -> str`
-  - Returns the URL to the package's documentation
-  - Falls back to project homepage if documentation URL is not specified
-
-### Dependency Methods
-
-- `get_dependency_tree(package_name: str, version: Optional[str] = None, depth: int = 1) -> Dict[str, Any]`
-  - Builds a hierarchical representation of package dependencies
-  - Controls depth to limit the size of large dependency trees
-  - Identifies circular dependencies and version conflicts
-
-- `check_requirements_file(file_path: str, format: str = "table") -> Dict[str, Any]`
-  - Analyzes requirements files for outdated packages
-  - Supports requirements.txt and pyproject.toml formats
-  - Identifies security vulnerabilities (when integrated with security databases)
-
-- `compare_versions(package_name: str, version1: str, version2: str) -> Dict[str, Any]`
-  - Compares two versions of a package
-  - Reports added, removed, and modified dependencies
-
-### Statistics Methods
-
-- `get_package_stats(package_name: str, version: Optional[str] = None) -> Dict[str, Any]`
-  - Retrieves download statistics for a package
-  - Provides daily, weekly, and monthly download trends
-
-### Search and Feed Methods
-
-- `search_packages(query: str, page: int = 1) -> Dict[str, Any]`
-  - Searches for packages matching the query
-  - Supports pagination for large result sets
-  - Includes relevancy scores for results
-
-- `get_newest_packages() -> List[Dict[str, Any]]`
-  - Returns recently added packages to PyPI
-  - Useful for discovery and monitoring
-
-- `get_latest_updates() -> List[Dict[str, Any]]`
-  - Returns recently updated packages
-  - Includes version change information
-
-### Utility Methods
-
-- `check_package_exists(package_name: str) -> bool`
-  - Verifies if a package exists on PyPI
-  - Useful for validation before other operations
-
-## Configuration
-
-The MCP PyPI client is configurable through the `PyPIClientConfig` class, which supports:
-
-### Basic Configuration
-
-```python
-from mcp_pypi.core.models import PyPIClientConfig
-
-config = PyPIClientConfig(
-    user_agent="MyApp/1.0",
-    timeout=30.0,
-    cache_ttl=3600,  # 1 hour
-    max_retries=3,
-    proxy_url=None,
-    verify_ssl=True
-)
+**Returns:** `SearchResult`
+```json
+{
+  "packages": [
+    {
+      "name": "requests",
+      "version": "2.31.0",
+      "description": "Python HTTP for Humans."
+    }
+  ],
+  "total": 1523
+}
 ```
 
-### Advanced Configuration
+### get_package_info
 
-```python
-from mcp_pypi.core.models import PyPIClientConfig
-from mcp_pypi.utils.cache import RedisCache
-import aiohttp
+Get comprehensive details about any Python package from PyPI.
 
-# Custom session
-session = aiohttp.ClientSession()
+**Parameters:**
+- `package_name` (string, required): Exact name of the Python package
 
-# Redis-based cache
-cache = RedisCache(
-    host="localhost",
-    port=6379,
-    db=0,
-    prefix="pypi_cache:",
-    ttl=3600
-)
-
-config = PyPIClientConfig(
-    user_agent="MyApp/1.0",
-    timeout=30.0,
-    cache=cache,
-    session=session,
-    max_retries=3,
-    retry_backoff=0.5,
-    mirror_url="https://custom-pypi-mirror.example.com/simple",
-    include_prereleases=False,
-    json_api_url="https://custom-pypi-mirror.example.com/pypi"
-)
+**Returns:** `PackageInfo`
+```json
+{
+  "info": {
+    "name": "requests",
+    "version": "2.31.0",
+    "summary": "Python HTTP for Humans.",
+    "author": "Kenneth Reitz",
+    "license": "Apache 2.0",
+    "home_page": "https://requests.readthedocs.io",
+    "requires_python": ">=3.7"
+  }
+}
 ```
+
+### get_package_releases
+
+Get detailed release information for a specific package.
+
+**Parameters:**
+- `package_name` (string, required): Name of the Python package
+- `limit` (integer, optional): Maximum number of releases (default: 10)
+
+**Returns:** Release information with file details
+
+### get_latest_version
+
+Check the latest version of any Python package on PyPI.
+
+**Parameters:**
+- `package_name` (string, required): Name of the Python package
+
+**Returns:** `VersionInfo`
+```json
+{
+  "version": "2.31.0",
+  "release_date": "2023-05-22T15:47:19"
+}
+```
+
+### get_dependencies
+
+Analyze Python package dependencies from PyPI.
+
+**Parameters:**
+- `package_name` (string, required): Name of the Python package
+- `version` (string, optional): Specific version (defaults to latest)
+
+**Returns:** `DependenciesResult`
+```json
+{
+  "dependencies": {
+    "install_requires": ["urllib3>=1.21.1", "certifi>=2017.4.17"],
+    "extras_require": {
+      "security": ["pyOpenSSL>=0.14", "cryptography>=1.3.4"]
+    }
+  }
+}
+```
+
+### get_dependency_tree
+
+Get the full dependency tree for a package.
+
+**Parameters:**
+- `package_name` (string, required): Name of the package
+- `version` (string, optional): Specific version (defaults to latest)
+- `max_depth` (integer, optional): Maximum depth (1-3, default: 3)
+
+**Returns:** `DependencyTreeResult` with nested dependencies
+
+### get_package_stats
+
+Get PyPI download statistics to gauge package popularity.
+
+**Parameters:**
+- `package_name` (string, required): Name of the Python package
+
+**Returns:** `StatsResult`
+```json
+{
+  "daily_downloads": 7813294,
+  "weekly_downloads": 49642387,
+  "monthly_downloads": 195841592
+}
+```
+
+### check_package_exists
+
+Check if a package exists on PyPI.
+
+**Parameters:**
+- `package_name` (string, required): Name of the package
+
+**Returns:** `ExistsResult`
+```json
+{
+  "exists": true,
+  "exact_name": "requests"
+}
+```
+
+### get_package_metadata
+
+Get metadata for a package.
+
+**Parameters:**
+- `package_name` (string, required): Name of the package
+- `version` (string, optional): Specific version (defaults to latest)
+
+**Returns:** `MetadataResult` with full package metadata
+
+### list_package_versions
+
+List all available versions of a package.
+
+**Parameters:**
+- `package_name` (string, required): Name of the package
+
+**Returns:** `ReleasesInfo`
+```json
+{
+  "package_name": "requests",
+  "versions": ["2.31.0", "2.30.0", "2.29.0"],
+  "latest_version": "2.31.0",
+  "release_count": 126
+}
+```
+
+### compare_versions
+
+Compare two versions of a package.
+
+**Parameters:**
+- `package_name` (string, required): Name of the package
+- `version1` (string, required): First version to compare
+- `version2` (string, required): Second version to compare
+
+**Returns:** `VersionComparisonResult` with comparison details
+
+## Security Scanning Tools
+
+### check_vulnerabilities
+
+Check for known vulnerabilities in a Python package using Google's OSV database.
+
+**Parameters:**
+- `package_name` (string, required): Name of the package to check
+- `version` (string, optional): Specific version (checks all if not provided)
+
+**Returns:** Vulnerability report
+```json
+{
+  "vulnerable": true,
+  "total_vulnerabilities": 3,
+  "critical_count": 1,
+  "high_count": 2,
+  "vulnerabilities": [
+    {
+      "id": "GHSA-xxx",
+      "summary": "Security vulnerability description",
+      "severity": "CRITICAL",
+      "cve": ["CVE-2023-xxxxx"],
+      "affected_versions": [">=2.0.0,<2.1.0"]
+    }
+  ]
+}
+```
+
+### scan_dependency_vulnerabilities
+
+Deep scan for vulnerabilities in a package's entire dependency tree.
+
+**Parameters:**
+- `package_name` (string, required): Root package to analyze
+- `version` (string, optional): Specific version to analyze
+- `max_depth` (integer, optional): Depth to scan (1-3, default: 2)
+- `include_dev` (boolean, optional): Include dev dependencies (default: false)
+
+**Returns:** Comprehensive vulnerability analysis with dependency tree
+
+### scan_installed_packages
+
+Scan installed packages in Python environments for vulnerabilities.
+
+**Parameters:**
+- `environment_path` (string, optional): Path to Python environment (auto-detects if not provided)
+- `include_system` (boolean, optional): Include system packages (default: false)
+- `output_format` (string, optional): "summary" or "detailed" (default: "summary")
+
+**Returns:** Environment vulnerability report
+
+### quick_security_check
+
+Quick security check with pass/fail status for CI/CD.
+
+**Parameters:**
+- `project_path` (string, optional): Path to project root
+- `fail_on_critical` (boolean, optional): Fail on CRITICAL vulnerabilities (default: true)
+- `fail_on_high` (boolean, optional): Fail on HIGH vulnerabilities (default: true)
+
+**Returns:** Pass/fail status
+```json
+{
+  "passed": false,
+  "status": "❌ FAILED",
+  "reason": "Found 2 CRITICAL vulnerabilities",
+  "summary": {
+    "critical": 2,
+    "high": 5,
+    "medium": 10
+  },
+  "security_score": 65
+}
+```
+
+### get_security_report
+
+Get a beautiful, color-coded security report for your Python project.
+
+**Parameters:**
+- `project_path` (string, optional): Path to project root
+- `check_files` (boolean, optional): Analyze dependency files (default: true)
+- `check_installed` (boolean, optional): Scan virtual environments (default: true)
+- `check_transitive` (boolean, optional): Deep dependency analysis (default: true)
+- `max_depth` (integer, optional): Dependency tree depth (default: 2)
+
+**Returns:** Formatted security report with colors and tables
+
+### security_audit_project
+
+Comprehensive security audit of an entire Python project.
+
+**Parameters:**
+- `project_path` (string, optional): Path to project root
+- `check_files` (boolean, optional): Analyze dependency files (default: true)
+- `check_installed` (boolean, optional): Scan virtual environments (default: true)
+- `check_transitive` (boolean, optional): Deep dependency analysis (default: true)
+- `max_depth` (integer, optional): Dependency tree depth (default: 2)
+
+**Returns:** Complete audit report
+```json
+{
+  "overall_risk_level": "HIGH",
+  "security_score": 72,
+  "priority_fixes": [
+    {
+      "package": "urllib3",
+      "current": "1.26.0",
+      "safe": "1.26.18",
+      "severity": "CRITICAL"
+    }
+  ],
+  "remediation_plan": {
+    "immediate": ["Update urllib3 to 1.26.18"],
+    "short_term": ["Update requests to 2.31.0"],
+    "long_term": ["Enable automated dependency updates"]
+  }
+}
+```
+
+### check_requirements_txt
+
+Analyze requirements.txt for outdated packages and security issues.
+
+**Parameters:**
+- `file_path` (string, required): Absolute path to requirements.txt file
+
+**Returns:** `PackageRequirementsResult`
+```json
+{
+  "outdated": [
+    {
+      "package": "django",
+      "current_version": "3.2.0",
+      "latest_version": "4.2.0",
+      "constraint": ">=3.2.0"
+    }
+  ],
+  "vulnerable": [
+    {
+      "package": "pillow",
+      "version": "8.0.0",
+      "vulnerabilities": 3
+    }
+  ]
+}
+```
+
+### check_pyproject_toml
+
+Analyze pyproject.toml for outdated packages and security issues.
+
+**Parameters:**
+- `file_path` (string, required): Absolute path to pyproject.toml file
+
+**Returns:** Similar to check_requirements_txt but handles all dependency groups
+
+## Documentation Tools
+
+### get_package_documentation
+
+Get documentation links for a package.
+
+**Parameters:**
+- `package_name` (string, required): Name of the package
+
+**Returns:** `DocumentationResult`
+```json
+{
+  "documentation_url": "https://docs.python-requests.org/",
+  "homepage": "https://requests.readthedocs.io",
+  "repository": "https://github.com/psf/requests",
+  "bugtracker": "https://github.com/psf/requests/issues"
+}
+```
+
+### get_package_changelog
+
+Get changelog for a package.
+
+**Parameters:**
+- `package_name` (string, required): Name of the package
+- `version` (string, optional): Specific version (defaults to latest)
+
+**Returns:** Changelog text or error if not found
 
 ## Error Handling
 
-The client implements standardized error handling through error codes and descriptive messages:
+All tools return standardized error responses when something goes wrong:
 
-### Standard Error Codes
-
-| Code | Description | Example |
-|------|-------------|---------|
-| 1000 | Package not found | Package "nonexistent-pkg" not found on PyPI |
-| 1001 | Version not found | Version "9.9.9" not found for package "requests" |
-| 1002 | Invalid package name | Package name contains invalid characters |
-| 1003 | PyPI service error | PyPI service returned a 500 error |
-| 1004 | Network error | Connection timeout after 30 seconds |
-| 1005 | Parse error | Unable to parse JSON response |
-| 1006 | Cache error | Failed to retrieve from cache |
-| 1007 | File error | Requirements file not found or inaccessible |
-
-### Error Handling Example
-
-```python
-from mcp_pypi.core import PyPIClient
-from mcp_pypi.exceptions import PackageNotFoundError, VersionNotFoundError
-
-client = PyPIClient()
-
-try:
-    package_info = await client.get_package_info("requests")
-    latest_version = await client.get_latest_version("requests")
-except PackageNotFoundError as e:
-    print(f"Package error: {e}")
-except VersionNotFoundError as e:
-    print(f"Version error: {e}")
-except Exception as e:
-    print(f"Unexpected error: {e}")
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "Package 'nonexistent-package' not found on PyPI"
+  }
+}
 ```
 
-## Caching
+### Error Codes
 
-The client includes a flexible caching system to improve performance and reduce load on PyPI servers:
+- `not_found` - Package or resource not found
+- `invalid_input` - Invalid parameter value provided
+- `network_error` - Error communicating with PyPI
+- `parse_error` - Error parsing response from PyPI
+- `file_error` - Error accessing or reading a file
+- `permission_error` - Insufficient permissions
+- `vulnerability_check_error` - Error checking vulnerabilities
 
-### Cache Backends
+## Type Definitions
 
-- **Memory Cache**: Default in-memory LRU cache
-- **File Cache**: Persistent file-based cache
-- **Redis Cache**: Distributed cache using Redis
-- **Custom Cache**: Support for custom cache implementations
+### Core Types
 
-### Caching Configuration
+All responses use TypedDict for type safety:
 
 ```python
-from mcp_pypi.core import PyPIClient
-from mcp_pypi.utils.cache import FileCache
+class ErrorDict(TypedDict):
+    code: str
+    message: str
+    details: NotRequired[Dict[str, Any]]
 
-# File-based cache
-cache = FileCache(
-    directory="/tmp/pypi-cache",
-    ttl=3600,  # 1 hour
-    max_size=1024 * 1024 * 100  # 100 MB
+class PackageInfo(TypedDict):
+    info: Dict[str, Any]
+    releases: NotRequired[Dict[str, List[Dict[str, Any]]]]
+    urls: NotRequired[List[Dict[str, Any]]]
+    vulnerabilities: NotRequired[List[Dict[str, Any]]]
+
+class SearchResult(TypedDict):
+    packages: List[Dict[str, str]]
+    total: int
+
+class VersionInfo(TypedDict):
+    version: str
+    release_date: NotRequired[str]
+
+class DependenciesResult(TypedDict):
+    dependencies: Dict[str, Any]
+    dev_dependencies: NotRequired[Dict[str, Any]]
+    optional_dependencies: NotRequired[Dict[str, Any]]
+```
+
+### Security Types
+
+```python
+class VulnerabilityInfo(TypedDict):
+    id: str
+    summary: str
+    severity: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+    cve: List[str]
+    affected_versions: List[str]
+    fixed_versions: NotRequired[List[str]]
+
+class SecurityAuditResult(TypedDict):
+    overall_risk_level: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW", "SECURE"]
+    security_score: int
+    total_vulnerabilities: int
+    priority_fixes: List[Dict[str, Any]]
+    remediation_plan: Dict[str, List[str]]
+```
+
+## Usage Examples
+
+### Basic Package Search
+```python
+# Search for web scraping packages
+result = await client.invoke_tool(
+    "search_packages",
+    {"query": "web scraping", "limit": 5}
+)
+```
+
+### Security Workflow
+```python
+# 1. Check package before installation
+info = await client.invoke_tool("get_package_info", {"package_name": "requests"})
+vulns = await client.invoke_tool("check_vulnerabilities", {"package_name": "requests"})
+
+# 2. Deep scan dependencies
+deps = await client.invoke_tool(
+    "scan_dependency_vulnerabilities",
+    {"package_name": "requests", "max_depth": 3}
 )
 
-client = PyPIClient(cache=cache)
+# 3. Audit entire project
+audit = await client.invoke_tool(
+    "security_audit_project",
+    {"project_path": "/path/to/project"}
+)
 ```
 
-### Cache Control
-
+### Requirements Management
 ```python
-# Skip cache for this request
-latest_version = await client.get_latest_version("requests", use_cache=False)
-
-# Force refresh cache
-package_info = await client.get_package_info("django", refresh_cache=True)
-
-# Clear entire cache
-await client.clear_cache()
-
-# Clear cache for a specific package
-await client.clear_cache_for_package("numpy")
-```
-
-## Advanced Usage
-
-### Custom Transport
-
-```python
-from mcp_pypi.core import PyPIClient
-from utils.transports import WebSocketTransport
-
-# Create a WebSocket transport
-transport = WebSocketTransport(
-    subprotocols=["pypi-json"],
-    ping_interval=30.0,
-    debug=True
+# Check requirements file
+result = await client.invoke_tool(
+    "check_requirements_txt",
+    {"file_path": "/path/to/requirements.txt"}
 )
 
-# Initialize client with custom transport
-client = PyPIClient(transport=transport)
-
-# Connect to a PyPI-compatible WebSocket server
-await client.connect("ws://pypi-ws.example.com/ws", 443)
-
-# Use the client as normal
-package_info = await client.get_package_info("requests")
+# Update based on vulnerabilities
+for pkg in result["vulnerable"]:
+    latest = await client.invoke_tool(
+        "get_latest_version",
+        {"package_name": pkg["package"]}
+    )
 ```
 
-### Batch Operations
+## Best Practices
 
-```python
-from mcp_pypi.core import PyPIClient
+1. **Always use absolute paths** for file operations
+2. **Check vulnerabilities before installing** new packages
+3. **Use specific versions** in production after security verification
+4. **Scan transitive dependencies** with appropriate depth
+5. **Regular security audits** with security_audit_project
 
-client = PyPIClient()
+## Rate Limiting
 
-# Batch check latest versions
-packages = ["requests", "django", "numpy", "pandas"]
-results = await client.batch_get_latest_versions(packages)
+PyPI API has rate limits. The client handles these automatically with:
+- Exponential backoff
+- Request caching
+- ETag support
 
-# Batch check dependencies
-deps = await client.batch_get_dependencies(packages)
+## Support
 
-# Process results
-for package, result in results.items():
-    if isinstance(result, Exception):
-        print(f"Error for {package}: {result}")
-    else:
-        print(f"{package}: {result}")
-```
-
-### Events and Monitoring
-
-```python
-from mcp_pypi.core import PyPIClient
-from mcp_pypi.utils.events import PyPIEventListener
-
-client = PyPIClient()
-listener = PyPIEventListener(client)
-
-# Subscribe to package updates
-await listener.subscribe(["django", "requests", "numpy"])
-
-# Register event handlers
-@listener.on_package_update
-async def handle_update(package_name, old_version, new_version):
-    print(f"{package_name} updated from {old_version} to {new_version}")
-
-@listener.on_package_release
-async def handle_release(package_name, version):
-    print(f"New release: {package_name} {version}")
-
-# Start listening (runs in background)
-await listener.start()
-
-# Later, stop listening
-await listener.stop()
-```
-
-## Integration Examples
-
-### Integration with FastAPI
-
-```python
-from fastapi import FastAPI, HTTPException, Depends
-from mcp_pypi.core import PyPIClient
-
-app = FastAPI(title="PyPI API Gateway")
-client = PyPIClient()
-
-@app.get("/packages/{package_name}")
-async def get_package(package_name: str):
-    try:
-        return await client.get_package_info(package_name)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-@app.get("/packages/{package_name}/versions/latest")
-async def get_latest_version(package_name: str):
-    try:
-        version = await client.get_latest_version(package_name)
-        return {"package": package_name, "latest_version": version}
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-@app.get("/packages/{package_name}/dependencies")
-async def get_dependencies(package_name: str, depth: int = 1):
-    try:
-        return await client.get_dependency_tree(package_name, depth=depth)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
-```
-
-### Integration with MCP Server
-
-```python
-from mcp.server import MCPServer
-from mcp_pypi.server.tools import register_pypi_tools
-
-# Create MCP server
-server = MCPServer(
-    host="0.0.0.0",
-    port=8080,
-    debug=True
-)
-
-# Register PyPI tools with the MCP server
-register_pypi_tools(server)
-
-# Start the server
-server.start()
-```
-
-### CLI Integration
-
-```python
-import typer
-from mcp_pypi.core import PyPIClient
-from rich.console import Console
-from rich.table import Table
-import asyncio
-
-app = typer.Typer()
-console = Console()
-
-@app.command()
-def search(query: str, page: int = 1):
-    """Search for packages on PyPI."""
-    async def _search():
-        client = PyPIClient()
-        results = await client.search_packages(query, page=page)
-        
-        table = Table(title=f"Search results for '{query}'")
-        table.add_column("Package")
-        table.add_column("Version")
-        table.add_column("Description")
-        
-        for pkg in results["packages"]:
-            table.add_row(
-                pkg["name"],
-                pkg["version"],
-                pkg["description"][:50] + "..." if len(pkg["description"]) > 50 else pkg["description"]
-            )
-        
-        console.print(table)
-    
-    asyncio.run(_search())
-
-@app.command()
-def info(package_name: str):
-    """Get information about a package."""
-    async def _info():
-        client = PyPIClient()
-        info = await client.get_package_info(package_name)
-        
-        console.print(f"[bold]{info['name']}[/bold] {info['version']}")
-        console.print(f"[italic]{info['description']}[/italic]")
-        console.print(f"Homepage: {info['home_page']}")
-        console.print(f"Author: {info['author']}")
-        console.print(f"License: {info['license']}")
-        
-    asyncio.run(_info())
-
-if __name__ == "__main__":
-    app() 
+- GitHub: https://github.com/kimasplund/mcp-pypi
+- Author: Kim Asplund (kim.asplund@gmail.com)
