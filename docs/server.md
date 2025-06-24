@@ -225,7 +225,7 @@ Error codes follow a consistent pattern:
 config = PyPIClientConfig(
     cache_dir=Path("~/.cache/mcp-pypi"),
     cache_strategy="hybrid",
-    user_agent="MCP-PyPI/2.6.8",
+    user_agent="MCP-PyPI/2.7.1",
     request_timeout=30.0,
     max_retries=3
 )
