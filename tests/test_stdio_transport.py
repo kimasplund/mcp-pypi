@@ -3,12 +3,12 @@
 Tests for the STDIO transport implementation.
 """
 
-import os
 import asyncio
-import unittest
-import sys
 import json
 import logging
+import os
+import sys
+import unittest
 from pathlib import Path
 
 # Add parent directory to path for imports

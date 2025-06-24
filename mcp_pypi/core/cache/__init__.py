@@ -2,16 +2,16 @@
 Cache management for the MCP-PyPI client.
 """
 
-import os
-import json
-import time
-import hashlib
-import logging
 import asyncio
+import hashlib
+import json
+import logging
+import os
+import time
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from mcp_pypi.core.models import PyPIClientConfig, ErrorCode, format_error
+from mcp_pypi.core.models import ErrorCode, PyPIClientConfig, format_error
 
 logger = logging.getLogger("mcp-pypi.cache")
 
@@ -55,7 +55,11 @@ class AsyncCacheManager:
 
                 # Check if cache is expired
                 # Use custom TTL if stored, otherwise use default
-                ttl = data.get("ttl") if data.get("ttl") is not None else self.config.cache_ttl
+                ttl = (
+                    data.get("ttl")
+                    if data.get("ttl") is not None
+                    else self.config.cache_ttl
+                )
                 if time.time() - data.get("timestamp", 0) < ttl:
                     # Update access time
                     os.utime(cache_path, None)
@@ -72,7 +76,11 @@ class AsyncCacheManager:
         return None
 
     async def set(
-        self, key: str, data: Dict[str, Any], etag: Optional[str] = None, ttl: Optional[int] = None
+        self,
+        key: str,
+        data: Dict[str, Any],
+        etag: Optional[str] = None,
+        ttl: Optional[int] = None,
     ) -> None:
         """Cache response data with timestamp and etag.
 
@@ -85,10 +93,10 @@ class AsyncCacheManager:
         try:
             # Estimate the size of the serialized data
             cache_data = {
-                "timestamp": time.time(), 
-                "content": data, 
+                "timestamp": time.time(),
+                "content": data,
                 "etag": etag,
-                "ttl": ttl  # Store custom TTL if provided
+                "ttl": ttl,  # Store custom TTL if provided
             }
             serialized = json.dumps(cache_data)
             estimated_size = len(serialized.encode("utf-8"))

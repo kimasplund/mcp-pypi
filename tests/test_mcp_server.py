@@ -9,14 +9,14 @@ import logging
 import os
 import tempfile
 import uuid
-from typing import Dict, Any
+from typing import Any, Dict
 
 import pytest
 from fastmcp import FastMCP
 from mcp.client.session import ClientSession
 
-from mcp_pypi.core.models import PyPIClientConfig
 from mcp_pypi.cli.mcp_server import run_server
+from mcp_pypi.core.models import PyPIClientConfig
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)

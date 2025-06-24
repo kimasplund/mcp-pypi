@@ -2,25 +2,12 @@
 Type definitions for the MCP-PyPI client.
 """
 
-from dataclasses import dataclass, field
 import os
 import sys
 import tempfile
-from typing import (
-    Any,
-    TypedDict,
-    Dict,
-    List,
-    Optional,
-    Set,
-    Union,
-    Literal,
-    TypeVar,
-    cast,
-    Awaitable,
-    Callable,
-    Protocol,
-)
+from dataclasses import dataclass, field
+from typing import (Any, Awaitable, Callable, Dict, List, Literal, Optional,
+                    Protocol, Set, TypedDict, TypeVar, Union, cast)
 
 # NotRequired was added in Python 3.11, import from typing_extensions for earlier versions
 if sys.version_info >= (3, 11):

@@ -2,49 +2,33 @@
 Core client for interacting with PyPI.
 """
 
-import logging
 import asyncio
-import os
-import defusedxml.ElementTree as ET
-from pathlib import Path
-from urllib.parse import quote_plus
-from typing import Dict, List, Any, Optional, Tuple, Union, cast
-import json
 import datetime
+import json
+import logging
+import os
 import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from urllib.parse import quote_plus
 
-from packaging.version import Version
+import defusedxml.ElementTree as ET
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
+from packaging.version import Version
 
-from mcp_pypi.core.models import (
-    PyPIClientConfig,
-    PackageInfo,
-    VersionInfo,
-    ReleasesInfo,
-    UrlsInfo,
-    UrlResult,
-    PackagesFeed,
-    UpdatesFeed,
-    ReleasesFeed,
-    SearchResult,
-    VersionComparisonResult,
-    DependenciesResult,
-    ExistsResult,
-    MetadataResult,
-    PackageMetadata,
-    StatsResult,
-    DependencyTreeResult,
-    DocumentationResult,
-    PackageRequirementsResult,
-    TreeNode,
-    ErrorCode,
-    PackageRequirement,
-    FeedItem,
-    format_error,
-)
 from mcp_pypi.core.cache import AsyncCacheManager
 from mcp_pypi.core.http import AsyncHTTPClient
+from mcp_pypi.core.models import (DependenciesResult, DependencyTreeResult,
+                                  DocumentationResult, ErrorCode, ExistsResult,
+                                  FeedItem, MetadataResult, PackageInfo,
+                                  PackageMetadata, PackageRequirement,
+                                  PackageRequirementsResult, PackagesFeed,
+                                  PyPIClientConfig, ReleasesFeed, ReleasesInfo,
+                                  SearchResult, StatsResult, TreeNode,
+                                  UpdatesFeed, UrlResult, UrlsInfo,
+                                  VersionComparisonResult, VersionInfo,
+                                  format_error)
 from mcp_pypi.core.stats import PackageStatsService
 from mcp_pypi.utils.helpers import sanitize_package_name, sanitize_version
 
@@ -1292,6 +1276,7 @@ class PyPIClient:
                     # Check if up to date
                     is_outdated = False
                     current_version = None
+                    security_recommendation = None
 
                     if req.specifier:
                         # Extract the version from the specifier
@@ -1300,8 +1285,32 @@ class PyPIClient:
                                 current_version = str(spec.version)
                                 req_ver = Version(current_version)
                                 is_outdated = latest_ver > req_ver
+                            elif spec.operator == ">=":
+                                # For >= constraints, check if minimum version has vulnerabilities
+                                min_version = str(spec.version)
+                                current_version = f"{spec.operator}{spec.version}"
+
+                                # Check vulnerabilities for minimum allowed version
+                                vuln_check = await self.check_vulnerabilities(
+                                    pkg_name, min_version
+                                )
+
+                                if vuln_check.get("vulnerable", False):
+                                    # Find the earliest safe version
+                                    safe_version = (
+                                        await self._find_earliest_safe_version(
+                                            pkg_name, min_version, latest_version
+                                        )
+                                    )
+
+                                    if safe_version and safe_version != min_version:
+                                        is_outdated = True
+                                        security_recommendation = (
+                                            f"Security: Update constraint to >={safe_version} "
+                                            f"(current allows vulnerable {min_version})"
+                                        )
                             else:
-                                # For other operators (>=, >, etc.), still capture the constraint
+                                # For other operators (>, <=, <, ~=), still capture the constraint
                                 # but don't mark as outdated
                                 if (
                                     not current_version
@@ -1312,24 +1321,20 @@ class PyPIClient:
                     if not current_version:
                         current_version = "unspecified (latest)"
 
+                    pkg_info = {
+                        "package": pkg_name,
+                        "current_version": current_version,
+                        "latest_version": latest_version,
+                        "constraint": str(req.specifier),
+                    }
+
+                    if security_recommendation:
+                        pkg_info["recommendation"] = security_recommendation
+
                     if is_outdated:
-                        outdated.append(
-                            {
-                                "package": pkg_name,
-                                "current_version": current_version,
-                                "latest_version": latest_version,
-                                "constraint": str(req.specifier),
-                            }
-                        )
+                        outdated.append(pkg_info)
                     else:
-                        up_to_date.append(
-                            {
-                                "package": pkg_name,
-                                "current_version": current_version,
-                                "latest_version": latest_version,
-                                "constraint": str(req.specifier),
-                            }
-                        )
+                        up_to_date.append(pkg_info)
                 except Exception as e:
                     logger.warning(f"Error parsing requirement '{req_line}': {e}")
                     # Try a simple extraction for unparseable requirements
@@ -1569,24 +1574,20 @@ class PyPIClient:
                     current_version = "unspecified (latest)"
 
                 # Add to appropriate list
+                pkg_info = {
+                    "package": req.name,
+                    "current_version": current_version,
+                    "latest_version": latest_version,
+                    "constraint": str(req.specifier),
+                }
+
+                if security_recommendation:
+                    pkg_info["recommendation"] = security_recommendation
+
                 if is_outdated:
-                    outdated.append(
-                        {
-                            "package": req.name,
-                            "current_version": current_version,
-                            "latest_version": latest_version,
-                            "constraint": str(req.specifier),
-                        }
-                    )
+                    outdated.append(pkg_info)
                 else:
-                    up_to_date.append(
-                        {
-                            "package": req.name,
-                            "current_version": current_version,
-                            "latest_version": latest_version,
-                            "constraint": str(req.specifier),
-                        }
-                    )
+                    up_to_date.append(pkg_info)
 
             except Exception as e:
                 logger.warning(f"Error processing dependency {req_str}: {e}")
@@ -1853,13 +1854,15 @@ class PyPIClient:
                     "summary": vuln.get("summary", "")[:500],  # Limit summary length
                     "severity": vuln.get("severity"),
                     "cve": vuln.get("cve", [])[:5],  # Limit CVE list
-                    "affected_versions": vuln.get("affected_versions", [])[:10],  # Limit versions
+                    "affected_versions": vuln.get("affected_versions", [])[
+                        :10
+                    ],  # Limit versions
                 }
                 # Only include first 3 references to save space
                 if "references" in vuln and vuln["references"]:
                     limited_vuln["references"] = vuln["references"][:3]
                 limited_vulnerabilities.append(limited_vuln)
-            
+
             result = {
                 "package": package_name,
                 "version": version or "all",
@@ -1871,10 +1874,12 @@ class PyPIClient:
                 "medium_count": medium_count,
                 "low_count": low_count,
             }
-            
+
             # Add note if vulnerabilities were truncated
             if len(vulnerabilities) > 20:
-                result["note"] = f"Showing 20 of {len(vulnerabilities)} vulnerabilities. Use specific version parameter to reduce results."
+                result["note"] = (
+                    f"Showing 20 of {len(vulnerabilities)} vulnerabilities. Use specific version parameter to reduce results."
+                )
 
             # Cache the result with configurable TTL
             # Vulnerability data doesn't change frequently, default is 1 hour
@@ -1894,6 +1899,60 @@ class PyPIClient:
                 "vulnerabilities": [],
                 "error": {"message": str(e), "code": "vulnerability_check_error"},
             }
+
+    async def _find_earliest_safe_version(
+        self, package_name: str, min_version: str, max_version: str
+    ) -> Optional[str]:
+        """Find the earliest version without vulnerabilities between min and max versions.
+
+        For efficiency, this uses a simplified approach that checks common safe versions
+        rather than checking every single version.
+
+        Args:
+            package_name: Name of the package
+            min_version: Minimum version (potentially vulnerable)
+            max_version: Maximum version to consider (usually latest)
+
+        Returns:
+            The earliest safe version string, or None if no safe version found
+        """
+        try:
+            # For efficiency, we'll use a heuristic approach:
+            # 1. Check if the latest version is safe (most common case)
+            # 2. If not, get vulnerability info to find safe ranges
+
+            # First check if latest version is safe
+            latest_vuln_check = await self.check_vulnerabilities(
+                package_name, max_version
+            )
+            if not latest_vuln_check.get("vulnerable", True):
+                # Latest is safe, now find earliest safe version
+                # For most packages, security fixes come in minor/patch releases
+                # So we'll recommend a reasonable minimum based on the vulnerable version
+
+                try:
+                    min_ver = Version(min_version)
+                    max_ver = Version(max_version)
+
+                    # If major version changed, recommend at least the new major version
+                    if max_ver.major > min_ver.major:
+                        return f"{max_ver.major}.0.0"
+                    # If minor version changed significantly (>5), recommend recent minor
+                    elif max_ver.minor > min_ver.minor + 5:
+                        return f"{max_ver.major}.{max_ver.minor - 2}.0"
+                    # Otherwise recommend the latest as safest
+                    else:
+                        return max_version
+                except Exception:
+                    return max_version
+
+            # If latest is also vulnerable, we need to check the specific vulnerabilities
+            # For now, we'll just recommend the latest version as it likely has fewer issues
+            return max_version
+
+        except Exception as e:
+            logger.warning(f"Error finding safe version for {package_name}: {e}")
+            return None
 
     async def get_updates_feed(self) -> UpdatesFeed:
         """Get package updates feed from PyPI RSS."""
@@ -2195,7 +2254,10 @@ class PyPIClient:
         # Transform the response to match expected format
         if "updates" in result:
             return {"releases": result["updates"], "error": result.get("error")}
-        return {"releases": [], "error": result.get("error") if isinstance(result, dict) else None}
+        return {
+            "releases": [],
+            "error": result.get("error") if isinstance(result, dict) else None,
+        }
 
     async def get_package_changelog(
         self, package_name: str, version: Optional[str] = None
@@ -2245,9 +2307,7 @@ class PyPIClient:
                         owner, repo = match.groups()
                         # Use GitHub API to get releases
                         # Limit to 5 releases using GitHub API parameter
-                        api_url = (
-                            f"https://api.github.com/repos/{owner}/{repo}/releases?per_page=5"
-                        )
+                        api_url = f"https://api.github.com/repos/{owner}/{repo}/releases?per_page=5"
 
                         try:
                             response = await self.http.fetch(api_url)

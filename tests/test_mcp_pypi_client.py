@@ -13,8 +13,9 @@ import sys
 import uuid
 from typing import Any, Dict, List, Optional, Union
 
+from utils.messages import (ErrorResponse, Message, Notification, Request,
+                            Response)
 from utils.transports.http import HTTPTransport
-from utils.messages import Message, Request, Response, Notification, ErrorResponse
 
 # Configure logging
 logging.basicConfig(

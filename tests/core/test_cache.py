@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from mcp_pypi.core.models import PyPIClientConfig
 from mcp_pypi.core.cache import AsyncCacheManager
+from mcp_pypi.core.models import PyPIClientConfig
 
 
 @pytest.fixture

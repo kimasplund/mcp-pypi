@@ -6,9 +6,9 @@ Handles JSON-RPC 2.0 requests and responses.
 import asyncio
 import json
 import logging
-import sys
-from typing import Dict, Any, Optional, List
 import socket
+import sys
+from typing import Any, Dict, List, Optional
 
 from mcp_pypi.core import PyPIClient
 from mcp_pypi.core.models import PyPIClientConfig
@@ -117,18 +117,29 @@ class RPCServer:
         # Special handling for method discovery and ping
         if method == "describe":
             from mcp_pypi import __version__
+
             return {
                 "name": "mcp-pypi",
                 "version": __version__,
                 "description": "PyPI package search and info via MCP",
                 "methods": [
-                    "search_packages", "get_dependencies", "check_package_exists",
-                    "get_package_metadata", "get_package_stats", "get_dependency_tree",
-                    "get_package_info", "get_latest_version", "get_package_releases",
-                    "get_release_urls", "get_newest_packages", "get_latest_updates",
-                    "get_project_releases", "get_documentation_url", 
-                    "check_requirements_file", "compare_versions"
-                ]
+                    "search_packages",
+                    "get_dependencies",
+                    "check_package_exists",
+                    "get_package_metadata",
+                    "get_package_stats",
+                    "get_dependency_tree",
+                    "get_package_info",
+                    "get_latest_version",
+                    "get_package_releases",
+                    "get_release_urls",
+                    "get_newest_packages",
+                    "get_latest_updates",
+                    "get_project_releases",
+                    "get_documentation_url",
+                    "check_requirements_file",
+                    "compare_versions",
+                ],
             }
 
         if method == "ping":
@@ -220,8 +231,9 @@ async def process_mcp_stdin(verbose: bool = False):
 
 async def start_server(host: str = "127.0.0.1", port: int = 8000):
     """Start the JSON-RPC server."""
-    from aiohttp import web
     import sys
+
+    from aiohttp import web
 
     # Create client
     client = PyPIClient()

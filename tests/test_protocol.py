@@ -3,25 +3,20 @@
 Tests for the protocol version negotiation module.
 """
 
-import unittest
 import sys
+import unittest
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.protocol import (
-    ProtocolCapability,
-    PROTOCOL_VERSIONS,
-    LATEST_VERSION,
-    SUPPORTED_VERSIONS,
-    check_version_compatibility,
-    negotiate_version,
-    extract_required_version_from_error,
-    get_minimum_version_for_capabilities,
-    get_version_from_env,
-    format_version_error,
-)
+from utils.protocol import (LATEST_VERSION, PROTOCOL_VERSIONS,
+                            SUPPORTED_VERSIONS, ProtocolCapability,
+                            check_version_compatibility,
+                            extract_required_version_from_error,
+                            format_version_error,
+                            get_minimum_version_for_capabilities,
+                            get_version_from_env, negotiate_version)
 
 
 class TestProtocolVersionNegotiation(unittest.TestCase):

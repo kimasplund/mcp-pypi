@@ -1,12 +1,13 @@
 """Tests for the CLI main module."""
 
-import json
 import asyncio
-import pytest
-import tempfile
+import json
 import os
+import tempfile
+from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
+
+import pytest
 from typer.testing import CliRunner
-from unittest.mock import patch, AsyncMock, MagicMock, Mock, call
 
 from mcp_pypi.cli.main import app
 from mcp_pypi.core import PyPIClient
@@ -714,6 +715,7 @@ def test_serve_stdin_mode():
 def test_version_callback():
     """Test version callback function."""
     import typer
+
     from mcp_pypi.cli.main import version_callback
 
     # Mock typer.Exit so we can test if it's raised

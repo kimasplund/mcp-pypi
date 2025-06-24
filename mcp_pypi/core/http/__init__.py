@@ -2,17 +2,17 @@
 HTTP client for the MCP-PyPI client.
 """
 
+import asyncio
 import json
 import logging
-import asyncio
 import random
-from typing import Dict, Any, Optional, cast
+from typing import Any, Dict, Optional, cast
 
 import aiohttp
 from aiohttp import ClientSession, ClientTimeout
 
-from mcp_pypi.core.models import PyPIClientConfig, ErrorCode, format_error
 from mcp_pypi.core.cache import AsyncCacheManager
+from mcp_pypi.core.models import ErrorCode, PyPIClientConfig, format_error
 
 logger = logging.getLogger("mcp-pypi.http")
 

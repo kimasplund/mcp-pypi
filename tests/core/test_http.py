@@ -2,14 +2,15 @@
 
 import asyncio
 import json
-from unittest.mock import patch, MagicMock, AsyncMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import aiohttp
 import pytest
 import pytest_asyncio
-import aiohttp
-from aiohttp import ClientSession, ClientResponse, ClientConnectionError
+from aiohttp import ClientConnectionError, ClientResponse, ClientSession
 
-from mcp_pypi.core.models import PyPIClientConfig
 from mcp_pypi.core.http import AsyncHTTPClient
+from mcp_pypi.core.models import PyPIClientConfig
 
 
 def create_mock_response(status, json_data=None, text=None, headers=None):

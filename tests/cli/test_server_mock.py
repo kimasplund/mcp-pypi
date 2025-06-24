@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Test with mocked server responses for faster testing."""
 
+import asyncio
 import json
+from unittest.mock import MagicMock, patch
+
 import pytest
 import pytest_asyncio
-import asyncio
-from unittest.mock import patch, MagicMock
+
 from mcp_pypi.cli.server import RPCServer
 
 # Sample responses

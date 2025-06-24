@@ -3,6 +3,7 @@
 
 import asyncio
 import logging
+
 from mcp_pypi.core import PyPIClient
 from mcp_pypi.core.models import PyPIClientConfig
 from mcp_pypi.utils import configure_logging

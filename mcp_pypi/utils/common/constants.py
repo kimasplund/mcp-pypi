@@ -12,6 +12,7 @@ from pathlib import Path
 # Try to get version from package metadata
 try:
     from importlib.metadata import version
+
     __version__ = version("mcp-pypi")
 except Exception:
     # Fallback if package is not installed or during development

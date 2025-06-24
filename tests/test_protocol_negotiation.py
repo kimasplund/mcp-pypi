@@ -13,15 +13,14 @@ import os
 import signal
 import sys
 import tempfile
-from pathlib import Path
 import traceback
+from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.mcp_monitor import MCPMonitor
 from utils.protocol import LATEST_VERSION, SUPPORTED_VERSIONS
-
 
 # Configure logging
 logging.basicConfig(

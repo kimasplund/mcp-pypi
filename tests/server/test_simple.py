@@ -2,9 +2,10 @@
 Basic tests for the MCP server implementation.
 """
 
-import pytest
 import sys
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Mock the mcp module since it's not installed
 sys.modules["mcp"] = MagicMock()
@@ -13,9 +14,9 @@ sys.modules["mcp.types"] = MagicMock()
 sys.modules["mcp.server.fastmcp"] = MagicMock()
 sys.modules["mcp.server.stdio"] = MagicMock()
 
+from mcp_pypi.core.models import PyPIClientConfig
 # Now we can import our module
 from mcp_pypi.server import PyPIMCPServer
-from mcp_pypi.core.models import PyPIClientConfig
 
 
 @pytest.fixture

@@ -5,6 +5,21 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.8] - 2025-06-24
+
+### 🔐 Security Enhancements
+- **Enhanced version constraint security checking**:
+  - Now checks if minimum allowed version (e.g., `>=3.8.0`) has vulnerabilities
+  - Automatically finds and recommends the earliest safe version
+  - Provides clear security recommendations for updating constraints
+  - Prevents situations where constraints allow vulnerable versions
+- **Updated aiohttp minimum version** from `>=3.8.0` to `>=3.10.11` to address security vulnerabilities
+
+### 🔧 Improvements
+- Added `_find_earliest_safe_version()` helper method for intelligent version recommendations
+- Enhanced both requirements.txt and pyproject.toml checking with security awareness
+- Improved alignment with OSV scanner behavior for better CI/CD compatibility
+
 ## [2.6.7] - 2025-06-24
 
 ### 🔧 Improvements

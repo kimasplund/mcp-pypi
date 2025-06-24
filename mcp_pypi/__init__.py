@@ -10,6 +10,7 @@ and analyze package data in real-time.
 # Try to get version from package metadata (single source of truth)
 try:
     from importlib.metadata import version
+
     __version__ = version("mcp-pypi")
 except Exception:
     # Fallback during development or if package is not installed

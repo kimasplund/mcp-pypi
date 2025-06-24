@@ -6,29 +6,19 @@ supporting multiple backends and strategies for efficient data retrieval.
 """
 
 import asyncio
+import io
 import json
 import logging
 import os
 import pickle
 import time
-import io
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Protocol,
-    Tuple,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import (Any, Callable, Dict, List, Optional, Protocol, Tuple,
+                    TypeVar, Union, cast)
 
 T = TypeVar("T")
 
@@ -37,28 +27,32 @@ logger = logging.getLogger("mcp_pypi.cache")
 
 class RestrictedUnpickler(pickle.Unpickler):
     """Restricted unpickler that only allows safe types."""
-    
+
     def find_class(self, module, name):
         # Only allow specific safe types
         ALLOWED_MODULES = {
-            'builtins',
-            '__builtin__',
-            'collections',
-            'datetime',
-            'mcp_pypi.core.models',  # Allow our own model classes
+            "builtins",
+            "__builtin__",
+            "collections",
+            "datetime",
+            "mcp_pypi.core.models",  # Allow our own model classes
         }
-        
+
         # Allow basic types
         if module in ALLOWED_MODULES:
             return super().find_class(module, name)
-        
+
         # Allow specific safe classes
-        if module == 'mcp_pypi.core.models' and name in [
-            'PackageInfo', 'VersionInfo', 'DependenciesResult',
-            'SearchResult', 'StatsResult', 'ErrorResult'
+        if module == "mcp_pypi.core.models" and name in [
+            "PackageInfo",
+            "VersionInfo",
+            "DependenciesResult",
+            "SearchResult",
+            "StatsResult",
+            "ErrorResult",
         ]:
             return super().find_class(module, name)
-            
+
         raise pickle.UnpicklingError(f"Global '{module}.{name}' is not allowed")
 
 
@@ -1367,7 +1361,10 @@ def create_cache_from_config(config: Dict[str, Any]) -> BaseCache:
             ]
 
         return HierarchicalCache(
-            caches=cast(List[BaseCache], caches), ttl=ttl, namespace=namespace, write_strategy=write_strategy
+            caches=cast(List[BaseCache], caches),
+            ttl=ttl,
+            namespace=namespace,
+            write_strategy=write_strategy,
         )
 
     else:

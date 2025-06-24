@@ -2,12 +2,13 @@
 
 import asyncio
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from mcp_pypi.server import PyPIMCPServer
-from mcp_pypi.core.models import PyPIClientConfig
+import pytest
 from mcp.types import GetPromptResult, Resource
+
+from mcp_pypi.core.models import PyPIClientConfig
+from mcp_pypi.server import PyPIMCPServer
 
 
 @pytest.fixture

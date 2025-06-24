@@ -6,12 +6,12 @@ This includes tests for both message formats (newline and binary).
 
 import asyncio
 import json
-import struct
+import logging
 import os
+import struct
 import sys
 import unittest
-from unittest.mock import patch, MagicMock, AsyncMock
-import logging
+from unittest.mock import AsyncMock, MagicMock, patch
 
 # Add parent directory to path to import module
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

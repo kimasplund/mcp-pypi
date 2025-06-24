@@ -2,19 +2,16 @@
 Tests for the hybrid caching utilities.
 """
 
-import time
-import tempfile
-import unittest
 import shutil
-from unittest import mock
+import tempfile
+import time
+import unittest
 from concurrent.futures import ThreadPoolExecutor
+from unittest import mock
 
-from mcp_pypi.utils.common.caching import (
-    HybridCache,
-    EvictionStrategy,
-    hybrid_cached,
-    invalidate_cached_call,
-)
+from mcp_pypi.utils.common.caching import (EvictionStrategy, HybridCache,
+                                           hybrid_cached,
+                                           invalidate_cached_call)
 
 
 class TestHybridCache(unittest.TestCase):
@@ -347,11 +344,12 @@ class TestHybridCacheDecorator(unittest.TestCase):
 
         # Create a test hybrid cache with the specific eviction strategy
         test_specific_cache = HybridCache(
-            cache_dir=self.temp_dir,
-            eviction_strategy=EvictionStrategy.LFU
+            cache_dir=self.temp_dir, eviction_strategy=EvictionStrategy.LFU
         )
 
-        @hybrid_cached(eviction_strategy=EvictionStrategy.LFU, cache_instance=test_specific_cache)
+        @hybrid_cached(
+            eviction_strategy=EvictionStrategy.LFU, cache_instance=test_specific_cache
+        )
         def example_function(arg):
             nonlocal call_count
             call_count += 1

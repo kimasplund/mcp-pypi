@@ -4,11 +4,12 @@ Tests for the PackageStatsService class.
 
 import datetime
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from mcp_pypi.core.stats import PackageStatsService
+import pytest
+
 from mcp_pypi.core.models import ErrorCode, format_error
+from mcp_pypi.core.stats import PackageStatsService
 
 
 @pytest.fixture

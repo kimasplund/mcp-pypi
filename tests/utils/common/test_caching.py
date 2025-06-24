@@ -2,20 +2,16 @@
 Tests for the caching utilities.
 """
 
-import os
-import time
-import tempfile
-import unittest
-import shutil
-from unittest import mock
 import hashlib
+import os
+import shutil
+import tempfile
+import time
+import unittest
+from unittest import mock
 
-from mcp_pypi.utils.common.caching import (
-    Cache,
-    cached,
-    cache_keygen,
-    invalidate_cached_call,
-)
+from mcp_pypi.utils.common.caching import (Cache, cache_keygen, cached,
+                                           invalidate_cached_call)
 
 
 class TestCache(unittest.TestCase):

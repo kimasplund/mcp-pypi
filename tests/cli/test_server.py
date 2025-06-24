@@ -1,9 +1,10 @@
 """Tests for the RPC server implementation."""
 
-import json
 import asyncio
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
 
 from mcp_pypi.cli.server import RPCServer
 from mcp_pypi.core import PyPIClient
@@ -262,8 +263,9 @@ async def test_process_mcp_stdin():
 async def test_start_server():
     """Test the HTTP server startup."""
     # Import the actual module to create proper mocks
-    from mcp_pypi.cli.server import start_server
     import sys
+
+    from mcp_pypi.cli.server import start_server
 
     # Create our client mock
     mock_client = AsyncMock(spec=PyPIClient)

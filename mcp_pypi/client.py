@@ -1,9 +1,9 @@
+import asyncio
 import json
 import logging
-import asyncio
 import os
 import sys
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Configure logging
 logging.basicConfig(
@@ -76,7 +76,7 @@ class MCPClient:
             return
 
         loop = asyncio.get_event_loop()
-        
+
         # Set up stdin reader
         self.reader = asyncio.StreamReader()
         protocol = asyncio.StreamReaderProtocol(self.reader)

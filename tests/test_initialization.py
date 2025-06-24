@@ -1,24 +1,21 @@
 #!/usr/bin/env python
 """Test module for the initialization sequence implementation."""
 
-import unittest
 import json
-from unittest.mock import patch, MagicMock
-
-import sys
 import os
+import sys
+import unittest
+from unittest.mock import MagicMock, patch
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from utils.initialization import (
-    ServerCapability,
-    ClientCapability,
-    InitializationHandler,
-    create_default_client_capabilities,
-    create_initialize_request,
-    extract_server_capabilities,
-)
-from utils.protocol import ProtocolCapability, LATEST_VERSION, SUPPORTED_VERSIONS
+from utils.initialization import (ClientCapability, InitializationHandler,
+                                  ServerCapability,
+                                  create_default_client_capabilities,
+                                  create_initialize_request,
+                                  extract_server_capabilities)
+from utils.protocol import (LATEST_VERSION, SUPPORTED_VERSIONS,
+                            ProtocolCapability)
 
 
 class TestInitializationHandler(unittest.TestCase):

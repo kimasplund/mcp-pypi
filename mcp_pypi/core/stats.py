@@ -2,12 +2,12 @@
 Package statistics service for the MCP-PyPI client.
 """
 
-import logging
 import datetime
-from typing import Dict, Any, Optional, List, Tuple, cast
+import logging
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from mcp_pypi.core.http import AsyncHTTPClient
-from mcp_pypi.core.models import StatsResult, ErrorCode, format_error
+from mcp_pypi.core.models import ErrorCode, StatsResult, format_error
 from mcp_pypi.utils.helpers import sanitize_package_name
 
 logger = logging.getLogger("mcp-pypi.stats")
@@ -67,15 +67,21 @@ class PackageStatsService:
                         overall_data_parsed = json.loads(raw_data)
                     except json.JSONDecodeError as e:
                         logger.error(f"Error decoding JSON from raw_data: {e}")
-                        return cast(StatsResult, format_error(
-                            ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                        ))
+                        return cast(
+                            StatsResult,
+                            format_error(
+                                ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
+                            ),
+                        )
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
-                    return cast(StatsResult, format_error(
-                        ErrorCode.PARSE_ERROR,
-                        f"Unexpected content type: {content_type}",
-                    ))
+                    return cast(
+                        StatsResult,
+                        format_error(
+                            ErrorCode.PARSE_ERROR,
+                            f"Unexpected content type: {content_type}",
+                        ),
+                    )
             else:
                 # Already parsed JSON data
                 overall_data_parsed = overall_result
@@ -101,15 +107,21 @@ class PackageStatsService:
                         detailed_data_parsed = json.loads(raw_data)
                     except json.JSONDecodeError as e:
                         logger.error(f"Error decoding JSON from raw_data: {e}")
-                        return cast(StatsResult, format_error(
-                            ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                        ))
+                        return cast(
+                            StatsResult,
+                            format_error(
+                                ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
+                            ),
+                        )
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
-                    return cast(StatsResult, format_error(
-                        ErrorCode.PARSE_ERROR,
-                        f"Unexpected content type: {content_type}",
-                    ))
+                    return cast(
+                        StatsResult,
+                        format_error(
+                            ErrorCode.PARSE_ERROR,
+                            f"Unexpected content type: {content_type}",
+                        ),
+                    )
             else:
                 # Already parsed JSON data
                 detailed_data_parsed = detailed_result

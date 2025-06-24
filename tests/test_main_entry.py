@@ -1,9 +1,9 @@
 """Tests for the main entry point of the package."""
 
-import sys
-from unittest.mock import patch, MagicMock
-import importlib.util
 import importlib.machinery
+import importlib.util
+import sys
+from unittest.mock import MagicMock, patch
 
 
 def test_main_entry_point():

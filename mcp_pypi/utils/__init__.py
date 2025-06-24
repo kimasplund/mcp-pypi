@@ -3,7 +3,7 @@ Utility functions for the MCP-PyPI client.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 from mcp_pypi.core.models import ErrorCode, format_error
 from mcp_pypi.utils.helpers import sanitize_package_name, sanitize_version

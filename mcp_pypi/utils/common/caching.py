@@ -5,34 +5,23 @@ This module provides utilities for caching API responses and function results
 to reduce API calls and improve performance.
 """
 
-import os
-import json
-import time
-import logging
 import hashlib
+import json
+import logging
+import os
+import re
 import shutil
 import threading
-import re
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-    Callable,
-    TypeVar,
-    cast,
-    Union,
-    Pattern,
-)
+import time
 from collections import OrderedDict
 from enum import Enum
 from functools import wraps
+from typing import (Any, Callable, Dict, List, Optional, Pattern, TypeVar,
+                    Union, cast)
 
-from mcp_pypi.utils.common.constants import (
-    DEFAULT_CACHE_DIR,
-    DEFAULT_CACHE_TTL,
-    DEFAULT_CACHE_MAX_SIZE,
-)
+from mcp_pypi.utils.common.constants import (DEFAULT_CACHE_DIR,
+                                             DEFAULT_CACHE_MAX_SIZE,
+                                             DEFAULT_CACHE_TTL)
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -206,7 +195,9 @@ class Cache:
                                 {
                                     "path": file_path,
                                     "size": stat.st_size,
-                                    "created_at": entry_data.get("created_at", stat.st_mtime),
+                                    "created_at": entry_data.get(
+                                        "created_at", stat.st_mtime
+                                    ),
                                     "expires_at": entry_data.get("expires_at", 0),
                                 }
                             )
@@ -231,7 +222,8 @@ class Cache:
         if cache_size > self.max_size:
             logger.info(
                 "Cache size (%s bytes) exceeds limit (%s bytes). Cleaning up...",
-                cache_size, self.max_size
+                cache_size,
+                self.max_size,
             )
             self._cleanup_cache()
 
@@ -246,7 +238,7 @@ class Cache:
                 try:
                     os.remove(entry["path"])
                     entries.remove(entry)
-                    logger.debug("Removed expired cache entry: %s", entry['path'])
+                    logger.debug("Removed expired cache entry: %s", entry["path"])
                 except OSError as e:
                     logger.exception("Error removing cache file: %s", e)
 
@@ -264,7 +256,7 @@ class Cache:
                 try:
                     os.remove(entry["path"])
                     current_size -= entry["size"]
-                    logger.debug("Removed old cache entry: %s", entry['path'])
+                    logger.debug("Removed old cache entry: %s", entry["path"])
                 except OSError as e:
                     logger.exception("Error removing cache file: %s", e)
 
@@ -490,10 +482,13 @@ class HybridCache(Cache):
                     with open(file_path, "r", encoding="utf-8") as f:
                         try:
                             entry_data = json.load(f)
-                            # The disk cache doesn't store the key, so we need to get it 
+                            # The disk cache doesn't store the key, so we need to get it
                             # from the filename. We reverse-engineer the key by checking
                             # if the hash matches
-                            if entry_data and entry_data.get("expires_at", 0) > time.time():
+                            if (
+                                entry_data
+                                and entry_data.get("expires_at", 0) > time.time()
+                            ):
                                 for key in memory_keys:
                                     if file_path.endswith(
                                         hashlib.md5(key.encode()).hexdigest()
@@ -660,9 +655,7 @@ class HybridCache(Cache):
                 self._memory_cache.popitem(last=False)  # Remove oldest item (first in)
             elif self.eviction_strategy == EvictionStrategy.LFU:
                 # LFU strategy: remove least frequently accessed item
-                least_used_key = min(
-                    self._access_count.items(), key=lambda x: x[1]
-                )[0]
+                least_used_key = min(self._access_count.items(), key=lambda x: x[1])[0]
                 del self._memory_cache[least_used_key]
                 del self._access_count[least_used_key]
             elif self.eviction_strategy == EvictionStrategy.TTL:
@@ -792,7 +785,7 @@ def hybrid_cached(
         def wrapper(*args: Any, **kwargs: Any) -> R:
             # Get the cache to use
             cache = cache_instance or get_cache()
-            
+
             # Ensure we're using a HybridCache
             if not isinstance(cache, HybridCache):
                 logger.warning(

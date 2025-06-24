@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Comprehensive tests for the PyPIClient class."""
 
-import os
 import json
+import os
 import tempfile
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, mock_open
 import xml.etree.ElementTree as ET
 from io import StringIO
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+
+import pytest
 
 from mcp_pypi.core import PyPIClient
-from mcp_pypi.core.models import PyPIClientConfig
 from mcp_pypi.core.cache import AsyncCacheManager
 from mcp_pypi.core.http import AsyncHTTPClient
+from mcp_pypi.core.models import PyPIClientConfig
 from mcp_pypi.core.stats import PackageStatsService
 
 
