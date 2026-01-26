@@ -111,6 +111,76 @@ claude mcp add mcp-pypi -- mcp-pypi stdio
 # The server will be available in your next Claude Code session
 ```
 
+## 🖱️ Using with Cursor IDE
+
+Cursor IDE supports MCP servers through configuration files. You can configure mcp-pypi either globally (available in all projects) or per-project.
+
+### Quick Setup via Settings UI
+
+1. Open Cursor Settings (`Cmd+,` on Mac, `Ctrl+,` on Windows/Linux)
+2. Navigate to **Features** > **Model Context Protocol**
+3. Click **Add New MCP Server**
+4. Enter the configuration shown below
+
+### Configuration File Setup
+
+**Global Configuration** (available in all projects):
+
+| Platform | Location |
+|----------|----------|
+| macOS/Linux | `~/.cursor/mcp.json` |
+| Windows | `C:\Users\YourUsername\.cursor\mcp.json` |
+
+**Project Configuration** (project-specific):
+Create `.cursor/mcp.json` in your project root.
+
+### Configuration Example
+
+Add mcp-pypi to your `mcp.json` file:
+
+```json
+{
+  "mcpServers": {
+    "mcp-pypi": {
+      "command": "mcp-pypi",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+**With custom options:**
+
+```json
+{
+  "mcpServers": {
+    "mcp-pypi": {
+      "command": "mcp-pypi",
+      "args": ["serve", "--log-level", "DEBUG"],
+      "env": {
+        "PYPI_CACHE_DIR": "/path/to/cache"
+      }
+    }
+  }
+}
+```
+
+### Verification
+
+1. Restart Cursor completely after adding the configuration
+2. Open any project and switch to **Agent Mode** (not Ask Mode)
+3. The MCP tools should appear in the tools list
+4. Test by asking: "Search for web scraping packages on PyPI"
+
+### Troubleshooting Cursor
+
+| Issue | Solution |
+|-------|----------|
+| Tools not appearing | Ensure Cursor is in Agent Mode, not Ask Mode |
+| Server not starting | Check `mcp-pypi` is installed and in PATH |
+| Configuration errors | Open Output panel (`Cmd+Shift+U`) and select "MCP Logs" |
+| Server crashes | Toggle server off/on in Settings without removing config |
+
 ## 🛠️ Available Tools
 
 ### Package Discovery
