@@ -157,6 +157,10 @@ class SearchResult(TypedDict):
     total: NotRequired[int]
     query: NotRequired[str]
     packages: NotRequired[List[Any]]
+    # Pagination fields
+    offset: NotRequired[int]
+    limit: NotRequired[int]
+    has_more: NotRequired[bool]
 
 
 class VersionComparisonResult(TypedDict):
@@ -260,6 +264,26 @@ class PackageRequirementsResult(TypedDict):
     requirements: NotRequired[List[PackageRequirement]]
     outdated: NotRequired[List[PackageRequirement]]
     up_to_date: NotRequired[List[PackageRequirement]]
+
+
+class BatchVulnerabilityResult(TypedDict):
+    """Result from batch vulnerability check."""
+
+    results: Dict[str, Dict[str, Any]]  # Maps "pkg:version" to vulnerability data
+    total_packages: int
+    vulnerable_count: int
+    cached_count: int
+    queried_count: int
+    errors: NotRequired[List[Dict[str, str]]]
+
+
+class PaginationInfo(TypedDict):
+    """Pagination metadata for list responses."""
+
+    offset: int
+    limit: int
+    total: int
+    has_more: bool
 
 
 # Protocols for dependency injection

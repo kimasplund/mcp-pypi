@@ -25,13 +25,20 @@ def test_format_error():
 
 
 def test_sanitize_package_name():
-    """Test the sanitize_package_name function."""
-    # Valid package names
+    """Test the sanitize_package_name function.
+
+    Per PEP 503, package names are normalized:
+    - Converted to lowercase
+    - Runs of [-_.] replaced with single hyphen
+    """
+    # Valid package names - normalized per PEP 503
     assert sanitize_package_name("test") == "test"
     assert sanitize_package_name("test-package") == "test-package"
-    assert sanitize_package_name("test_package") == "test_package"
-    assert sanitize_package_name("test.package") == "test.package"
-    assert sanitize_package_name("Test123") == "Test123"
+    assert sanitize_package_name("test_package") == "test-package"  # underscore -> hyphen
+    assert sanitize_package_name("test.package") == "test-package"  # dot -> hyphen
+    assert sanitize_package_name("Test123") == "test123"  # lowercase
+    assert sanitize_package_name("Django_REST_framework") == "django-rest-framework"
+    assert sanitize_package_name("Beautiful-Soup") == "beautiful-soup"
 
     # Invalid package names
     with pytest.raises(ValueError):

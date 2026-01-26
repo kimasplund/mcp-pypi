@@ -6,7 +6,29 @@ to ensure they are safe for use in PyPI requests.
 """
 
 import re
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
+
+
+def normalize_package_name(name: str) -> str:
+    """Normalize package name per PEP 503.
+
+    Converts to lowercase and replaces any runs of [-_.] with a single hyphen.
+
+    Args:
+        name: Package name to normalize
+
+    Returns:
+        Normalized package name
+
+    Examples:
+        >>> normalize_package_name("Beautiful-Soup")
+        'beautiful-soup'
+        >>> normalize_package_name("Django_REST_framework")
+        'django-rest-framework'
+        >>> normalize_package_name("requests")
+        'requests'
+    """
+    return re.sub(r"[-_.]+", "-", name.lower())
 
 
 def sanitize_package_name(package_name: str) -> str:
@@ -47,6 +69,44 @@ def sanitize_version(version: str) -> str:
     return version
 
 
+def validate_pagination(
+    limit: int,
+    offset: int,
+    max_limit: int = 100,
+    min_limit: int = 1,
+) -> Tuple[int, int]:
+    """
+    Validate and clamp pagination parameters.
+
+    Args:
+        limit: Requested limit (will be clamped to min_limit..max_limit)
+        offset: Requested offset (will be clamped to >= 0)
+        max_limit: Maximum allowed limit (default: 100)
+        min_limit: Minimum allowed limit (default: 1)
+
+    Returns:
+        A tuple of (validated_limit, validated_offset)
+    """
+    validated_limit = max(min_limit, min(limit, max_limit))
+    validated_offset = max(0, offset)
+    return validated_limit, validated_offset
+
+
+def validate_depth(depth: int, max_depth: int = 5, min_depth: int = 1) -> int:
+    """
+    Validate and clamp depth parameter for tree operations.
+
+    Args:
+        depth: Requested depth
+        max_depth: Maximum allowed depth (default: 5)
+        min_depth: Minimum allowed depth (default: 1)
+
+    Returns:
+        Validated depth clamped to min_depth..max_depth
+    """
+    return max(min_depth, min(depth, max_depth))
+
+
 def validate_file_path(file_path: str) -> Tuple[bool, Optional[str]]:
     """
     Validate a file path for security.
@@ -66,3 +126,16 @@ def validate_file_path(file_path: str) -> Tuple[bool, Optional[str]]:
         return False, "Directory traversal not allowed"
 
     return True, None
+
+
+def make_error_response(message: str, code: str = "error") -> Dict[str, Any]:
+    """Create a standardized error response.
+
+    Args:
+        message: Human-readable error message
+        code: Error code for programmatic handling
+
+    Returns:
+        Standardized error dict: {"error": {"message": ..., "code": ...}}
+    """
+    return {"error": {"message": message, "code": code}}

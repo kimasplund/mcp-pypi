@@ -5,6 +5,42 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-01-26
+
+### 🚨 Breaking Changes
+- **BREAKING**: Upgraded from mcp SDK's built-in FastMCP to standalone fastmcp 2.14.4
+
+### 🔧 Improvements
+- Refactored server module from monolithic ~2800 lines to modular architecture
+- Refactored core module from ~2770 lines to mixin-based architecture
+- Refactored CLI module to command-based structure
+- FastMCP initialization compatibility with current API (removed unsupported description parameter)
+- Transport handling for HTTP mode with proper host/port configuration
+
+### 🚀 New Features
+- **Tool annotations**: Added readOnlyHint and openWorldHint for LLM safety hints
+- **Tool tags**: Added categorization tags (security, package, dependencies, file, search)
+- **Modern FastMCP 2.14.4 features**: instructions parameter, improved transport handling
+- **New modular tool files**:
+  - package_tools.py
+  - search_tools.py
+  - dependency_tools.py
+  - vulnerability_tools.py
+  - audit_tools.py
+  - file_tools.py
+- **New core mixin modules**:
+  - package_ops.py
+  - dependency_ops.py
+  - vulnerability_ops.py
+  - feed_ops.py
+  - requirements_ops.py
+  - search_ops.py
+- **New CLI command modules**:
+  - package_commands.py
+  - search_commands.py
+  - feed_commands.py
+  - cache_commands.py
+
 ## [2.7.1] - 2025-06-24
 
 ### 🔧 Improvements
@@ -253,6 +289,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Advanced caching system
 - Multiple transport options
 
+[3.0.0]: https://github.com/kimasplund/mcp-pypi/compare/v2.7.1...v3.0.0
 [2.6.1]: https://github.com/kimasplund/mcp-pypi/compare/v2.6.0...v2.6.1
 [2.2.0]: https://github.com/kimasplund/mcp-pypi/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/kimasplund/mcp-pypi/compare/v2.0.0...v2.1.0

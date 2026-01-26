@@ -4,6 +4,7 @@
 [![License](https://img.shields.io/pypi/l/mcp-pypi.svg)](https://github.com/kimasplund/mcp-pypi/blob/main/LICENSE)
 [![Python](https://img.shields.io/pypi/pyversions/mcp-pypi.svg)](https://pypi.org/project/mcp-pypi/)
 [![Downloads](https://img.shields.io/pypi/dm/mcp-pypi.svg)](https://pypi.org/project/mcp-pypi/)
+[![Powered by FastMCP](https://img.shields.io/badge/Powered%20by-FastMCP%202.14.4-blue)](https://github.com/modelcontextprotocol/python-sdk)
 
 A security-focused Model Context Protocol (MCP) server that helps AI agents write safer Python code. Search packages, scan for vulnerabilities, audit dependencies, and ensure security across your entire Python project.
 
@@ -23,6 +24,8 @@ MCP-PyPI is a security-focused Model Context Protocol server that empowers AI as
 - **📊 Risk Assessment & Scoring** - Security scores, fix time estimates, and prioritized remediation plans
 - **⚡ Smart Caching** - Fast vulnerability checks with configurable TTL for different data types
 - **🚀 Version Management** - Track releases, compare versions, identify security updates
+- **🤖 LLM-Safe Tool Annotations** - FastMCP 2.14.4 powered with tool annotations for safe AI agent interactions
+- **🧩 Modular Architecture** - Clean separation of tools, operations, and CLI for maintainability
 
 ### 🤔 Why Security Matters
 
@@ -40,6 +43,7 @@ When AI assistants suggest Python packages, they might unknowingly recommend pac
 - Python 3.10 or higher
 - pip package manager
 - Virtual environment (recommended)
+- fastmcp>=2.14.4 (installed automatically)
 
 ### Installation
 
@@ -420,7 +424,7 @@ This project is dual-licensed:
 - Built on the [Model Context Protocol](https://modelcontextprotocol.io/)
 - Powered by the [Python Package Index](https://pypi.org/)
 - Security scanning via [OSV (Open Source Vulnerabilities)](https://osv.dev/) database by Google
-- Enhanced with [FastMCP](https://github.com/modelcontextprotocol/python-sdk)
+- Enhanced with [FastMCP 2.14.4](https://github.com/modelcontextprotocol/python-sdk) - tool annotations for LLM safety
 
 ## 📞 Support
 

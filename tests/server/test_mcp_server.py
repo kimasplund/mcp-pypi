@@ -58,7 +58,6 @@ async def test_pypi_mcp_server_init(mock_pypi_client, mock_fastmcp):
     mock_fastmcp.assert_called_once()
     call_kwargs = mock_fastmcp.call_args.kwargs
     assert call_kwargs.get("name") == "PyPI MCP Server"
-    assert "description" in call_kwargs
 
 
 @pytest.mark.asyncio
