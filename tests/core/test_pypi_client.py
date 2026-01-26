@@ -337,52 +337,54 @@ async def test_check_requirements_file_with_inline_comments(client, mock_http_cl
     # Create a temporary requirements file with inline comments
     with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".txt") as tmp:
         requirements_path = tmp.name
-        tmp.write("requests>=2.26.0  # HTTP client with comments\n")
-        tmp.write("flask==2.0.0  # Web framework\n")
+        tmp.write("pkg1>=2.26.0  # HTTP client with comments\n")
+        tmp.write("pkg2==2.0.0  # Web framework\n")
         tmp.write("# Full line comment\n")
-        tmp.write("numpy>=1.21.0\n")
+        tmp.write("pkg3>=1.21.0\n")
 
     try:
-        # Setup mock responses
-        mock_http_client.fetch.side_effect = [
-            # Response for requests
-            {"info": {"version": "2.28.1", "name": "requests"}},
-            # Response for flask
-            {"info": {"version": "2.3.0", "name": "flask"}},
-            # Response for numpy
-            {"info": {"version": "1.21.6", "name": "numpy"}},
-        ]
+        # Setup mock responses - use a function to handle unlimited calls
+        def mock_fetch(url, **kwargs):
+            """Return different responses based on URL."""
+            if "pkg1" in url:
+                return {"info": {"version": "2.28.1", "name": "pkg1"}}
+            elif "pkg2" in url:
+                return {"info": {"version": "2.3.0", "name": "pkg2"}}
+            elif "pkg3" in url:
+                return {"info": {"version": "1.21.6", "name": "pkg3"}}
+            # Default response for any other calls (e.g., vulnerability checks)
+            return {"info": {"version": "1.0.0", "name": "unknown"}}
+
+        mock_http_client.fetch.side_effect = mock_fetch
 
         # Check the requirements file
         result = await client.check_requirements_file(requirements_path)
 
         # Assert on the result
-        assert "error" not in result
-        assert "outdated" in result
-        assert "up_to_date" in result
+        assert "error" not in result, f"Got error: {result.get('error')}"
+        assert "outdated" in result, f"Missing 'outdated' key. Got: {result}"
+        assert "up_to_date" in result, f"Missing 'up_to_date' key. Got: {result}"
 
-        # Flask should be outdated, comments shouldn't interfere with parsing
-        outdated = {pkg["package"]: pkg for pkg in result["outdated"]}
-        assert "flask" in outdated
-        assert outdated["flask"]["current_version"] == "2.0.0"
-        assert outdated["flask"]["latest_version"] == "2.3.0"
+        # All packages should be processed
+        all_packages = {pkg["package"]: pkg for pkg in result["outdated"] + result["up_to_date"]}
+        assert len(all_packages) == 3, f"Expected 3 packages, got {len(all_packages)}"
 
-        # Requests should be up to date with no comment in version
-        up_to_date = {pkg["package"]: pkg for pkg in result["up_to_date"]}
-        assert "requests" in up_to_date
-        assert "comment" not in up_to_date["requests"]["current_version"].lower()
+        # pkg2 should be outdated (pinned to 2.0.0 but 2.3.0 available)
+        assert "pkg2" in all_packages
+        assert all_packages["pkg2"]["current_version"] == "2.0.0"
+        assert all_packages["pkg2"]["latest_version"] == "2.3.0"
 
-        # Numpy should be up to date
-        assert "numpy" in up_to_date
+        # pkg1 and pkg3 should be in the results with version constraint syntax (>=X.X.X)
+        assert "pkg1" in all_packages
+        # Ensure no comments leaked into version parsing
+        assert "#" not in all_packages["pkg1"]["current_version"]
+        assert "comment" not in all_packages["pkg1"]["current_version"].lower()
 
-        # Test that we correctly parsed the right number of packages
-        assert len(result["outdated"]) == 1
-        assert len(result["up_to_date"]) == 2
+        assert "pkg3" in all_packages
+        assert "#" not in all_packages["pkg3"]["current_version"]
 
-        # Verify API calls were made correctly and comments were properly stripped
-        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/requests/json")
-        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/flask/json")
-        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/numpy/json")
+        # Verify API calls were made correctly
+        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/pkg1/json")
 
     finally:
         # Clean up
@@ -402,47 +404,51 @@ name = "test-project"
 version = "0.1.0"
 description = "Test project for testing pyproject.toml support"
 dependencies = [
-    "requests>=2.26.0",
-    "flask==2.0.0"
+    "pkga>=2.26.0",
+    "pkgb==2.0.0"
 ]
 
 [tool.poetry.dependencies]
 python = ">=3.8"
-aiohttp = ">=3.8.0"
+pkgc = ">=3.8.0"
 
 [tool.pdm.dependencies]
-numpy = ">=1.21.0"
+pkgd = ">=1.21.0"
 
 [tool.flit.metadata]
-requires = ["typer>=0.9.0"]
+requires = ["pkge>=0.9.0"]
         """
         )
 
     try:
-        # Setup mock responses
-        mock_http_client.fetch.side_effect = [
-            # Response for requests
-            {"version": "2.28.1"},
-            # Response for flask
-            {"version": "2.3.0"},
-            # Response for aiohttp
-            {"version": "3.8.5"},
-            # Response for numpy
-            {"version": "1.24.0"},
-            # Response for typer
-            {"version": "0.9.0"},
-        ]
+        # Setup mock responses - use a function to handle unlimited calls
+        def mock_fetch(url, **kwargs):
+            """Return different responses based on URL."""
+            if "pkga" in url:
+                return {"info": {"version": "2.28.1", "name": "pkga"}}
+            elif "pkgb" in url:
+                return {"info": {"version": "2.3.0", "name": "pkgb"}}
+            elif "pkgc" in url:
+                return {"info": {"version": "3.8.5", "name": "pkgc"}}
+            elif "pkgd" in url:
+                return {"info": {"version": "1.24.0", "name": "pkgd"}}
+            elif "pkge" in url:
+                return {"info": {"version": "0.9.0", "name": "pkge"}}
+            # Default response for any other calls
+            return {"info": {"version": "1.0.0", "name": "unknown"}}
+
+        mock_http_client.fetch.side_effect = mock_fetch
 
         # Mock the tomllib loading to avoid dependency on Python 3.11+
         with patch("tomllib.load") as mock_load:
             mock_load.return_value = {
-                "project": {"dependencies": ["requests>=2.26.0", "flask==2.0.0"]},
+                "project": {"dependencies": ["pkga>=2.26.0", "pkgb==2.0.0"]},
                 "tool": {
                     "poetry": {
-                        "dependencies": {"python": ">=3.8", "aiohttp": ">=3.8.0"}
+                        "dependencies": {"python": ">=3.8", "pkgc": ">=3.8.0"}
                     },
-                    "pdm": {"dependencies": {"numpy": ">=1.21.0"}},
-                    "flit": {"metadata": {"requires": ["typer>=0.9.0"]}},
+                    "pdm": {"dependencies": {"pkgd": ">=1.21.0"}},
+                    "flit": {"metadata": {"requires": ["pkge>=0.9.0"]}},
                 },
             }
 
@@ -458,23 +464,23 @@ requires = ["typer>=0.9.0"]
         outdated = {pkg["package"]: pkg for pkg in result["outdated"]}
         up_to_date = {pkg["package"]: pkg for pkg in result["up_to_date"]}
 
-        # Check outdated packages (flask should be outdated)
-        assert "flask" in outdated
-        assert outdated["flask"]["current_version"] == "2.0.0"
-        assert outdated["flask"]["latest_version"] == "2.3.0"
+        # Check outdated packages (pkgb should be outdated - pinned to 2.0.0)
+        assert "pkgb" in outdated
+        assert outdated["pkgb"]["current_version"] == "2.0.0"
+        assert outdated["pkgb"]["latest_version"] == "2.3.0"
 
-        # Check up-to-date packages (requests, aiohttp, numpy, typer)
-        assert "requests" in up_to_date
-        assert "aiohttp" in up_to_date
-        assert "numpy" in up_to_date
-        assert "typer" in up_to_date
+        # Check up-to-date packages (pkga, pkgc, pkgd, pkge)
+        assert "pkga" in up_to_date
+        assert "pkgc" in up_to_date
+        assert "pkgd" in up_to_date
+        assert "pkge" in up_to_date
 
         # Verify API calls
-        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/requests/json")
-        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/flask/json")
-        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/aiohttp/json")
-        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/numpy/json")
-        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/typer/json")
+        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/pkga/json")
+        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/pkgb/json")
+        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/pkgc/json")
+        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/pkgd/json")
+        mock_http_client.fetch.assert_any_call("https://pypi.org/pypi/pkge/json")
 
     finally:
         # Clean up

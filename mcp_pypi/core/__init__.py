@@ -1584,6 +1584,7 @@ class PyPIClient:
                 # Get current version from requirement specifier
                 current_version = ""
                 is_outdated = False
+                security_recommendation = None
 
                 # Handle different types of version specifiers
                 if req.specifier:
