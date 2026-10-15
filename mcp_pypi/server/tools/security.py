@@ -160,10 +160,18 @@ def _to_item(
     )
 
 
+def _dedupe_installed(installed: list[tuple[str, str]]) -> list[Key]:
+    """One entry per PEP 503 name, keeping the first (the one Python imports from sys.path)."""
+    first: dict[str, Key] = {}
+    for name, version in installed:
+        first.setdefault(normalize(name), (name, version))
+    return list(first.values())
+
+
 _LIST_SCRIPT = (
     "import importlib.metadata as m, json\n"
-    "print(json.dumps([[d.metadata['Name'], d.version] for d in m.distributions()"
-    " if d.metadata['Name'] and d.version]))"
+    "print(json.dumps([[d.metadata.get('Name'), d.version] for d in m.distributions()"
+    " if d.metadata.get('Name') and d.version]))"
 )
 
 
@@ -388,7 +396,7 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
                 raise ToolError(f"Cannot read file: {message or 'Invalid environment path'}")
         env_path, python_exe = _find_environment(environment_path)
         installed = await _list_installed(python_exe)
-        pairs: list[Key] = list({normalize(n): (n, v) for n, v in installed}.values())
+        pairs = _dedupe_installed(installed)
         await ctx.report_progress(0, max(1, len(pairs)))
 
         vulnerable: list[PackageVulnerabilities] = []

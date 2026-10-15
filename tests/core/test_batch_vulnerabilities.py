@@ -232,3 +232,46 @@ async def test_check_vulnerabilities_pagination_last_page(
     assert result["limit"] == 5
     assert result["offset"] == 3
     assert not result["has_more"]
+
+
+def _osv_vuln(vid: str, name: str, severity: str) -> dict:
+    return {
+        "id": vid,
+        "summary": "s",
+        "database_specific": {"severity": severity},
+        "affected": [
+            {
+                "package": {"name": name, "ecosystem": "PyPI"},
+                "ranges": [{"events": [{"introduced": "0"}, {"fixed": "99"}]}],
+            }
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_batch_counts_moderate_as_medium_and_sorts_it_before_low(client, mock_http_client):
+    vulns = [
+        _osv_vuln("L", "django", "LOW"),
+        _osv_vuln("M", "django", "MODERATE"),
+        _osv_vuln("H", "django", "HIGH"),
+    ]
+    mock_http_client.fetch.return_value = {"results": [{"vulns": vulns}, {"vulns": []}]}
+    result = await client.check_vulnerabilities_batch([("Django", "4.2"), ("flask", "3.0")])
+    res = result["results"]["django:4.2"]
+    assert (res["high_count"], res["medium_count"], res["low_count"]) == (1, 1, 1)
+    assert [v["id"] for v in res["vulnerabilities"]] == ["H", "M", "L"]
+
+
+@pytest.mark.asyncio
+async def test_single_counts_moderate_as_medium_and_sorts_it_before_low(client, mock_http_client):
+    vulns = [_osv_vuln("L", "django", "LOW"), _osv_vuln("M", "django", "MODERATE")]
+
+    async def fetch(url, *args, **kwargs):
+        if kwargs.get("data") is None:
+            return {"info": {"name": "django", "version": "4.2"}}
+        return {"vulns": vulns}
+
+    mock_http_client.fetch.side_effect = fetch
+    res = await client.check_vulnerabilities("django", "4.2")
+    assert res["medium_count"] == 1
+    assert [v["id"] for v in res["vulnerabilities"]] == ["M", "L"]

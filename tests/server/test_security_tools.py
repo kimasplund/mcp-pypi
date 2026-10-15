@@ -308,6 +308,21 @@ async def test_batch_lookup_handles_mixed_case_and_underscores(real):
     assert [r["package"] for r in d["results"]][0] == "Django"
 
 
+async def test_moderate_advisories_count_as_medium(real):
+    _client, c, db = real
+    db["django"] = [osv("D-1", "Django", "HIGH"), osv("D-2", "Django", "MODERATE")]
+    db["flask"] = [osv("F-1", "flask", "MODERATE")]
+    d = (
+        await c.call_tool("check_vulnerabilities", {"packages": ["Django==4.2", "flask==3.0"]})
+    ).structured_content
+    assert d["severity_counts"] == {"critical": 0, "high": 1, "medium": 2, "low": 0, "unknown": 0}
+
+
+def test_scan_dedupe_keeps_first_distribution():
+    installed = [("Dup", "2.0"), ("other", "1"), ("dup", "1.0")]
+    assert security._dedupe_installed(installed) == [("Dup", "2.0"), ("other", "1")]
+
+
 async def test_transitive_handles_requires_dist_spelling(real):
     client, c, db = real
     client.get_dependency_tree = _tree_mock(
