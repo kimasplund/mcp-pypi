@@ -106,3 +106,70 @@ class DownloadStats(BaseModel):
     last_week: int | None = None
     last_month: int | None = None
     source: str = "pypistats.org"
+
+
+class DependencyEntry(BaseModel):
+    name: str
+    specifier: str = ""
+    extras: list[str] = Field(default_factory=list)
+    marker: str | None = None
+
+
+class DependencyNode(BaseModel):
+    name: str
+    version: str | None = None
+    cycle: bool = False
+    dependencies: list[DependencyNode] = Field(default_factory=list)
+
+
+DependencyNode.model_rebuild()
+
+
+class Dependencies(BaseModel):
+    package_name: str
+    version: str | None = None
+    depth: int
+    dependencies: list[DependencyEntry] = Field(default_factory=list)
+    tree: DependencyNode | None = None
+
+
+class PackageCheck(BaseModel):
+    name: str
+    normalized_name: str
+    exists: bool
+    latest_version: str | None = None
+    summary: str | None = None
+    error: str | None = None
+
+
+class PackageChecks(BaseModel):
+    results: list[PackageCheck] = Field(default_factory=list)
+    total: int
+    missing: list[str] = Field(default_factory=list)
+
+
+class PackageVulnerabilities(BaseModel):
+    package: str
+    version: str | None = None
+    vulnerable: bool = False
+    vulnerabilities: list[VulnerabilityItem] = Field(default_factory=list)
+    introduced_via: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
+class VulnerabilityReport(BaseModel):
+    results: list[PackageVulnerabilities] = Field(default_factory=list)
+    total_packages: int
+    vulnerable_packages: int
+    total_vulnerabilities: int
+    severity_counts: dict[str, int] = Field(default_factory=dict)
+    transitive_checked: bool = False
+
+
+class InstalledScan(BaseModel):
+    environment_path: str | None = None
+    packages_scanned: int
+    vulnerable: list[PackageVulnerabilities] = Field(default_factory=list)
+    all_clear: bool
+    update_commands: list[str] = Field(default_factory=list)
+    recommendation: str
