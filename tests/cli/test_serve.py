@@ -16,7 +16,40 @@ def test_http_transport_runs_streamable_http():
     with patch.object(FastMCP, "run") as run:
         result = runner.invoke(app, ["serve", "--transport", "http", "--port", "9000"])
     assert result.exit_code == 0, result.output
-    run.assert_called_once_with(transport="http", host="127.0.0.1", port=9000)
+    run.assert_called_once_with(
+        transport="http", host="127.0.0.1", port=9000, host_origin_protection="auto"
+    )
+
+
+def _served_http_app(*args: str):
+    """Run `serve --transport http ...` up to the point uvicorn would start; return the app."""
+    import uvicorn
+
+    apps = []
+
+    async def fake_serve(self, sockets=None):
+        apps.append(self.config.app)
+
+    with patch.object(uvicorn.Server, "serve", fake_serve):
+        result = runner.invoke(app, ["serve", "--transport", "http", *args])
+    assert result.exit_code == 0, result.output
+    (served,) = apps
+    return served
+
+
+def test_http_rejects_foreign_host_and_origin():
+    """DNS-rebinding protection: the MCP transport spec requires Origin validation."""
+    from starlette.testclient import TestClient
+
+    client = TestClient(_served_http_app("--port", "9000"), base_url="http://127.0.0.1:9000")
+    ok = client.get("/not-mcp")  # passes the guard, then 404 from routing
+    assert ok.status_code == 404
+    evil_host = client.post("/mcp", headers={"Host": "evil.example.com"}, json={})
+    assert evil_host.status_code == 421
+    evil_origin = client.post("/mcp", headers={"Origin": "http://evil.example.com"}, json={})
+    assert evil_origin.status_code == 403
+    same_origin = client.get("/not-mcp", headers={"Origin": "http://127.0.0.1:9000"})
+    assert same_origin.status_code == 404
 
 
 def test_stdio_default():

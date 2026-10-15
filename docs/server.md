@@ -66,7 +66,7 @@ Failures raise `ToolError`, which FastMCP sends as a tool result with `isError: 
 - File and directory arguments are checked before use (empty paths and `..` traversal are rejected). Run the server as a user that can read only what you are willing to expose to the assistant.
 - `scan_installed_packages` reads package metadata from the target environment's `site-packages` without running anything from it (no interpreter, no `.pth` files). It only accepts a venv (`pyvenv.cfg`) or conda environment (`conda-meta/`) and never falls back to scanning a different environment.
 - No credentials are stored or required. Requests go to `pypi.org`, `api.osv.dev`, `pypistats.org` and, for search ranking, `hugovk.github.io`.
-- The HTTP transport has no authentication; keep it bound to loopback (the default) unless the network is trusted.
+- The HTTP transport has no authentication; keep it bound to loopback (the default) unless the network is trusted. On loopback it rejects foreign `Host` and `Origin` headers (DNS-rebinding protection, fastmcp `host_origin_protection="auto"`).
 
 ## Data sources
 

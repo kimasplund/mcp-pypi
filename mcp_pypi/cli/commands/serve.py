@@ -144,7 +144,9 @@ def serve_command(
         logger.info("Starting PyPI MCP server with %s transport", transport)
         if transport == "http":
             logger.info("Streamable HTTP endpoint: http://%s:%s/mcp", host, port)
-            server.run(transport="http", host=host, port=port)
+            # Validate Host/Origin (DNS-rebinding protection, required by the MCP transport
+            # spec): "auto" guards loopback-bound servers; fastmcp's default is off.
+            server.run(transport="http", host=host, port=port, host_origin_protection="auto")
         else:
             server.run(transport="stdio")
     except KeyboardInterrupt:

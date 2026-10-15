@@ -76,7 +76,7 @@ asyncio.run(main())
 
 ### Security
 
-The HTTP transport has no authentication or TLS. By default it binds to loopback only, so just local processes can reach it. If you bind to another address, put it behind a reverse proxy that provides authentication and TLS, or restrict access at the network level. Anyone who can reach the endpoint can make the server read dependency files and scan environments on its host (`audit_project`, `scan_installed_packages`).
+The HTTP transport has no authentication or TLS. By default it binds to loopback only, so just local processes can reach it. On a loopback address it also checks the `Host` and `Origin` headers, as the MCP transport specification requires: a request whose `Host` is not a loopback name gets HTTP 421 and one from a foreign browser `Origin` gets HTTP 403, so a web page cannot reach the server through DNS rebinding. If you bind to another address, put it behind a reverse proxy that provides authentication and TLS, or restrict access at the network level. Anyone who can reach the endpoint can make the server read dependency files and scan environments on its host (`audit_project`, `scan_installed_packages`).
 
 ## Troubleshooting
 

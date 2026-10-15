@@ -14,6 +14,7 @@ mcp-pypi 4.0 is a rework of the server and tool set. If you only use it through 
 - **23 tools are now 11** (mapping below). Tool names, parameters and result shapes changed.
 - Tools return typed structured output with an `outputSchema`. Failures are reported as MCP tool errors (`isError`) instead of `{"error": ...}` results.
 - **SSE transport removed.** HTTP mode is streamable HTTP only, at `http://127.0.0.1:8143/mcp`; the `/sse` endpoint is gone.
+- HTTP mode on a loopback address rejects requests whose `Host` header is not a loopback name (HTTP 421) or whose `Origin` is another site (HTTP 403), as DNS-rebinding protection.
 - The hardcoded MCP protocol version is removed; the SDK negotiates it.
 - Python 3.11 or newer is required (3.10 is no longer supported).
 - Now built on fastmcp 4.1 (MCP Python SDK 2.x).
