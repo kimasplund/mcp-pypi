@@ -1,14 +1,11 @@
-# OSV Scanner Configuration
-# This file configures how OSV Scanner runs in our project
-
-[[IgnoredVulns]]
-id = "GHSA-5jqp-qgf6-3pvh"
-reason = "This vulnerability affects pydantic < 1.8.2, we're using >=2.11.7"
-
-[[IgnoredVulns]]
-id = "PYSEC-2021-47"
-reason = "This vulnerability affects pydantic < 1.8.2, we're using >=2.11.7"
-
-[[IgnoredVulns]]
-id = "GHSA-mr82-8j83-vxmv"
-reason = "This vulnerability affects pydantic < 2.4.0, we're using >=2.11.7"
+# OSV Scanner configuration.
+#
+# To ignore a finding, add an entry like the one below with a reason that says why
+# it does not apply, and remove it once the dependency is upgraded:
+#
+# [[IgnoredVulns]]
+# id = "GHSA-xxxx-xxxx-xxxx"
+# reason = "Why this does not affect mcp-pypi"
+#
+# No findings are ignored at the moment. The old pydantic entries targeted
+# pydantic < 1.8.2 / < 2.4.0; uv.lock pins pydantic 2.14.

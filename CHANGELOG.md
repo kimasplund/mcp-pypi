@@ -5,6 +5,61 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - Unreleased
+
+mcp-pypi 4.0 is a rework of the server and tool set. If you only use it through an MCP client, update the client config to `uvx mcp-pypi serve` (see the README) and let your assistant discover the new tools. If you import `mcp_pypi` in Python or run the HTTP server, read the breaking changes below.
+
+### Breaking changes
+
+- **23 tools are now 11** (mapping below). Tool names, parameters and result shapes changed.
+- Tools return typed structured output with an `outputSchema`. Failures are reported as MCP tool errors (`isError`) instead of `{"error": ...}` results.
+- **SSE transport removed.** HTTP mode is streamable HTTP only, at `http://127.0.0.1:8143/mcp`; the `/sse` endpoint is gone.
+- The hardcoded MCP protocol version is removed; the SDK negotiates it.
+- Python 3.11 or newer is required (3.10 is no longer supported).
+- Now built on fastmcp 4.1 (MCP Python SDK 2.x).
+- Removed Python modules: `mcp_pypi.client`, `mcp_pypi.cli.server` (`RPCServer`), `mcp_pypi.utils.cache`, `mcp_pypi.utils.common`, `mcp_pypi.core.requirements_ops`, and the `PyPIMCPServer` class. Use `mcp_pypi.server.build_server(config)`, which returns a `fastmcp.FastMCP` instance.
+- Extras `[all]`, `[viz]`, `[search]` and `[docs]` are removed. A plain `pip install mcp-pypi` has everything; `[http]` is not needed either.
+- License is now MIT only. The commercial license was dropped.
+- The User-Agent is now `mcp-pypi/<version> (+https://github.com/kimasplund/mcp-pypi)`.
+- CLI changes:
+  - `search` takes `--limit` instead of `--page`.
+  - `stats downloads` no longer has `--version` or the monthly table; it reports the pypistats last day, week and month.
+  - `check-requirements` now runs the full project audit (vulnerable, outdated and unchecked dependencies) and accepts a project directory or a dependency file. It exits `1` if any dependency is vulnerable, `2` on an error and `0` otherwise; an audit that leaves some dependencies unchecked but finds no vulnerabilities exits `0`. Its `--color/--no-color` option is removed.
+
+### Tool mapping (v3 to v4)
+
+| # | v4.0 tool | Signature | Replaces (v3) |
+|---|---|---|---|
+| 1 | `search_packages` | `(query: str, limit: int = 10)` | `search_packages` |
+| 2 | `get_package` | `(package_name: str, version: str \| None = None)` | `get_package_info`, `get_package_metadata`, `get_latest_version`, `check_package_exists`, `get_package_documentation` |
+| 3 | `get_package_versions` | `(package_name: str, limit: int = 20, offset: int = 0, sort: Literal["newest","oldest"] = "newest")` | `get_package_releases`, `list_package_versions` |
+| 4 | `compare_versions` | `(package_name: str, version1: str, version2: str)` | `compare_versions` |
+| 5 | `get_package_changelog` | `(package_name: str, version: str \| None = None)` | `get_package_changelog` |
+| 6 | `get_download_stats` | `(package_name: str)` | `get_package_stats` |
+| 7 | `get_dependencies` | `(package_name: str, version: str \| None = None, depth: int = 1)` | `get_dependencies`, `get_dependency_tree` |
+| 8 | `check_packages` | `(names: list[str])` | `batch_check_packages` |
+| 9 | `check_vulnerabilities` | `(packages: list[str], include_transitive: bool = False, max_depth: int = 2)` | `check_vulnerabilities`, `batch_check_vulnerabilities`, `scan_dependency_vulnerabilities` |
+| 10 | `audit_project` | `(path: str, detail: Literal["summary","full"] = "summary")` | `security_audit_project`, `quick_security_check`, `get_security_report`, `check_requirements_txt`, `check_pyproject_toml` |
+| 11 | `scan_installed_packages` | `(environment_path: str \| None = None)` | `scan_installed_packages` |
+
+Removed without replacement: ANSI-colour report formatting and the `output_format` parameters (use `detail` on `audit_project`; the other tools always return structured data).
+
+### Added
+
+- `audit_project`: audits a directory or a single file. Supported: `requirements*.txt`, `constraints*.txt`, `pyproject.toml` (including Poetry), `setup.py` (parsed, never executed), `setup.cfg`, `Pipfile`, `Pipfile.lock`, `poetry.lock` and the pip section of conda `environment.yml`.
+- `check_packages`: verifies that package names exist (with latest version and summary) so assistants can check names before suggesting them.
+- Prompts now take arguments (`analyze_dependencies`, `compare_packages`).
+- CI on every push and pull request, and a release workflow that publishes to PyPI with Trusted Publishing.
+
+### Fixed
+
+- **Search works again.** PyPI's HTML search page is behind a JavaScript challenge. `search_packages` now searches the PyPI Simple index of package names locally and ranks by name match and download popularity. It matches package names, not full descriptions. The index is cached on disk (see `docs/caching.md`).
+- Download stats no longer fabricate numbers when pypistats is unavailable; the call fails instead.
+- Vulnerability checks match mixed-case and underscore names (`Django`, `PyYAML`, `typing_extensions`) and count GitHub advisory `MODERATE` severity as medium.
+- Installed-package scans work in uv-created virtualenvs that have no pip, and never silently scan an unrelated environment.
+- Audits never report unchecked dependencies or unreadable files as clean.
+- Upper-bound-only constraints (for example `urllib3<2`) are checked at the highest allowed release instead of an arbitrary one.
+
 ## [3.0.0] - 2026-01-26
 
 ### 🚨 Breaking Changes

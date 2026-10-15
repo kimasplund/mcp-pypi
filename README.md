@@ -1,123 +1,66 @@
 # 🐍 MCP-PyPI
 
 [![PyPI](https://img.shields.io/pypi/v/mcp-pypi.svg)](https://pypi.org/project/mcp-pypi/)
-[![License](https://img.shields.io/pypi/l/mcp-pypi.svg)](https://github.com/kimasplund/mcp-pypi/blob/main/LICENSE)
 [![Python](https://img.shields.io/pypi/pyversions/mcp-pypi.svg)](https://pypi.org/project/mcp-pypi/)
+[![License](https://img.shields.io/pypi/l/mcp-pypi.svg)](https://github.com/kimasplund/mcp-pypi/blob/main/LICENSE)
 [![Downloads](https://img.shields.io/pypi/dm/mcp-pypi.svg)](https://pypi.org/project/mcp-pypi/)
-[![Powered by FastMCP](https://img.shields.io/badge/Powered%20by-FastMCP%202.14.4-blue)](https://github.com/modelcontextprotocol/python-sdk)
 
-A security-focused Model Context Protocol (MCP) server that helps AI agents write safer Python code. Search packages, scan for vulnerabilities, audit dependencies, and ensure security across your entire Python project.
+A Model Context Protocol (MCP) server that gives AI assistants accurate PyPI data and vulnerability checks, so the dependencies they suggest exist, are current, and have no known security advisories.
 
-## ✨ What is MCP-PyPI?
+Upgrading from 3.x? The tool set changed. See [Upgrading from 3.x](CHANGELOG.md#400---unreleased).
 
-MCP-PyPI is a security-focused Model Context Protocol server that empowers AI assistants to write safer Python code. Beyond basic package information, it provides comprehensive vulnerability scanning, dependency auditing, and proactive security recommendations to ensure AI-generated code uses secure, up-to-date dependencies.
+## What it does
 
-**🛡️ Security First**: Every tool is designed to encourage security best practices, from checking vulnerabilities before suggesting packages to scanning entire project dependency trees for hidden risks.
-
-### 🎯 Key Features
-
-- **🛡️ Comprehensive Security Scanning** - Check vulnerabilities using OSV database across packages, dependencies, and entire projects
-- **🔍 Security-Aware Package Search** - Find safe packages from 500,000+ options with vulnerability status
-- **📋 Project-Wide Security Audits** - Scan requirements.txt, pyproject.toml, and installed environments
-- **🔗 Deep Dependency Analysis** - Detect vulnerabilities in transitive dependencies others might miss
-- **🚨 Proactive Security Alerts** - Get warnings before adding vulnerable packages to projects
-- **📊 Risk Assessment & Scoring** - Security scores, fix time estimates, and prioritized remediation plans
-- **⚡ Smart Caching** - Fast vulnerability checks with configurable TTL for different data types
-- **🚀 Version Management** - Track releases, compare versions, identify security updates
-- **🤖 LLM-Safe Tool Annotations** - FastMCP 2.14.4 powered with tool annotations for safe AI agent interactions
-- **🧩 Modular Architecture** - Clean separation of tools, operations, and CLI for maintainability
-
-### 🤔 Why Security Matters
-
-When AI assistants suggest Python packages, they might unknowingly recommend packages with known vulnerabilities. MCP-PyPI ensures that:
-
-- **Before Installation**: AI checks for vulnerabilities before suggesting any package
-- **During Development**: Continuous scanning catches new vulnerabilities in existing dependencies  
-- **Before Deployment**: Comprehensive audits ensure production code is secure
-- **Transitive Safety**: Hidden vulnerabilities in dependencies-of-dependencies are detected
+- Looks up package metadata, versions, dependencies, changelogs and download counts from PyPI.
+- Checks packages against the [OSV](https://osv.dev/) vulnerability database, optionally including transitive dependencies.
+- Audits a project: `requirements*.txt`, `constraints*.txt`, `pyproject.toml` (including Poetry), `setup.py` (parsed, never executed), `setup.cfg`, `Pipfile`, `Pipfile.lock`, `poetry.lock` and conda `environment.yml` (pip section).
+- Scans an installed environment (a virtualenv) for vulnerable packages.
+- Verifies that package names exist before an assistant recommends them (`check_packages`).
+- Returns typed, structured results with an output schema, and reports failures as MCP tool errors.
 
 ## 🚀 Quick Start
 
-### System Requirements
-
-- Python 3.10 or higher
-- pip package manager
-- Virtual environment (recommended)
-- fastmcp>=2.14.4 (installed automatically)
-
-### Installation
+Requires Python 3.11 or newer.
 
 ```bash
-# Basic installation
+# Run without installing (recommended for MCP clients)
+uvx mcp-pypi serve
+
+# Or install it
 pip install mcp-pypi
-
-# With HTTP transport support
-pip install "mcp-pypi[http]"
-
-# With all features
-pip install "mcp-pypi[all]"
-```
-
-### Running the Server
-
-```bash
-# Start with default stdio transport (for Claude Desktop)
 mcp-pypi serve
-
-# Alternative stdio command (for compatibility)
-mcp-pypi stdio
-
-# Start with HTTP transport
-mcp-pypi serve --transport http
-
-# With custom cache directory
-mcp-pypi serve --cache-dir ~/.pypi-cache
 ```
+
+`serve` uses the stdio transport by default, which is what MCP clients that launch the server themselves expect. For HTTP, see [HTTP mode](#http-mode).
 
 ## 🤖 Using with Claude Desktop
 
-Add to your Claude Desktop configuration (`claude.json`):
+Add the server to your Claude Desktop configuration (`claude_desktop_config.json`):
 
 ```json
 {
-  "servers": {
-    "pypi": {
-      "command": "mcp-pypi",
-      "args": ["serve"],
-      "description": "Access Python package information from PyPI"
-    }
-  }
-}
-
-// Alternative using stdio command (equivalent to above)
-{
-  "servers": {
-    "pypi": {
-      "command": "mcp-pypi",
-      "args": ["stdio"],
-      "description": "Access Python package information from PyPI"
+  "mcpServers": {
+    "mcp-pypi": {
+      "command": "uvx",
+      "args": ["mcp-pypi", "serve"]
     }
   }
 }
 ```
+
+Restart Claude Desktop after saving. If you installed with `pip`, use `"command": "mcp-pypi"` and `"args": ["serve"]` instead (give the absolute path if Claude Desktop cannot find it).
 
 ## 🖥️ Using with Claude Code (Terminal)
 
-Add the MCP server to Claude Code:
-
 ```bash
-# Add the server (using serve command)
-claude mcp add mcp-pypi -- mcp-pypi serve
-
-# Alternative using stdio command
-claude mcp add mcp-pypi -- mcp-pypi stdio
-
-# The server will be available in your next Claude Code session
+claude mcp add mcp-pypi -- uvx mcp-pypi serve
 ```
+
+The server is available in your next Claude Code session.
 
 ## 🖱️ Using with Cursor IDE
 
-Cursor IDE supports MCP servers through configuration files. You can configure mcp-pypi either globally (available in all projects) or per-project.
+Cursor supports MCP servers through configuration files. Configure mcp-pypi globally (all projects) or per project.
 
 ### Quick Setup via Settings UI
 
@@ -146,8 +89,8 @@ Add mcp-pypi to your `mcp.json` file:
 {
   "mcpServers": {
     "mcp-pypi": {
-      "command": "mcp-pypi",
-      "args": ["serve"]
+      "command": "uvx",
+      "args": ["mcp-pypi", "serve"]
     }
   }
 }
@@ -159,8 +102,8 @@ Add mcp-pypi to your `mcp.json` file:
 {
   "mcpServers": {
     "mcp-pypi": {
-      "command": "mcp-pypi",
-      "args": ["serve", "--log-level", "DEBUG"],
+      "command": "uvx",
+      "args": ["mcp-pypi", "serve", "--log-level", "DEBUG"],
       "env": {
         "PYPI_CACHE_DIR": "/path/to/cache"
       }
@@ -181,258 +124,159 @@ Add mcp-pypi to your `mcp.json` file:
 | Issue | Solution |
 |-------|----------|
 | Tools not appearing | Ensure Cursor is in Agent Mode, not Ask Mode |
-| Server not starting | Check `mcp-pypi` is installed and in PATH |
+| Server not starting | Check `uvx` (or `mcp-pypi`) is installed and in PATH |
 | Configuration errors | Open Output panel (`Cmd+Shift+U`) and select "MCP Logs" |
 | Server crashes | Toggle server off/on in Settings without removing config |
 
+## 🌐 HTTP mode
+
+For clients that connect over the network instead of launching the server:
+
+```bash
+mcp-pypi serve --transport http
+```
+
+The server listens on `http://127.0.0.1:8143/mcp` (streamable HTTP). Change the bind address with `--host` and `--port`. There is no authentication, so only bind to a non-loopback address on a network you trust. See [docs/transports.md](docs/transports.md).
+
 ## 🛠️ Available Tools
 
-### Package Discovery
-- **search_packages** - 🔍 Search PyPI to discover Python packages
-- **get_package_info** - 📦 Get comprehensive package details
-- **check_package_exists** - ✅ Verify if a package exists on PyPI
+Eleven read-only tools. All of them return structured output with an output schema; failures are reported as MCP tool errors.
 
-### Version Management  
-- **get_latest_version** - 🚀 Check the latest available version
-- **get_package_releases** - 📅 Get detailed release information for a package
-- **list_package_versions** - 📚 List all available versions
-- **compare_versions** - 🔄 Compare two package versions
+| Tool | What it does |
+|------|--------------|
+| `search_packages` | Search PyPI package names and return ranked matches with summaries. |
+| `get_package` | Get metadata for a package: versions, license, URLs, classifiers and yank status. |
+| `get_package_versions` | List released versions with upload time, yank status and file types (paginated). |
+| `compare_versions` | Compare two versions of a package using PEP 440 ordering. |
+| `get_package_changelog` | Get changelog text from a package's project links or GitHub releases. |
+| `get_download_stats` | Get recent download counts (last day, week and month) from pypistats.org. |
+| `get_dependencies` | List the requirements of a package, optionally as a transitive tree (`depth` 1-5). |
+| `check_packages` | Check up to 100 package names on PyPI and report latest version and summary. |
+| `check_vulnerabilities` | Check up to 100 packages against OSV for known vulnerabilities, optionally with transitive dependencies. |
+| `audit_project` | Audit a project's dependency files for vulnerabilities, outdated pins and drift. |
+| `scan_installed_packages` | Scan a Python environment's installed packages for known vulnerabilities. |
 
-### Dependency Analysis
-- **get_dependencies** - 🔗 Analyze package dependencies
-- **get_dependency_tree** - 🌳 Visualize complete dependency tree
-- **check_vulnerabilities** - 🛡️ Scan for security vulnerabilities using OSV database
-- **scan_dependency_vulnerabilities** - 🛡️🔍 Deep scan entire dependency tree for vulnerabilities
+Parameters and result fields are documented in [docs/pypi.md](docs/pypi.md). The server also provides two prompts (`analyze_dependencies`, `compare_packages`, both taking arguments) and three read-only resources (`pypi://recent-releases`, `pypi://new-packages`, `pypi://updated-packages`).
 
-### Project Management
-- **check_requirements_txt** - 📋🛡️ Security audit requirements.txt files
-- **check_pyproject_toml** - 🎯🛡️ Security audit pyproject.toml dependencies
-- **scan_installed_packages** - 🛡️💻 Scan virtual/system environments for vulnerabilities
-- **security_audit_project** - 🛡️🔍🚨 Comprehensive project-wide security audit
-- **quick_security_check** - 🚦 Quick pass/fail security check for CI/CD
-- **get_security_report** - 🛡️📊 Beautiful, color-coded security report
+### Notes on search
 
-### Statistics & Info
-- **get_package_stats** - 📊 Get download statistics
-- **get_package_metadata** - 📋 Access complete metadata
-- **get_package_documentation** - 📖 Find documentation links
-- **get_package_changelog** - 📝 Get changelog information from GitHub releases
+PyPI's own search page sits behind a JavaScript challenge, so `search_packages` does not use it. It searches the PyPI Simple index of package names locally and ranks matches by name similarity and download popularity. It matches names, not descriptions, so name-like keywords (`web scraping` is weaker than `scrapy` or `beautifulsoup`) work best.
 
 ## 💡 Example Usage
 
-Once configured, you can ask Claude:
+Once configured, you can ask your assistant:
 
-- "Search for web scraping packages on PyPI"
-- "What's the latest version of Django?"
-- "Check if my requirements.txt has any outdated packages"
-- "Show me the dependencies for FastAPI"
-- "Find popular data visualization libraries"
-- "Compare pandas version 2.0.0 with 2.1.0"
+- "Does a package called `fastapi-users` exist, and what is its latest version?"
+- "Check my project's dependencies for known vulnerabilities."
+- "Show me the dependency tree for FastAPI, two levels deep."
+- "Compare pandas 2.0.0 with 2.1.0."
+- "Find packages with `scrape` in the name and pick the most popular."
 
-## 🔧 Advanced Configuration
+## 🔧 Configuration
 
 ### Environment Variables
 
-```bash
-# Custom cache directory
-export PYPI_CACHE_DIR=/path/to/cache
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PYPI_CACHE_DIR` | `<system temp dir>/pypi_mcp_cache` | Cache directory |
+| `PYPI_CACHE_TTL` | `604800` (1 week) | Cache TTL in seconds |
+| `PYPI_CACHE_MAX_SIZE` | `104857600` (100 MB) | Maximum cache size in bytes |
+| `PYPI_CACHE_STRATEGY` | `hybrid` | Accepted for compatibility; responses are always cached as files on disk |
+| `PYPI_VULNERABILITY_CACHE_TTL` | `3600` (1 hour) | TTL for vulnerability results, in seconds |
+| `PYPI_MAX_RETRIES` | `3` | Retries for failed requests |
+| `PYPI_RETRY_DELAY` | `1.0` | Base retry delay in seconds (exponential backoff) |
+| `PYPI_TIMEOUT` | `30.0` | Request timeout in seconds |
+| `PYPI_USER_AGENT` | `mcp-pypi/<version> (+https://github.com/kimasplund/mcp-pypi)` | User-Agent sent to PyPI and OSV |
 
-# Cache TTL (seconds)
-export PYPI_CACHE_TTL=3600
-
-# Vulnerability cache TTL (seconds) - default 1 hour
-export PYPI_VULNERABILITY_CACHE_TTL=3600
-
-# Custom user agent
-export PYPI_USER_AGENT="MyApp/1.0"
-```
+`mcp-pypi serve` also accepts `--cache-dir`, `--cache-strategy`, `--cache-ttl`, `--user-agent`, `--log-level`, `--host`, `--port` and `--transport`; flags take precedence over the environment. See [docs/caching.md](docs/caching.md) for how caching works.
 
 ### Programmatic Usage
 
 ```python
-from mcp_pypi.server import PyPIMCPServer
 from mcp_pypi.core.models import PyPIClientConfig
+from mcp_pypi.server import build_server
 
-# Custom configuration
-config = PyPIClientConfig(
-    cache_dir="/tmp/pypi-cache",
-    cache_ttl=7200,
-    cache_strategy="hybrid"
-)
+config = PyPIClientConfig(cache_dir="/tmp/pypi-cache", cache_ttl=7200)
+server = build_server(config)  # a fastmcp.FastMCP instance
 
-# Create and run server
-server = PyPIMCPServer(config=config)
-server.run(transport="http", host="0.0.0.0", port=8080)
-```
-
-## 📊 Performance
-
-- **Intelligent Caching**: Hybrid memory/disk caching with LRU/LFU/FIFO strategies
-- **Concurrent Requests**: Async architecture for parallel operations
-- **Minimal Overhead**: Direct PyPI API integration
-- **Configurable TTL**: Control cache duration based on your needs
-
-## 🛡️ Security & Caching
-
-### Vulnerability Data Caching
-
-Vulnerability checks are cached to improve performance and reduce API load:
-
-- **Default TTL**: 1 hour (3600 seconds)
-- **Configurable**: Use `PYPI_VULNERABILITY_CACHE_TTL` environment variable
-- **Cache Key**: Based on package name + version
-- **OSV API**: Queries are cached to avoid repeated lookups
-
-### Why Caching Matters
-
-1. **Performance**: Vulnerability checks can be slow, caching makes subsequent checks instant
-2. **Rate Limiting**: Prevents hitting OSV API rate limits during large scans
-3. **Consistency**: Ensures consistent results during a security audit
-4. **Offline Support**: Cached results available even if OSV API is unreachable
-
-### Cache Management
-
-```bash
-# Clear all caches
-mcp-pypi cache clear
-
-# View cache statistics
-mcp-pypi cache stats
-
-# Set shorter TTL for development (5 minutes)
-export PYPI_VULNERABILITY_CACHE_TTL=300
+server.run()  # stdio
+# server.run(transport="http", host="127.0.0.1", port=8143)
 ```
 
 ## 🖥️ CLI Usage
 
-MCP-PyPI includes a full-featured command-line interface for direct package operations:
+The CLI calls the same code as the server, which is handy for scripts and CI.
 
-### Help and Documentation
 ```bash
-# Show version
 mcp-pypi --version
 
-# Display README documentation
-mcp-pypi --readme
+# Search package names
+mcp-pypi search "http client" --limit 10
 
-# Show changelog
-mcp-pypi --changelog
-
-# Get connection examples
-mcp-pypi serve --help-connecting
-mcp-pypi stdio --help-connecting
-```
-
-### Package Information
-```bash
-# Search for packages
-mcp-pypi search "web scraping"
-
-# Get package info
+# Package information
 mcp-pypi package info requests
-
-# Check latest version
 mcp-pypi package version django
-
-# List all versions
 mcp-pypi package releases numpy
-
-# Get dependencies
 mcp-pypi package dependencies flask
-
-# Compare versions
 mcp-pypi package compare pandas 2.0.0 2.1.0
-```
 
-### Security Checks
-```bash
-# Check requirements file
-mcp-pypi check-requirements /path/to/requirements.txt
-
-# View package statistics
+# Download statistics (last day, week, month)
 mcp-pypi stats downloads requests
-```
 
-### Cache Management
-```bash
-# Clear cache
-mcp-pypi cache clear
+# Audit a project directory or a single dependency file
+mcp-pypi check-requirements .
+mcp-pypi check-requirements requirements.txt --format json --full
 
-# View cache statistics
+# Cache
 mcp-pypi cache stats
+mcp-pypi cache clear
 ```
+
+`check-requirements` runs the same audit as the `audit_project` tool. It exits `1` if any dependency has a known vulnerability, `2` on an error, and `0` otherwise. An audit that could not check some dependencies but found no vulnerabilities also exits `0`; the unchecked dependencies are listed in the output, so read it (or use `--format json` and check `totals.unchecked`) if you gate CI on it.
 
 ## ❓ Troubleshooting
 
-### Common Issues
+**The client cannot start the server**
+- Use the absolute path to `uvx` or `mcp-pypi` in the client config if it is not on the client's `PATH`.
+- Run `uvx mcp-pypi serve --log-level DEBUG` in a terminal to see startup errors. Logs go to stderr so they do not corrupt the stdio stream.
 
-**Connection Issues with stdio**
-- Ensure you're using the absolute path to `mcp-pypi` in your configuration
-- Try using `mcp-pypi stdio` instead of `mcp-pypi serve` for better compatibility
-- Check logs with `--log-level DEBUG` for detailed error messages
+**Search returns nothing or reports the index is unavailable**
+- The first search downloads the PyPI package-name index (about 4 MB, cached on disk). With no network and no cached copy, search fails with a clear error; other tools still work.
 
-**Token Limit Errors**
-- Some operations like changelog retrieval are automatically limited to prevent token overflow
-- Use more specific queries when searching for packages
-- Check individual packages rather than bulk operations
+**Stale data**
+- Run `mcp-pypi cache clear`, or lower `PYPI_CACHE_TTL`.
 
-**Cache Issues**
-- Clear cache with `mcp-pypi cache clear` if you see stale data
-- Adjust cache TTL with environment variables for your use case
-- Default cache location is `~/.cache/mcp-pypi/`
-
-**Import Errors**
-- Ensure you have Python 3.10+ installed
-- Install with `pip install "mcp-pypi[all]"` for all dependencies
-- Use a virtual environment to avoid conflicts
+**Python version errors**
+- mcp-pypi needs Python 3.11 or newer. `uvx` picks a suitable interpreter automatically.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please check out our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Development Setup
+Contributions are welcome. Open an issue first for larger changes.
 
 ```bash
-# Clone the repository
 git clone https://github.com/kimasplund/mcp-pypi.git
 cd mcp-pypi
+uv sync
 
-# Install in development mode
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Run with debug logging
-mcp-pypi serve --log-level DEBUG
+uv run ruff check
+uv run ruff format --check
+uv run pyrefly check
+uv run pytest                  # offline tests
+uv run pytest -m integration   # live network tests
 ```
 
 ## 📄 License
 
-This project is dual-licensed:
-
-- **Open Source**: MIT License for personal, educational, and non-profit use - see [LICENSE](LICENSE)
-- **Commercial**: Commercial License required for business use - see [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL)
-
-### Quick License Guide:
-- ✅ **Free to use**: Personal projects, education, non-profits, open source
-- 💰 **Commercial license required**: For-profit companies, commercial products, consulting
-- 📧 **Contact**: kim.asplund@gmail.com for commercial licensing
+MIT. See [LICENSE](LICENSE).
 
 ## 🙏 Acknowledgments
 
-- Built on the [Model Context Protocol](https://modelcontextprotocol.io/)
-- Powered by the [Python Package Index](https://pypi.org/)
-- Security scanning via [OSV (Open Source Vulnerabilities)](https://osv.dev/) database by Google
-- Enhanced with [FastMCP 2.14.4](https://github.com/modelcontextprotocol/python-sdk) - tool annotations for LLM safety
+- Built on the [Model Context Protocol](https://modelcontextprotocol.io/) and [FastMCP](https://github.com/PrefectHQ/fastmcp)
+- Package data from the [Python Package Index](https://pypi.org/); download counts from [pypistats.org](https://pypistats.org/) and [top-pypi-packages](https://hugovk.github.io/top-pypi-packages/)
+- Vulnerability data from [OSV (Open Source Vulnerabilities)](https://osv.dev/)
 
 ## 📞 Support
 
-- 🌐 Website: [asplund.kim](https://asplund.kim)
-- 📧 Email: kim.asplund@gmail.com
-- 🐛 Issues: [GitHub Issues](https://github.com/kimasplund/mcp-pypi/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/kimasplund/mcp-pypi/discussions)
-
----
-
-Made with ❤️ for the Python and AI communities
+- Issues: [GitHub Issues](https://github.com/kimasplund/mcp-pypi/issues)
+- Discussions: [GitHub Discussions](https://github.com/kimasplund/mcp-pypi/discussions)
+- Email: kim.asplund@gmail.com

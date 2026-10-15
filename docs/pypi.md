@@ -1,509 +1,173 @@
-# MCP-PyPI API Reference
+# MCP-PyPI Tool Reference
 
-Complete API documentation for all 21 tools provided by the MCP-PyPI server.
+Reference for the 11 tools of mcp-pypi 4.x. All tools are read-only: they never modify files or environments. Every tool returns structured output that matches an `outputSchema` published in the tool listing, so MCP clients can read results as typed data rather than text.
 
-## Table of Contents
+## Contents
 
-1. [Package Information Tools](#package-information-tools)
-2. [Security Scanning Tools](#security-scanning-tools)
-3. [Documentation Tools](#documentation-tools)
-4. [Error Handling](#error-handling)
-5. [Type Definitions](#type-definitions)
+- [Package tools](#package-tools): `search_packages`, `get_package`, `get_package_versions`, `compare_versions`, `get_package_changelog`, `get_download_stats`
+- [Dependency tools](#dependency-tools): `get_dependencies`, `check_packages`
+- [Security tools](#security-tools): `check_vulnerabilities`, `scan_installed_packages`
+- [Project tool](#project-tool): `audit_project`
+- [Errors](#errors)
+- [Prompts and resources](#prompts-and-resources)
 
-## Package Information Tools
+## Package tools
 
 ### search_packages
 
-Search PyPI to discover Python packages for any task.
+Search PyPI package names and return ranked matches with summaries.
 
-**Parameters:**
-- `query` (string, required): Search terms describing what you're looking for
-- `limit` (integer, optional): Maximum number of results (1-100, default: 10)
+| Parameter | Type | Default | Notes |
+|-----------|------|---------|-------|
+| `query` | string | required | Name-like keywords work best |
+| `limit` | integer | `10` | Clamped to 1-50 |
 
-**Returns:** `SearchResult`
-```json
-{
-  "packages": [
-    {
-      "name": "requests",
-      "version": "2.31.0",
-      "description": "Python HTTP for Humans."
-    }
-  ],
-  "total": 1523
-}
-```
+PyPI's HTML search is behind a JavaScript challenge, so mcp-pypi matches against the PyPI Simple index of package names and ranks hits by name similarity and download popularity. It matches names, not descriptions. Result: `query`, `results` (each with `name`, `version`, `summary`, `package_url`, `popularity_rank`), `total_candidates` and an optional `note`. See [caching.md](caching.md) for how the index is stored.
 
-### get_package_info
+### get_package
 
-Get comprehensive details about any Python package from PyPI.
+Get metadata for a package: versions, license, URLs, classifiers and yank status.
 
-**Parameters:**
-- `package_name` (string, required): Exact name of the Python package
+| Parameter | Type | Default | Notes |
+|-----------|------|---------|-------|
+| `package_name` | string | required | |
+| `version` | string | latest | Describe this release instead |
 
-**Returns:** `PackageInfo`
-```json
-{
-  "info": {
-    "name": "requests",
-    "version": "2.31.0",
-    "summary": "Python HTTP for Humans.",
-    "author": "Kenneth Reitz",
-    "license": "Apache 2.0",
-    "home_page": "https://requests.readthedocs.io",
-    "requires_python": ">=3.7"
-  }
-}
-```
+Without `version` it describes the latest release. With `version` it describes that release (including whether it was yanked) while `latest_version` still reports the newest release. Result fields include `package_name`, `version`, `latest_version`, `summary`, `requires_python`, `license`, `author`, `maintainer`, `homepage_url`, `documentation_url`, `source_url`, `changelog_url`, `project_urls`, `classifiers`, `yanked`, `yanked_reason`, `release_count`, `latest_upload_time` and `package_url`. An unknown package returns a "did you mean" suggestion in the error message.
 
-### get_package_releases
+### get_package_versions
 
-Get detailed release information for a specific package.
+List released versions with upload time, yank status and file types.
 
-**Parameters:**
-- `package_name` (string, required): Name of the Python package
-- `limit` (integer, optional): Maximum number of releases (default: 10)
+| Parameter | Type | Default | Notes |
+|-----------|------|---------|-------|
+| `package_name` | string | required | |
+| `limit` | integer | `20` | Clamped to 1-100 |
+| `offset` | integer | `0` | 0 or more |
+| `sort` | `"newest"` or `"oldest"` | `"newest"` | |
 
-**Returns:** Release information with file details
-
-### get_latest_version
-
-Check the latest version of any Python package on PyPI.
-
-**Parameters:**
-- `package_name` (string, required): Name of the Python package
-
-**Returns:** `VersionInfo`
-```json
-{
-  "version": "2.31.0",
-  "release_date": "2023-05-22T15:47:19"
-}
-```
-
-### get_dependencies
-
-Analyze Python package dependencies from PyPI.
-
-**Parameters:**
-- `package_name` (string, required): Name of the Python package
-- `version` (string, optional): Specific version (defaults to latest)
-
-**Returns:** `DependenciesResult`
-```json
-{
-  "dependencies": {
-    "install_requires": ["urllib3>=1.21.1", "certifi>=2017.4.17"],
-    "extras_require": {
-      "security": ["pyOpenSSL>=0.14", "cryptography>=1.3.4"]
-    }
-  }
-}
-```
-
-### get_dependency_tree
-
-Get the full dependency tree for a package.
-
-**Parameters:**
-- `package_name` (string, required): Name of the package
-- `version` (string, optional): Specific version (defaults to latest)
-- `max_depth` (integer, optional): Maximum depth (1-3, default: 3)
-
-**Returns:** `DependencyTreeResult` with nested dependencies
-
-### get_package_stats
-
-Get PyPI download statistics to gauge package popularity.
-
-**Parameters:**
-- `package_name` (string, required): Name of the Python package
-
-**Returns:** `StatsResult`
-```json
-{
-  "daily_downloads": 7813294,
-  "weekly_downloads": 49642387,
-  "monthly_downloads": 195841592
-}
-```
-
-### check_package_exists
-
-Check if a package exists on PyPI.
-
-**Parameters:**
-- `package_name` (string, required): Name of the package
-
-**Returns:** `ExistsResult`
-```json
-{
-  "exists": true,
-  "exact_name": "requests"
-}
-```
-
-### get_package_metadata
-
-Get metadata for a package.
-
-**Parameters:**
-- `package_name` (string, required): Name of the package
-- `version` (string, optional): Specific version (defaults to latest)
-
-**Returns:** `MetadataResult` with full package metadata
-
-### list_package_versions
-
-List all available versions of a package.
-
-**Parameters:**
-- `package_name` (string, required): Name of the package
-
-**Returns:** `ReleasesInfo`
-```json
-{
-  "package_name": "requests",
-  "versions": ["2.31.0", "2.30.0", "2.29.0"],
-  "latest_version": "2.31.0",
-  "release_count": 126
-}
-```
+Ordered by PEP 440 version (versions that do not parse sort last). Result: `versions` (each with `version`, `upload_time`, `yanked`, `yanked_reason`, `file_types`), `total`, `offset`, `limit` and `has_more`.
 
 ### compare_versions
 
-Compare two versions of a package.
+Compare two versions of a package using PEP 440 ordering.
 
-**Parameters:**
-- `package_name` (string, required): Name of the package
-- `version1` (string, required): First version to compare
-- `version2` (string, required): Second version to compare
+| Parameter | Type |
+|-----------|------|
+| `package_name` | string |
+| `version1` | string |
+| `version2` | string |
 
-**Returns:** `VersionComparisonResult` with comparison details
-
-## Security Scanning Tools
-
-### check_vulnerabilities
-
-Check for known vulnerabilities in a Python package using Google's OSV database.
-
-**Parameters:**
-- `package_name` (string, required): Name of the package to check
-- `version` (string, optional): Specific version (checks all if not provided)
-
-**Returns:** Vulnerability report
-```json
-{
-  "vulnerable": true,
-  "total_vulnerabilities": 3,
-  "critical_count": 1,
-  "high_count": 2,
-  "vulnerabilities": [
-    {
-      "id": "GHSA-xxx",
-      "summary": "Security vulnerability description",
-      "severity": "CRITICAL",
-      "cve": ["CVE-2023-xxxxx"],
-      "affected_versions": [">=2.0.0,<2.1.0"]
-    }
-  ]
-}
-```
-
-### scan_dependency_vulnerabilities
-
-Deep scan for vulnerabilities in a package's entire dependency tree.
-
-**Parameters:**
-- `package_name` (string, required): Root package to analyze
-- `version` (string, optional): Specific version to analyze
-- `max_depth` (integer, optional): Depth to scan (1-3, default: 2)
-- `include_dev` (boolean, optional): Include dev dependencies (default: false)
-
-**Returns:** Comprehensive vulnerability analysis with dependency tree
-
-### scan_installed_packages
-
-Scan installed packages in Python environments for vulnerabilities.
-
-**Parameters:**
-- `environment_path` (string, optional): Path to Python environment (auto-detects if not provided)
-- `include_system` (boolean, optional): Include system packages (default: false)
-- `output_format` (string, optional): "summary" or "detailed" (default: "summary")
-
-**Returns:** Environment vulnerability report
-
-### quick_security_check
-
-Quick security check with pass/fail status for CI/CD.
-
-**Parameters:**
-- `project_path` (string, optional): Path to project root
-- `fail_on_critical` (boolean, optional): Fail on CRITICAL vulnerabilities (default: true)
-- `fail_on_high` (boolean, optional): Fail on HIGH vulnerabilities (default: true)
-
-**Returns:** Pass/fail status
-```json
-{
-  "passed": false,
-  "status": "❌ FAILED",
-  "reason": "Found 2 CRITICAL vulnerabilities",
-  "summary": {
-    "critical": 2,
-    "high": 5,
-    "medium": 10
-  },
-  "security_score": 65
-}
-```
-
-### get_security_report
-
-Get a beautiful, color-coded security report for your Python project.
-
-**Parameters:**
-- `project_path` (string, optional): Path to project root
-- `check_files` (boolean, optional): Analyze dependency files (default: true)
-- `check_installed` (boolean, optional): Scan virtual environments (default: true)
-- `check_transitive` (boolean, optional): Deep dependency analysis (default: true)
-- `max_depth` (integer, optional): Dependency tree depth (default: 2)
-
-**Returns:** Formatted security report with colors and tables
-
-### security_audit_project
-
-Comprehensive security audit of an entire Python project.
-
-**Parameters:**
-- `project_path` (string, optional): Path to project root
-- `check_files` (boolean, optional): Analyze dependency files (default: true)
-- `check_installed` (boolean, optional): Scan virtual environments (default: true)
-- `check_transitive` (boolean, optional): Deep dependency analysis (default: true)
-- `max_depth` (integer, optional): Dependency tree depth (default: 2)
-
-**Returns:** Complete audit report
-```json
-{
-  "overall_risk_level": "HIGH",
-  "security_score": 72,
-  "priority_fixes": [
-    {
-      "package": "urllib3",
-      "current": "1.26.0",
-      "safe": "1.26.18",
-      "severity": "CRITICAL"
-    }
-  ],
-  "remediation_plan": {
-    "immediate": ["Update urllib3 to 1.26.18"],
-    "short_term": ["Update requests to 2.31.0"],
-    "long_term": ["Enable automated dependency updates"]
-  }
-}
-```
-
-### check_requirements_txt
-
-Analyze requirements.txt for outdated packages and security issues.
-
-**Parameters:**
-- `file_path` (string, required): Absolute path to requirements.txt file
-
-**Returns:** `PackageRequirementsResult`
-```json
-{
-  "outdated": [
-    {
-      "package": "django",
-      "current_version": "3.2.0",
-      "latest_version": "4.2.0",
-      "constraint": ">=3.2.0"
-    }
-  ],
-  "vulnerable": [
-    {
-      "package": "pillow",
-      "version": "8.0.0",
-      "vulnerabilities": 3
-    }
-  ]
-}
-```
-
-### check_pyproject_toml
-
-Analyze pyproject.toml for outdated packages and security issues.
-
-**Parameters:**
-- `file_path` (string, required): Absolute path to pyproject.toml file
-
-**Returns:** Similar to check_requirements_txt but handles all dependency groups
-
-## Documentation Tools
-
-### get_package_documentation
-
-Get documentation links for a package.
-
-**Parameters:**
-- `package_name` (string, required): Name of the package
-
-**Returns:** `DocumentationResult`
-```json
-{
-  "documentation_url": "https://docs.python-requests.org/",
-  "homepage": "https://requests.readthedocs.io",
-  "repository": "https://github.com/psf/requests",
-  "bugtracker": "https://github.com/psf/requests/issues"
-}
-```
+Result: `newer` (`"version1"`, `"version2"` or `"equal"`) and a `comparison` sentence. The comparison is purely on version numbers and does not check that either release exists.
 
 ### get_package_changelog
 
-Get changelog for a package.
+Get changelog text for a package from its project links or GitHub releases.
 
-**Parameters:**
-- `package_name` (string, required): Name of the package
-- `version` (string, optional): Specific version (defaults to latest)
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `package_name` | string | required |
+| `version` | string | latest |
 
-**Returns:** Changelog text or error if not found
+Uses the changelog link in the package metadata when present and falls back to the repository's releases page. When nothing is found it returns a short note listing the available project URLs. Result: `package_name`, `version`, `changelog`.
 
-## Error Handling
+### get_download_stats
 
-All tools return standardized error responses when something goes wrong:
+Get recent download counts (last day, week and month) from pypistats.org.
 
-```json
-{
-  "error": {
-    "code": "not_found",
-    "message": "Package 'nonexistent-package' not found on PyPI"
-  }
-}
-```
+| Parameter | Type |
+|-----------|------|
+| `package_name` | string |
 
-### Error Codes
+Result: `last_day`, `last_week`, `last_month` and `source`. When pypistats is unavailable the tool fails with an error; it never returns made-up numbers. Counts include mirrors and CI traffic, so compare packages against each other rather than reading absolute numbers.
 
-- `not_found` - Package or resource not found
-- `invalid_input` - Invalid parameter value provided
-- `network_error` - Error communicating with PyPI
-- `parse_error` - Error parsing response from PyPI
-- `file_error` - Error accessing or reading a file
-- `permission_error` - Insufficient permissions
-- `vulnerability_check_error` - Error checking vulnerabilities
+## Dependency tools
 
-## Type Definitions
+### get_dependencies
 
-### Core Types
+List the requirements of a package, optionally as a transitive tree.
 
-All responses use TypedDict for type safety:
+| Parameter | Type | Default | Notes |
+|-----------|------|---------|-------|
+| `package_name` | string | required | |
+| `version` | string | latest | |
+| `depth` | integer | `1` | Clamped to 1-5 |
 
-```python
-class ErrorDict(TypedDict):
-    code: str
-    message: str
-    details: NotRequired[Dict[str, Any]]
+With `depth=1` it returns the direct requirements (`name`, `specifier`, `extras`, `marker`). With `depth` 2-5 it also returns `tree`, the resolved dependency tree down to that depth, with repeated packages flagged as `cycle`.
 
-class PackageInfo(TypedDict):
-    info: Dict[str, Any]
-    releases: NotRequired[Dict[str, List[Dict[str, Any]]]]
-    urls: NotRequired[List[Dict[str, Any]]]
-    vulnerabilities: NotRequired[List[Dict[str, Any]]]
+### check_packages
 
-class SearchResult(TypedDict):
-    packages: List[Dict[str, str]]
-    total: int
+Check up to 100 package names on PyPI and report latest version and summary. Use it to verify that names exist before suggesting them.
 
-class VersionInfo(TypedDict):
-    version: str
-    release_date: NotRequired[str]
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| `names` | list of strings | 1-100 names |
 
-class DependenciesResult(TypedDict):
-    dependencies: Dict[str, Any]
-    dev_dependencies: NotRequired[Dict[str, Any]]
-    optional_dependencies: NotRequired[Dict[str, Any]]
-```
+Names are de-duplicated by PEP 503 normalization (the first spelling is kept) and checked concurrently. A name that does not exist is listed in `missing`; any other failure is reported in that item's `error` without failing the call. Result: `results` (each with `name`, `normalized_name`, `exists`, `latest_version`, `summary`, `error`), `total` and `missing`.
 
-### Security Types
+## Security tools
 
-```python
-class VulnerabilityInfo(TypedDict):
-    id: str
-    summary: str
-    severity: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]
-    cve: List[str]
-    affected_versions: List[str]
-    fixed_versions: NotRequired[List[str]]
+### check_vulnerabilities
 
-class SecurityAuditResult(TypedDict):
-    overall_risk_level: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW", "SECURE"]
-    security_score: int
-    total_vulnerabilities: int
-    priority_fixes: List[Dict[str, Any]]
-    remediation_plan: Dict[str, List[str]]
-```
+Check up to 100 packages against [OSV](https://osv.dev/) for known vulnerabilities.
 
-## Usage Examples
+| Parameter | Type | Default | Notes |
+|-----------|------|---------|-------|
+| `packages` | list of strings | required | `name` (latest release) or `name==version` |
+| `include_transitive` | boolean | `false` | Also check dependencies |
+| `max_depth` | integer | `2` | Clamped to 1-3; used with `include_transitive` |
 
-### Basic Package Search
-```python
-# Search for web scraping packages
-result = await client.invoke_tool(
-    "search_packages",
-    {"query": "web scraping", "limit": 5}
-)
-```
+Extras are ignored and any other specifier is rejected for that item only. With `include_transitive` the dependency tree is resolved to `max_depth` and every dependency is checked too; vulnerable dependencies are listed with `introduced_via`, the shortest root-to-dependency chain of names. Items whose version cannot be resolved are reported as errors, never checked across all versions. Package names match OSV case- and separator-insensitively (`Django`, `PyYAML`, `typing_extensions`).
 
-### Security Workflow
-```python
-# 1. Check package before installation
-info = await client.invoke_tool("get_package_info", {"package_name": "requests"})
-vulns = await client.invoke_tool("check_vulnerabilities", {"package_name": "requests"})
+Result: `results` (per package: `package`, `version`, `vulnerable`, `vulnerabilities`, `total_vulnerabilities`, `vulnerabilities_truncated`, `introduced_via`, `note`, `error`), `total_packages`, `vulnerable_packages`, `total_vulnerabilities`, `severity_counts` and `transitive_checked`. Each vulnerability has `id`, `summary`, `severity`, `aliases`, `affected_versions` and `references`. GitHub advisory severity `MODERATE` is counted as `medium`.
 
-# 2. Deep scan dependencies
-deps = await client.invoke_tool(
-    "scan_dependency_vulnerabilities",
-    {"package_name": "requests", "max_depth": 3}
-)
+### scan_installed_packages
 
-# 3. Audit entire project
-audit = await client.invoke_tool(
-    "security_audit_project",
-    {"project_path": "/path/to/project"}
-)
-```
+Scan a Python environment's installed packages for known vulnerabilities.
 
-### Requirements Management
-```python
-# Check requirements file
-result = await client.invoke_tool(
-    "check_requirements_txt",
-    {"file_path": "/path/to/requirements.txt"}
-)
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `environment_path` | string | a `.venv`, `venv`, `env`, `.env` or `virtualenv` directory in the working directory |
 
-# Update based on vulnerabilities
-for pkg in result["vulnerable"]:
-    latest = await client.invoke_tool(
-        "get_latest_version",
-        {"package_name": pkg["package"]}
-    )
-```
+If no environment path is given and none of those directories exists, the call fails and asks for a path; it never scans an unrelated environment. Packages are listed with the environment's own interpreter (no `pip` needed, so uv-created venvs work; 60 second limit) and checked against OSV in batches. Result: `environment_path`, `packages_scanned`, `vulnerable`, `all_clear`, `unchecked`, `update_commands` and `recommendation`. Packages that could not be checked are listed in `unchecked` and prevent `all_clear`.
 
-## Best Practices
+## Project tool
 
-1. **Always use absolute paths** for file operations
-2. **Check vulnerabilities before installing** new packages
-3. **Use specific versions** in production after security verification
-4. **Scan transitive dependencies** with appropriate depth
-5. **Regular security audits** with security_audit_project
+### audit_project
 
-## Rate Limiting
+Audit a project's dependency files for vulnerabilities, outdated pins and drift.
 
-PyPI API has rate limits. The client handles these automatically with:
-- Exponential backoff
-- Request caching
-- ETag support
+| Parameter | Type | Default | Notes |
+|-----------|------|---------|-------|
+| `path` | string | required | A directory or a single dependency file |
+| `detail` | `"summary"` or `"full"` | `"summary"` | `summary` lists only vulnerable, outdated or unchecked dependencies per file |
 
-## Support
+Supported files: `requirements*.txt`, `constraints*.txt`, `pyproject.toml` (PEP 621 and Poetry), `setup.py` (parsed statically, never executed), `setup.cfg`, `Pipfile`, `Pipfile.lock`, `poetry.lock` and conda `environment.yml` / `environment.yaml` (the `pip:` section). A directory is searched up to 4 levels deep, at most 50 files.
 
-- GitHub: https://github.com/kimasplund/mcp-pypi
-- Author: Kim Asplund (kim.asplund@gmail.com)
+Each dependency is checked at its pinned version; otherwise at its lowest allowed version; otherwise, for upper-bound-only constraints such as `urllib3<2`, at the highest non-yanked allowed release; otherwise at the latest release. A dependency that could not be checked carries an `error`, is counted in `totals.unchecked`, and is never reported as clean. Unreadable files appear in `files` with an `error` and are counted in `totals.files_with_errors`.
+
+Result: `path`, `files` (each with `path`, `kind`, `dependencies`, `error`), `consistency_warnings` (the same package with different specifiers across files), `totals` (`files`, `dependencies`, `vulnerable`, `outdated`, `vulnerabilities`, `unchecked`, `files_with_errors`; always cover everything regardless of `detail`), `recommendations` and a plain-markdown `summary`. The `mcp-pypi check-requirements` command runs the same audit.
+
+## Errors
+
+Failures are returned as MCP tool errors (`isError: true` on the tool result) with a short, actionable message, not as an `{"error": ...}` result. For example:
+
+- `Package 'reqests' not found on PyPI. Did you mean 'requests'? Use search_packages to find the exact name.`
+- `Invalid input: at most 100 names per call`
+- `PyPI request failed (network_error); retry later.` (also for OSV)
+- `Cannot read file: <reason>`
+
+Batch tools (`check_packages`, `check_vulnerabilities`, `audit_project`) report a problem with one item in that item's `error` field and still return the others. Internal details of unexpected failures are masked.
+
+## Prompts and resources
+
+Prompts (both take arguments):
+
+- `analyze_dependencies(package_name)`: analyze a package's dependencies for security and freshness.
+- `compare_packages(packages)`: compare candidate packages and recommend one.
+
+Resources (read-only PyPI feeds): `pypi://recent-releases`, `pypi://new-packages`, `pypi://updated-packages`.
+
+## Rate limits and etiquette
+
+Requests to PyPI, OSV and pypistats are cached and retried with exponential backoff (see [caching.md](caching.md) and the `PYPI_*` variables in the [README](../README.md#-configuration)). The User-Agent identifies the project: `mcp-pypi/<version> (+https://github.com/kimasplund/mcp-pypi)`.
