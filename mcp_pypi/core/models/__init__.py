@@ -3,24 +3,26 @@ Type definitions for the MCP-PyPI client.
 """
 
 import os
-import sys
-import tempfile
 from dataclasses import dataclass, field
-from typing import (Any, Awaitable, Callable, Dict, List, Literal, Optional,
-                    Protocol, Set, TypedDict, TypeVar, Union, cast)
+from typing import (
+    Any,
+    NotRequired,
+    Protocol,
+    TypedDict,
+    TypeVar,
+)
 
-# NotRequired was added in Python 3.11, import from typing_extensions for earlier versions
-if sys.version_info >= (3, 11):
-    from typing import NotRequired
-else:
-    from typing_extensions import NotRequired
+from platformdirs import user_cache_dir
+
+from mcp_pypi import __version__
 
 # Type variables
 T = TypeVar("T")
 
 # Constants
-USER_AGENT = "Mozilla/5.0 (compatible; MCP-PyPI/2.0; +https://asplund.kim)"
-DEFAULT_CACHE_DIR = os.path.join(tempfile.gettempdir(), "pypi_mcp_cache")
+USER_AGENT = f"mcp-pypi/{__version__} (+https://github.com/kimasplund/mcp-pypi)"
+# Per-user (e.g. ~/.cache/mcp-pypi), not a world-writable shared temp directory.
+DEFAULT_CACHE_DIR = user_cache_dir("mcp-pypi", appauthor=False)
 DEFAULT_CACHE_TTL = 604800  # 1 week
 DEFAULT_CACHE_MAX_SIZE = 100 * 1024 * 1024  # 100 MB
 DEFAULT_MAX_RETRIES = 3
@@ -59,26 +61,16 @@ class PyPIClientConfig:
         default_factory=lambda: int(os.environ.get("PYPI_CACHE_TTL", DEFAULT_CACHE_TTL))
     )
     cache_max_size: int = field(
-        default_factory=lambda: int(
-            os.environ.get("PYPI_CACHE_MAX_SIZE", DEFAULT_CACHE_MAX_SIZE)
-        )
+        default_factory=lambda: int(os.environ.get("PYPI_CACHE_MAX_SIZE", DEFAULT_CACHE_MAX_SIZE))
     )
-    user_agent: str = field(
-        default_factory=lambda: os.environ.get("PYPI_USER_AGENT", USER_AGENT)
-    )
+    user_agent: str = field(default_factory=lambda: os.environ.get("PYPI_USER_AGENT", USER_AGENT))
     max_retries: int = field(
-        default_factory=lambda: int(
-            os.environ.get("PYPI_MAX_RETRIES", DEFAULT_MAX_RETRIES)
-        )
+        default_factory=lambda: int(os.environ.get("PYPI_MAX_RETRIES", DEFAULT_MAX_RETRIES))
     )
     retry_delay: float = field(
-        default_factory=lambda: float(
-            os.environ.get("PYPI_RETRY_DELAY", DEFAULT_RETRY_DELAY)
-        )
+        default_factory=lambda: float(os.environ.get("PYPI_RETRY_DELAY", DEFAULT_RETRY_DELAY))
     )
-    timeout: float = field(
-        default_factory=lambda: float(os.environ.get("PYPI_TIMEOUT", 30.0))
-    )
+    timeout: float = field(default_factory=lambda: float(os.environ.get("PYPI_TIMEOUT", 30.0)))
     vulnerability_cache_ttl: int = field(
         default_factory=lambda: int(
             os.environ.get("PYPI_VULNERABILITY_CACHE_TTL", 3600)  # 1 hour default
@@ -101,8 +93,8 @@ class ErrorResult(TypedDict):
 
 class PackageInfo(TypedDict):
     error: NotRequired[ErrorDict]
-    info: NotRequired[Dict[str, Any]]
-    releases: NotRequired[Dict[str, List[Dict[str, Any]]]]
+    info: NotRequired[dict[str, Any]]
+    releases: NotRequired[dict[str, list[dict[str, Any]]]]
 
 
 class VersionInfo(TypedDict):
@@ -113,13 +105,13 @@ class VersionInfo(TypedDict):
 
 class ReleasesInfo(TypedDict):
     error: NotRequired[ErrorDict]
-    releases: NotRequired[List[str]]
+    releases: NotRequired[list[str]]
     package_name: NotRequired[str]
 
 
 class UrlsInfo(TypedDict):
     error: NotRequired[ErrorDict]
-    urls: NotRequired[List[Dict[str, Any]]]
+    urls: NotRequired[list[dict[str, Any]]]
 
 
 class UrlResult(TypedDict):
@@ -132,31 +124,35 @@ class FeedItem(TypedDict):
     link: str
     description: str
     published_date: str
+    package_name: NotRequired[str]
+    version: NotRequired[str]
 
 
 class PackagesFeed(TypedDict):
     error: NotRequired[ErrorDict]
-    packages: NotRequired[List[FeedItem]]
+    packages: NotRequired[list[FeedItem]]
 
 
 class UpdatesFeed(TypedDict):
     error: NotRequired[ErrorDict]
-    updates: NotRequired[List[FeedItem]]
+    updates: NotRequired[list[FeedItem]]
 
 
 class ReleasesFeed(TypedDict):
     error: NotRequired[ErrorDict]
-    releases: NotRequired[List[FeedItem]]
+    releases: NotRequired[list[FeedItem]]
 
 
 class SearchResult(TypedDict):
     error: NotRequired[ErrorDict]
     search_url: NotRequired[str]
-    results: NotRequired[List[Dict[str, str]]]
+    results: NotRequired[list[dict[str, Any]]]
     message: NotRequired[str]
     total: NotRequired[int]
+    total_candidates: NotRequired[int]
+    note: NotRequired[str | None]
     query: NotRequired[str]
-    packages: NotRequired[List[Any]]
+    packages: NotRequired[list[Any]]
     # Pagination fields
     offset: NotRequired[int]
     limit: NotRequired[int]
@@ -177,17 +173,17 @@ class VersionComparisonResult(TypedDict):
 class Dependency(TypedDict):
     name: str
     version_spec: str
-    extras: NotRequired[List[str]]
-    marker: NotRequired[Optional[str]]
+    extras: NotRequired[list[str]]
+    marker: NotRequired[str | None]
 
 
 class DependenciesResult(TypedDict):
     error: NotRequired[ErrorDict]
-    dependencies: NotRequired[List[Dependency]]
+    dependencies: NotRequired[list[Dependency]]
     package: NotRequired[str]
     version: NotRequired[str]
-    install_requires: NotRequired[List[str]]
-    extras_require: NotRequired[Dict[str, List[str]]]
+    install_requires: NotRequired[list[str]]
+    extras_require: NotRequired[dict[str, list[str]]]
 
 
 class ExistsResult(TypedDict):
@@ -207,8 +203,8 @@ class PackageMetadata(TypedDict):
     project_url: NotRequired[str]
     homepage: NotRequired[str]
     requires_python: NotRequired[str]
-    classifiers: NotRequired[List[str]]
-    keywords: NotRequired[List[str]]
+    classifiers: NotRequired[list[str]]
+    keywords: NotRequired[list[str]]
 
 
 class MetadataResult(TypedDict):
@@ -220,25 +216,30 @@ class MetadataResult(TypedDict):
 
 class StatsResult(TypedDict):
     error: NotRequired[ErrorDict]
-    downloads: NotRequired[Dict[str, int]]
     last_month: NotRequired[int]
     last_week: NotRequired[int]
     last_day: NotRequired[int]
     package_name: NotRequired[str]
 
 
+class ChangelogResult(TypedDict):
+    error: NotRequired[ErrorDict]
+    package_name: NotRequired[str]
+    version: NotRequired[str | None]
+    changelog: NotRequired[str]
+
+
 class TreeNode(TypedDict):
     name: str
-    version: Optional[str]
-    dependencies: List["TreeNode"]
+    version: str | None
+    dependencies: list["TreeNode"]
     cycle: NotRequired[bool]
 
 
 class DependencyTreeResult(TypedDict):
     error: NotRequired[ErrorDict]
     tree: NotRequired[TreeNode]
-    flat_list: NotRequired[List[str]]
-    visualization_url: NotRequired[Optional[str]]
+    flat_list: NotRequired[list[str]]
     package: NotRequired[str]
     version: NotRequired[str]
 
@@ -248,33 +249,18 @@ class DocumentationResult(TypedDict):
     docs_url: NotRequired[str]
     summary: NotRequired[str]
     package_name: NotRequired[str]
-    documentation_url: NotRequired[Optional[str]]
-
-
-class PackageRequirement(TypedDict):
-    package: str
-    current_version: str
-    latest_version: NotRequired[str]
-    constraint: NotRequired[str]
-
-
-class PackageRequirementsResult(TypedDict):
-    error: NotRequired[ErrorDict]
-    file_path: NotRequired[str]
-    requirements: NotRequired[List[PackageRequirement]]
-    outdated: NotRequired[List[PackageRequirement]]
-    up_to_date: NotRequired[List[PackageRequirement]]
+    documentation_url: NotRequired[str | None]
 
 
 class BatchVulnerabilityResult(TypedDict):
     """Result from batch vulnerability check."""
 
-    results: Dict[str, Dict[str, Any]]  # Maps "pkg:version" to vulnerability data
+    results: dict[str, dict[str, Any]]  # Maps "pkg:version" to vulnerability data
     total_packages: int
     vulnerable_count: int
     cached_count: int
     queried_count: int
-    errors: NotRequired[List[Dict[str, str]]]
+    errors: NotRequired[list[dict[str, str]]]
 
 
 class PaginationInfo(TypedDict):
@@ -290,14 +276,12 @@ class PaginationInfo(TypedDict):
 class CacheProtocol(Protocol):
     """Protocol for cache implementations."""
 
-    async def get(self, key: str) -> Optional[Dict[str, Any]]: ...
-    async def set(
-        self, key: str, data: Dict[str, Any], etag: Optional[str] = None
-    ) -> None: ...
-    async def get_etag(self, key: str) -> Optional[str]: ...
+    async def get(self, key: str) -> dict[str, Any] | None: ...
+    async def set(self, key: str, data: dict[str, Any], etag: str | None = None) -> None: ...
+    async def get_etag(self, key: str) -> str | None: ...
 
 
 class HTTPClientProtocol(Protocol):
     """Protocol for HTTP client implementations."""
 
-    async def fetch(self, url: str, method: str = "GET") -> Dict[str, Any]: ...
+    async def fetch(self, url: str, method: str = "GET") -> dict[str, Any]: ...

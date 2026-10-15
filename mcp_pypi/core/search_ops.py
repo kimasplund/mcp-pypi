@@ -2,141 +2,160 @@
 Search and comparison operations mixin for PyPI client.
 """
 
+import asyncio
 import logging
 import re
-from typing import Any, Dict, Optional, cast
-from urllib.parse import quote_plus
+from collections.abc import Awaitable, Callable
+from typing import Any, cast
+from urllib.parse import urlparse
 
 from packaging.version import Version
 
+from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import (
+    ChangelogResult,
     DocumentationResult,
     ErrorCode,
-    SearchResult,
     VersionComparisonResult,
     format_error,
 )
-from mcp_pypi.utils.helpers import sanitize_package_name, sanitize_version
+from mcp_pypi.core.search_index import (
+    TIER_EXACT,
+    Candidate,
+    IndexUnavailable,
+    NameIndex,
+    Popularity,
+    enrichment_pool,
+    normalize,
+    query_tokens,
+    rank_candidates,
+)
+from mcp_pypi.utils.sanitize import sanitize_package_name, sanitize_version
 
 logger = logging.getLogger("mcp-pypi.client")
+
+_MAX_RELEASE_BODY = 1000
+_GITHUB_HOSTS = frozenset({"github.com", "www.github.com"})
+_GITHUB_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+def _github_repo(url: object) -> tuple[str, str] | None:
+    """Return (owner, repo) when url is an http(s) URL on github.com, else None.
+
+    Matches on the parsed hostname, not a substring, so lookalikes such as
+    ``https://evil.example/github.com/a/b`` or ``https://github.com.evil.example``
+    are rejected.
+    """
+    if not isinstance(url, str):
+        return None
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    if parsed.scheme not in ("http", "https") or (parsed.hostname or "").lower() not in (
+        _GITHUB_HOSTS
+    ):
+        return None
+    parts = [p for p in parsed.path.split("/") if p]
+    if len(parts) < 2:
+        return None
+    owner, repo = parts[0], parts[1].removesuffix(".git")
+    if not (_GITHUB_NAME.match(owner) and _GITHUB_NAME.match(repo)):
+        return None
+    return owner, repo
 
 
 class SearchOpsMixin:
     """Mixin providing search and comparison operations."""
 
-    async def search_packages(self, query: str, page: int = 1) -> SearchResult:
-        """Search for packages on PyPI."""
-        query_encoded = quote_plus(query)
-        url = f"https://pypi.org/search/?q={query_encoded}&page={page}"
+    http: AsyncHTTPClient
+    name_index: NameIndex
+    popularity: Popularity
+    get_package_info: Callable[[str], Awaitable[Any]]  # provided by PackageOpsMixin
+
+    async def search_packages(self, query: str, limit: int = 10) -> dict[str, Any]:
+        """Search package names (Simple index + popularity), enriched from package metadata."""
+        tokens = query_tokens(query)
+        if not tokens:
+            return cast(
+                dict[str, Any],
+                format_error(ErrorCode.INVALID_INPUT, "Search query must not be empty"),
+            )
+        limit = max(1, min(50, limit))
 
         try:
-            data = await self.http.fetch(url)
+            names = await self.name_index.names()
+        except IndexUnavailable as e:
+            logger.warning(f"Package index unavailable: {e}")
+            return cast(
+                dict[str, Any],
+                format_error(
+                    ErrorCode.NETWORK_ERROR, "PyPI package index unavailable; retry later"
+                ),
+            )
 
-            # Check for error in result
-            if isinstance(data, dict) and "error" in data:
-                return cast(SearchResult, data)
+        try:
+            downloads = await self.popularity.downloads()
+            candidates = await asyncio.to_thread(rank_candidates, query, names, downloads)
+            # The best few by score, plus the most popular matching names however they scored.
+            top = enrichment_pool(candidates, downloads, max(limit, min(3 * limit, 30)))
 
-            # Process the raw_data if in the new format
-            html_content = None
-            if isinstance(data, dict) and "raw_data" in data:
-                raw_data = data["raw_data"]
+            by_downloads = sorted(downloads, key=downloads.__getitem__, reverse=True)
+            ranks = {name: rank for rank, name in enumerate(by_downloads, 1)}
+            semaphore = asyncio.Semaphore(10)
 
-                if isinstance(raw_data, bytes):
-                    html_content = raw_data.decode("utf-8", errors="ignore")
-                elif isinstance(raw_data, str):
-                    html_content = raw_data
-                else:
-                    return {
-                        "results": [],
-                        "error": {
-                            "code": ErrorCode.PARSE_ERROR,
-                            "message": f"Unexpected data type: {type(raw_data)}",
-                        },
-                    }
-            elif isinstance(data, (str, bytes)):
-                # Legacy format
-                if isinstance(data, bytes):
-                    html_content = data.decode("utf-8", errors="ignore")
-                else:
-                    html_content = data
-            else:
-                return {
-                    "results": [],
-                    "error": {
-                        "code": ErrorCode.PARSE_ERROR,
-                        "message": f"Unexpected data type: {type(data)}",
-                    },
+            errors: list[dict[str, Any]] = []
+
+            async def enrich(
+                candidate: Candidate,
+            ) -> tuple[tuple[bool, float], dict[str, Any]] | None:
+                async with semaphore:
+                    data = await self.get_package_info(candidate.name)
+                info = data.get("info") if isinstance(data, dict) else None
+                if "error" in data or not isinstance(info, dict):
+                    if "error" in data:
+                        errors.append(data)
+                    return None
+                summary = info.get("summary") or ""
+                boost = 40 * sum(t in summary.lower() for t in tokens)
+                name = info.get("name") or candidate.name
+                exact = candidate.tier == TIER_EXACT  # the exact name match stays first
+                return (exact, candidate.score + boost), {
+                    "name": name,
+                    "version": info.get("version") or "",
+                    "summary": summary,
+                    "package_url": f"https://pypi.org/project/{name}/",
+                    "popularity_rank": ranks.get(normalize(name)),
                 }
 
-            # Handle case when we receive a Client Challenge page instead of search results
-            if "Client Challenge" in html_content:
-                logger.warning(
-                    "Received a security challenge page from PyPI instead of search results"
-                )
-                return {
-                    "search_url": url,
-                    "message": "PyPI returned a security challenge page. Try using a web browser to search PyPI directly.",
-                    "results": [],
-                }
+            enriched = [r for r in await asyncio.gather(*(enrich(c) for c in top)) if r]
+            enriched.sort(key=lambda r: r[0], reverse=True)
+            results = [item for _, item in enriched[:limit]]
+            if top and not enriched and errors:
+                return errors[0]
 
-            # Check if BeautifulSoup is available for better parsing
-            if self._has_bs4:
-                from bs4 import BeautifulSoup
-
-                soup = BeautifulSoup(html_content, "html.parser")
-                results = []
-
-                # Extract packages from search results
-                for package in soup.select(".package-snippet"):
-                    name_elem = package.select_one(".package-snippet__name")
-                    version_elem = package.select_one(".package-snippet__version")
-                    desc_elem = package.select_one(".package-snippet__description")
-
-                    if name_elem and version_elem:
-                        name = name_elem.text.strip()
-                        version = version_elem.text.strip()
-                        description = desc_elem.text.strip() if desc_elem else ""
-
-                        results.append(
-                            {
-                                "name": name,
-                                "version": version,
-                                "description": description,
-                                "url": f"https://pypi.org/project/{name}/",
-                            }
-                        )
-
-                # Check if we found any results
-                if results:
-                    return {"search_url": url, "results": results}
-                else:
-                    # We have BeautifulSoup but couldn't find any packages
-                    # This could be a format change or we're not getting the expected HTML
-                    return {
-                        "search_url": url,
-                        "message": "No packages found or PyPI search page format has changed",
-                        "results": [],
-                    }
-
-            # Fallback if BeautifulSoup is not available
-            return {
-                "search_url": url,
-                "message": "For better search results, install Beautiful Soup: pip install beautifulsoup4",
-                "results": [],  # Return empty results rather than raw HTML
+            response: dict[str, Any] = {
+                "query": query,
+                "results": results,
+                "total_candidates": len(candidates),
+                "note": None,
             }
+            if not results:
+                response["note"] = (
+                    "No package names matched. "
+                    "Try name-like keywords (e.g. 'httpx', 'jwt', 'yaml')."
+                )
+            return response
         except Exception as e:
             logger.exception(f"Error searching packages: {e}")
-            return {
-                "results": [],
-                "error": {"code": ErrorCode.UNKNOWN_ERROR, "message": str(e)},
-            }
+            return cast(dict[str, Any], format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
     async def compare_versions(
         self, package_name: str, version1: str, version2: str
     ) -> VersionComparisonResult:
         """Compare two version numbers of a package."""
         try:
-            sanitized_name = sanitize_package_name(package_name)
+            sanitize_package_name(package_name)
             sanitized_v1 = sanitize_version(version1)
             sanitized_v2 = sanitize_version(version2)
 
@@ -152,17 +171,13 @@ class SearchOpsMixin:
                 "are_equal": v1 == v2,
             }
         except ValueError as e:
-            return cast(
-                VersionComparisonResult, format_error(ErrorCode.INVALID_INPUT, str(e))
-            )
+            return cast(VersionComparisonResult, format_error(ErrorCode.INVALID_INPUT, str(e)))
         except Exception as e:
             logger.exception(f"Error comparing versions: {e}")
-            return cast(
-                VersionComparisonResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e))
-            )
+            return cast(VersionComparisonResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
     async def get_documentation_url(
-        self, package_name: str, version: Optional[str] = None
+        self, package_name: str, version: str | None = None
     ) -> DocumentationResult:
         """Get documentation URL for a package."""
         try:
@@ -210,38 +225,79 @@ class SearchOpsMixin:
 
             return {"docs_url": docs_url or "Not available", "summary": summary}
         except ValueError as e:
-            return cast(
-                DocumentationResult, format_error(ErrorCode.INVALID_INPUT, str(e))
-            )
+            return cast(DocumentationResult, format_error(ErrorCode.INVALID_INPUT, str(e)))
         except Exception as e:
             logger.exception(f"Error getting documentation URL: {e}")
-            return cast(
-                DocumentationResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e))
-            )
+            return cast(DocumentationResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
     async def get_package_changelog(
-        self, package_name: str, version: Optional[str] = None
-    ) -> str:
+        self, package_name: str, version: str | None = None
+    ) -> ChangelogResult:
         """Get changelog for a package.
 
-        This method attempts to retrieve changelog information from:
-        1. Package metadata project_urls for changelog link
-        2. GitHub releases if the package has a GitHub repository
-        3. Common changelog file names in the package distribution
-
-        Args:
-            package_name: Name of the package
-            version: Specific version (optional, defaults to latest)
-
-        Returns:
-            Changelog text or appropriate message
+        Returns {"package_name", "version", "changelog"} on success, or an error dict
+        (not_found, network_error, ...) when the package cannot be looked up. The text
+        covers the package as a whole; `version` does not filter it and is returned as None.
         """
         try:
-            # Get package info to find changelog URL
-            info_result = await self.get_package_info(package_name)
+            sanitized_name = sanitize_package_name(package_name)
+            info_result = await self.get_package_info(sanitized_name)
             if "error" in info_result:
-                return f"Package {package_name} not found"
+                return cast(ChangelogResult, info_result)
+            text = await self._changelog_text(package_name, info_result)
+            # `version` is not used to filter the changelog, so it is not echoed back.
+            return {"package_name": package_name, "version": None, "changelog": text}
+        except ValueError as e:
+            return cast(ChangelogResult, format_error(ErrorCode.INVALID_INPUT, str(e)))
+        except Exception as e:
+            logger.error(f"Error getting changelog for {package_name}: {e}")
+            return cast(ChangelogResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
+    async def _github_releases_changelog(
+        self, owner: str, repo: str, *, package_name: str, changelog_url: str
+    ) -> str | None:
+        """Format the 5 most recent GitHub releases, or None if none could be fetched."""
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/releases?per_page=5"
+        try:
+            response = await self.http.fetch(api_url)
+        except Exception as e:
+            logger.debug(f"Could not fetch GitHub releases: {e}")
+            return None
+        releases = response if isinstance(response, list) else []
+        if not releases:
+            return None
+
+        parts = [f"# Changelog for {package_name}\n"]
+        for release in releases[:5]:
+            tag = release.get("tag_name", "")
+            if not tag:
+                continue
+            name = release.get("name", "")
+            body = release.get("body", "")
+            published = release.get("published_at", "")
+            parts.append(f"\n## {tag}")
+            if name and name != tag:
+                parts.append(f" - {name}")
+            if published:
+                parts.append(f"\n*Released: {published[:10]}*")
+            if body:
+                # Truncate long bodies to keep responses small
+                if len(body) > _MAX_RELEASE_BODY:
+                    body = body[:_MAX_RELEASE_BODY] + "\n\n... (truncated)"
+                parts.append(f"\n{body}")
+        parts.append(
+            f"\n\n---\n\n*Showing up to 5 most recent releases. Visit "
+            f"{changelog_url} for the complete changelog.*"
+        )
+        return "\n".join(parts)
+
+    async def _changelog_text(self, package_name: str, info_result: Any) -> str:
+        """Find changelog text from package metadata, GitHub releases or project URLs.
+
+        Tries project_urls for a changelog link, GitHub releases for that link,
+        then a GitHub repository hint, then lists the available URLs.
+        """
+        try:
             info = info_result.get("info", {})
             project_urls = info.get("project_urls") or {}
 
@@ -249,107 +305,30 @@ class SearchOpsMixin:
             changelog_url = None
             for key, url in project_urls.items():
                 if any(
-                    term in key.lower()
-                    for term in ["changelog", "changes", "history", "release"]
+                    term in key.lower() for term in ["changelog", "changes", "history", "release"]
                 ):
                     changelog_url = url
                     break
 
-            # If we found a changelog URL, try to fetch it
+            # Project URLs are untrusted package metadata: only the GitHub API is ever
+            # requested (for real github.com release pages); other URLs are returned
+            # as links, never fetched.
             if changelog_url:
-                # Handle GitHub releases specially
-                if "github.com" in changelog_url and "/releases" in changelog_url:
-                    # Extract owner and repo from GitHub URL
-                    match = re.search(r"github\.com/([^/]+)/([^/]+)", changelog_url)
-                    if match:
-                        owner, repo = match.groups()
-                        # Use GitHub API to get releases
-                        # Limit to 5 releases using GitHub API parameter
-                        api_url = f"https://api.github.com/repos/{owner}/{repo}/releases?per_page=5"
+                github = _github_repo(changelog_url)
+                if github and "/releases" in urlparse(str(changelog_url)).path:
+                    text = await self._github_releases_changelog(
+                        *github, package_name=package_name, changelog_url=str(changelog_url)
+                    )
+                    if text:
+                        return text
+                return f"Changelog available at: {changelog_url}"
 
-                        try:
-                            response = await self.http.fetch(api_url)
-                            if isinstance(response, dict) and "error" not in response:
-                                # GitHub API returns array directly
-                                releases = (
-                                    response if isinstance(response, list) else []
-                                )
-                            else:
-                                releases = (
-                                    response if isinstance(response, list) else []
-                                )
-
-                            if releases:
-                                # Format releases into changelog
-                                changelog_parts = [f"# Changelog for {package_name}\n"]
-
-                                # Limit to 5 releases to avoid token limits
-                                for i, release in enumerate(releases[:5]):
-                                    tag = release.get("tag_name", "")
-                                    name = release.get("name", "")
-                                    body = release.get("body", "")
-                                    published = release.get("published_at", "")
-
-                                    if tag:
-                                        changelog_parts.append(f"\n## {tag}")
-                                        if name and name != tag:
-                                            changelog_parts.append(f" - {name}")
-                                        if published:
-                                            changelog_parts.append(
-                                                f"\n*Released: {published[:10]}*"
-                                            )
-                                        if body:
-                                            # Truncate long bodies to avoid token limits
-                                            max_body_length = 1000
-                                            if len(body) > max_body_length:
-                                                body = (
-                                                    body[:max_body_length]
-                                                    + "\n\n... (truncated)"
-                                                )
-                                            changelog_parts.append(f"\n{body}")
-
-                                # Add note about limited releases
-                                changelog_parts.append(
-                                    f"\n\n---\n\n*Showing up to 5 most recent releases. Visit {changelog_url} for the complete changelog.*"
-                                )
-
-                                return "\n".join(changelog_parts)
-                        except Exception as e:
-                            logger.debug(f"Could not fetch GitHub releases: {e}")
-
-                # Try to fetch as regular webpage
-                try:
-                    response = await self.http.fetch(changelog_url)
-                    if isinstance(response, dict):
-                        # If it's JSON, try to extract text
-                        return str(response)
-                    return f"Changelog available at: {changelog_url}"
-                except Exception as e:
-                    logger.debug(f"Could not fetch changelog URL: {e}")
-                    return f"Changelog available at: {changelog_url}"
-
-            # Check if there's a GitHub repo to check releases
-            github_url = None
-            for key, url in project_urls.items():
-                if "github.com" in str(url) and not "/releases" in str(url):
-                    github_url = url
-                    break
-
-            if (
-                not github_url
-                and info.get("home_page")
-                and "github.com" in str(info.get("home_page"))
-            ):
-                github_url = info.get("home_page")
-
-            if github_url:
-                # Extract owner and repo
-                match = re.search(r"github\.com/([^/]+)/([^/]+)", github_url)
-                if match:
-                    owner, repo = match.groups()
-                    repo = repo.rstrip("/")  # Remove trailing slash if present
-
-                    # Construct changelog URL
+            # Fall back to a releases link for a GitHub repository URL
+            candidates = [*project_urls.values(), info.get("home_page")]
+            for url in candidates:
+                github = _github_repo(url)
+                if github:
+                    owner, repo = github
                     releases_url = f"https://github.com/{owner}/{repo}/releases"
                     return f"Changelog might be available at: {releases_url}"
 
@@ -361,5 +340,5 @@ class SearchOpsMixin:
                 return f"No changelog information available for {package_name}"
 
         except Exception as e:
-            logger.error(f"Error getting changelog for {package_name}: {e}")
-            return f"Error retrieving changelog: {str(e)}"
+            logger.error(f"Error building changelog for {package_name}: {e}")
+            raise

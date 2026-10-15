@@ -1,71 +1,36 @@
-"""Prompt registration for PyPI MCP Server.
-
-Contains prompt templates for common PyPI-related tasks.
-"""
+"""Prompt templates for common PyPI tasks."""
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
-
-from mcp.types import GetPromptResult, PromptMessage, TextContent
-
-if TYPE_CHECKING:
-    from mcp_pypi.server import PyPIMCPServer
-
-logger = logging.getLogger("mcp-pypi.server")
+from fastmcp import FastMCP
 
 
-def register_prompts(server: "PyPIMCPServer") -> None:
-    """Register prompts with the MCP server.
+def register_prompts(mcp: FastMCP) -> None:
+    """Register prompts with the MCP server."""
 
-    Args:
-        server: The PyPIMCPServer instance to register prompts with.
-    """
-
-    @server.mcp_server.prompt()
-    async def analyze_dependencies() -> GetPromptResult:
-        """Analyze package dependencies and suggest improvements."""
-        return GetPromptResult(
-            description="Analyze package dependencies for security and compatibility",
-            messages=[
-                PromptMessage(
-                    role="user",
-                    content=TextContent(
-                        type="text",
-                        text=(
-                            "Please analyze the dependencies of the specified package and:\n"
-                            "1. Check for security vulnerabilities\n"
-                            "2. Identify outdated dependencies\n"
-                            "3. Suggest version updates\n"
-                            "4. Check for dependency conflicts\n"
-                            "5. Recommend best practices for dependency management"
-                        ),
-                    ),
-                )
-            ],
+    @mcp.prompt(title="Analyze dependencies")
+    def analyze_dependencies(package_name: str) -> str:
+        """Analyze a package's dependencies for security and freshness."""
+        return (
+            f"Analyze the dependencies of the PyPI package '{package_name}'.\n"
+            f"1. Call get_dependencies for '{package_name}' (depth 2 or 3) to list its "
+            "requirements and the resolved dependency tree.\n"
+            f"2. Call check_vulnerabilities with ['{package_name}'] and "
+            "include_transitive=True to check the package and every dependency.\n"
+            "3. Compare each dependency's declared specifier with its latest release "
+            "to spot outdated constraints.\n"
+            "4. Report the vulnerable dependencies (with introduced_via chains and "
+            "severities) and the outdated ones, and recommend version updates."
         )
 
-    @server.mcp_server.prompt()
-    async def package_comparison() -> GetPromptResult:
-        """Compare multiple packages and recommend the best option."""
-        return GetPromptResult(
-            description="Compare packages and provide recommendations",
-            messages=[
-                PromptMessage(
-                    role="user",
-                    content=TextContent(
-                        type="text",
-                        text=(
-                            "Please compare the specified packages based on:\n"
-                            "1. Download statistics and popularity\n"
-                            "2. Maintenance status and last update\n"
-                            "3. Documentation quality\n"
-                            "4. Dependencies and size\n"
-                            "5. Community support and issues\n"
-                            "Provide a recommendation on which package to use."
-                        ),
-                    ),
-                )
-            ],
+    @mcp.prompt(title="Compare packages")
+    def compare_packages(packages: str) -> str:
+        """Compare candidate packages and recommend one."""
+        return (
+            f"Compare these PyPI packages: {packages}.\n"
+            "1. Call get_package for each to compare release recency, license, "
+            "Python support and project links.\n"
+            "2. Call get_download_stats for each as a popularity signal.\n"
+            "3. Call check_vulnerabilities on the latest version of each.\n"
+            "4. Recommend one package and explain the trade-offs."
         )

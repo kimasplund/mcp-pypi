@@ -3,10 +3,12 @@ Feed operations mixin for PyPI client.
 """
 
 import logging
-from typing import Any, Dict, List, cast
+from typing import Any, cast
+from xml.etree.ElementTree import Element
 
 import defusedxml.ElementTree as ET
 
+from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import (
     ErrorCode,
     FeedItem,
@@ -15,13 +17,20 @@ from mcp_pypi.core.models import (
     UpdatesFeed,
     format_error,
 )
-from mcp_pypi.utils.helpers import sanitize_package_name
+from mcp_pypi.utils.sanitize import sanitize_package_name
 
 logger = logging.getLogger("mcp-pypi.client")
 
 
+def _text(elem: Element | None) -> str:
+    """Text of an XML element, or "" when the element or its text is missing."""
+    return (elem.text or "") if elem is not None else ""
+
+
 class FeedOpsMixin:
     """Mixin providing RSS feed operations."""
+
+    http: AsyncHTTPClient  # provided by PyPIClient
 
     async def get_newest_packages(self) -> PackagesFeed:
         """Get the newest packages feed from PyPI."""
@@ -52,10 +61,7 @@ class FeedOpsMixin:
                     }
             elif isinstance(data, (str, bytes)):
                 # Legacy format
-                if isinstance(data, bytes):
-                    data_str = data.decode("utf-8")
-                else:
-                    data_str = data
+                data_str = data.decode("utf-8") if isinstance(data, bytes) else data
             else:
                 return {
                     "packages": [],
@@ -69,7 +75,7 @@ class FeedOpsMixin:
             try:
                 root = ET.fromstring(data_str)
 
-                packages: List[FeedItem] = []
+                packages: list[FeedItem] = []
                 for item in root.findall(".//item"):
                     title_elem = item.find("title")
                     link_elem = item.find("link")
@@ -77,15 +83,14 @@ class FeedOpsMixin:
                     date_elem = item.find("pubDate")
 
                     if all(
-                        elem is not None
-                        for elem in (title_elem, link_elem, desc_elem, date_elem)
+                        elem is not None for elem in (title_elem, link_elem, desc_elem, date_elem)
                     ):
                         packages.append(
                             {
-                                "title": title_elem.text or "",
-                                "link": link_elem.text or "",
-                                "description": desc_elem.text or "",
-                                "published_date": date_elem.text or "",
+                                "title": _text(title_elem),
+                                "link": _text(link_elem),
+                                "description": _text(desc_elem),
+                                "published_date": _text(date_elem),
                             }
                         )
 
@@ -133,10 +138,7 @@ class FeedOpsMixin:
 
             elif isinstance(data, (str, bytes)):
                 # Legacy format
-                if isinstance(data, bytes):
-                    data_str = data.decode("utf-8")
-                else:
-                    data_str = data
+                data_str = data.decode("utf-8") if isinstance(data, bytes) else data
             else:
                 return {
                     "updates": [],
@@ -150,7 +152,7 @@ class FeedOpsMixin:
             try:
                 root = ET.fromstring(data_str)
 
-                updates: List[FeedItem] = []
+                updates: list[FeedItem] = []
                 for item in root.findall(".//item"):
                     title_elem = item.find("title")
                     link_elem = item.find("link")
@@ -158,15 +160,14 @@ class FeedOpsMixin:
                     date_elem = item.find("pubDate")
 
                     if all(
-                        elem is not None
-                        for elem in (title_elem, link_elem, desc_elem, date_elem)
+                        elem is not None for elem in (title_elem, link_elem, desc_elem, date_elem)
                     ):
                         updates.append(
                             {
-                                "title": title_elem.text or "",
-                                "link": link_elem.text or "",
-                                "description": desc_elem.text or "",
-                                "published_date": date_elem.text or "",
+                                "title": _text(title_elem),
+                                "link": _text(link_elem),
+                                "description": _text(desc_elem),
+                                "published_date": _text(date_elem),
                             }
                         )
 
@@ -217,10 +218,7 @@ class FeedOpsMixin:
                     }
             elif isinstance(data, (str, bytes)):
                 # Legacy format
-                if isinstance(data, bytes):
-                    data_str = data.decode("utf-8")
-                else:
-                    data_str = data
+                data_str = data.decode("utf-8") if isinstance(data, bytes) else data
             else:
                 return {
                     "releases": [],
@@ -234,7 +232,7 @@ class FeedOpsMixin:
             try:
                 root = ET.fromstring(data_str)
 
-                releases: List[FeedItem] = []
+                releases: list[FeedItem] = []
                 for item in root.findall(".//item"):
                     title_elem = item.find("title")
                     link_elem = item.find("link")
@@ -242,15 +240,14 @@ class FeedOpsMixin:
                     date_elem = item.find("pubDate")
 
                     if all(
-                        elem is not None
-                        for elem in (title_elem, link_elem, desc_elem, date_elem)
+                        elem is not None for elem in (title_elem, link_elem, desc_elem, date_elem)
                     ):
                         releases.append(
                             {
-                                "title": title_elem.text or "",
-                                "link": link_elem.text or "",
-                                "description": desc_elem.text or "",
-                                "published_date": date_elem.text or "",
+                                "title": _text(title_elem),
+                                "link": _text(link_elem),
+                                "description": _text(desc_elem),
+                                "published_date": _text(date_elem),
                             }
                         )
 
@@ -305,7 +302,7 @@ class FeedOpsMixin:
                         }
 
                     # Parse RSS items
-                    updates = []
+                    updates: list[FeedItem] = []
 
                     # RSS 2.0 format
                     for item in root.findall(".//item"):
@@ -328,17 +325,9 @@ class FeedOpsMixin:
                                     "package_name": package_name,
                                     "version": version,
                                     "title": title,
-                                    "link": (
-                                        link_elem.text if link_elem is not None else ""
-                                    ),
-                                    "description": (
-                                        desc_elem.text if desc_elem is not None else ""
-                                    ),
-                                    "published_date": (
-                                        pub_date_elem.text
-                                        if pub_date_elem is not None
-                                        else ""
-                                    ),
+                                    "link": _text(link_elem),
+                                    "description": _text(desc_elem),
+                                    "published_date": _text(pub_date_elem),
                                 }
                             )
 
@@ -356,7 +345,10 @@ class FeedOpsMixin:
                 return {
                     "updates": [],
                     "error": {
-                        "message": "RSS parsing requires defusedxml for security (install with: pip install defusedxml)",
+                        "message": (
+                            "RSS parsing requires defusedxml for security (install with: "
+                            "pip install defusedxml)"
+                        ),
                         "code": "missing_dependency",
                     },
                 }
@@ -365,7 +357,7 @@ class FeedOpsMixin:
             logger.exception(f"Error getting updates feed: {e}")
             return {"updates": [], "error": {"message": str(e), "code": "feed_error"}}
 
-    async def get_packages_feed(self) -> Dict[str, Any]:
+    async def get_packages_feed(self) -> dict[str, Any]:
         """Get newest packages feed from PyPI RSS.
 
         Returns:
@@ -416,17 +408,9 @@ class FeedOpsMixin:
                             packages.append(
                                 {
                                     "name": title_elem.text.strip(),
-                                    "link": (
-                                        link_elem.text if link_elem is not None else ""
-                                    ),
-                                    "description": (
-                                        desc_elem.text if desc_elem is not None else ""
-                                    ),
-                                    "published_date": (
-                                        pub_date_elem.text
-                                        if pub_date_elem is not None
-                                        else ""
-                                    ),
+                                    "link": _text(link_elem),
+                                    "description": _text(desc_elem),
+                                    "published_date": _text(pub_date_elem),
                                 }
                             )
 
@@ -444,7 +428,10 @@ class FeedOpsMixin:
                 return {
                     "packages": [],
                     "error": {
-                        "message": "RSS parsing requires defusedxml for security (install with: pip install defusedxml)",
+                        "message": (
+                            "RSS parsing requires defusedxml for security (install with: "
+                            "pip install defusedxml)"
+                        ),
                         "code": "missing_dependency",
                     },
                 }
@@ -453,7 +440,7 @@ class FeedOpsMixin:
             logger.exception(f"Error getting newest packages feed: {e}")
             return {"packages": [], "error": {"message": str(e), "code": "feed_error"}}
 
-    async def get_project_releases_feed(self, package_name: str) -> Dict[str, Any]:
+    async def get_project_releases_feed(self, package_name: str) -> dict[str, Any]:
         """Get releases feed for a specific project from PyPI RSS.
 
         Args:
@@ -513,17 +500,9 @@ class FeedOpsMixin:
                                 {
                                     "version": version,
                                     "title": title,
-                                    "link": (
-                                        link_elem.text if link_elem is not None else ""
-                                    ),
-                                    "description": (
-                                        desc_elem.text if desc_elem is not None else ""
-                                    ),
-                                    "published_date": (
-                                        pub_date_elem.text
-                                        if pub_date_elem is not None
-                                        else ""
-                                    ),
+                                    "link": _text(link_elem),
+                                    "description": _text(desc_elem),
+                                    "published_date": _text(pub_date_elem),
                                 }
                             )
 
@@ -541,7 +520,10 @@ class FeedOpsMixin:
                 return {
                     "releases": [],
                     "error": {
-                        "message": "RSS parsing requires defusedxml for security (install with: pip install defusedxml)",
+                        "message": (
+                            "RSS parsing requires defusedxml for security (install with: "
+                            "pip install defusedxml)"
+                        ),
                         "code": "missing_dependency",
                     },
                 }
@@ -550,7 +532,7 @@ class FeedOpsMixin:
             logger.exception(f"Error getting project releases feed: {e}")
             return {"releases": [], "error": {"message": str(e), "code": "feed_error"}}
 
-    async def get_releases_feed(self) -> Dict[str, Any]:
+    async def get_releases_feed(self) -> dict[str, Any]:
         """Get recent releases feed from PyPI RSS.
 
         This is an alias for get_updates_feed() as PyPI's updates feed

@@ -1,10 +1,8 @@
 """Tests for the cache manager."""
 
 import asyncio
-import json
-import os
+import contextlib
 import tempfile
-import time
 import uuid
 from pathlib import Path
 
@@ -23,14 +21,10 @@ def config():
 
     # Cleanup
     for file in Path(cache_dir).glob("*"):
-        try:
+        with contextlib.suppress(BaseException):
             file.unlink()
-        except:
-            pass
-    try:
+    with contextlib.suppress(BaseException):
         Path(cache_dir).rmdir()
-    except:
-        pass
 
 
 @pytest.fixture
@@ -143,9 +137,7 @@ async def test_cache_pruning(cache_manager, config):
     config.cache_max_size = 1000  # 1 KB
 
     # Create a large data item
-    large_data = {
-        "large": "x" * 2000
-    }  # This should be larger than 1 KB when serialized
+    large_data = {"large": "x" * 2000}  # This should be larger than 1 KB when serialized
     key = f"test-key-{uuid.uuid4()}"
 
     # Set data, triggering pruning

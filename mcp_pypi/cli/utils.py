@@ -3,7 +3,8 @@ Shared utilities for the MCP-PyPI CLI.
 """
 
 import json
-from typing import Any, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any
 
 from rich.console import Console
 from rich.syntax import Syntax
@@ -16,10 +17,10 @@ console = Console()
 class GlobalOptions:
     """Container for global CLI options."""
 
-    cache_dir: Optional[str] = None
+    cache_dir: str | None = None
     cache_ttl: int = 604800  # 1 week
     verbose: bool = False
-    log_file: Optional[str] = None
+    log_file: str | None = None
 
 
 global_options = GlobalOptions()

@@ -9,9 +9,9 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from mcp_pypi.core.models import ErrorCode, PyPIClientConfig, format_error
+from mcp_pypi.core.models import PyPIClientConfig
 
 logger = logging.getLogger("mcp-pypi.cache")
 
@@ -36,7 +36,7 @@ class AsyncCacheManager:
         hashed_key = hashlib.sha256(key.encode()).hexdigest()
         return Path(self.config.cache_dir) / hashed_key
 
-    async def get(self, key: str) -> Optional[Dict[str, Any]]:
+    async def get(self, key: str) -> dict[str, Any] | None:
         """Get cached data if it exists and is not expired.
 
         Args:
@@ -55,11 +55,7 @@ class AsyncCacheManager:
 
                 # Check if cache is expired
                 # Use custom TTL if stored, otherwise use default
-                ttl = (
-                    data.get("ttl")
-                    if data.get("ttl") is not None
-                    else self.config.cache_ttl
-                )
+                ttl = data.get("ttl") if data.get("ttl") is not None else self.config.cache_ttl
                 if time.time() - data.get("timestamp", 0) < ttl:
                     # Update access time
                     os.utime(cache_path, None)
@@ -78,9 +74,9 @@ class AsyncCacheManager:
     async def set(
         self,
         key: str,
-        data: Dict[str, Any],
-        etag: Optional[str] = None,
-        ttl: Optional[int] = None,
+        data: dict[str, Any],
+        etag: str | None = None,
+        ttl: int | None = None,
     ) -> None:
         """Cache response data with timestamp and etag.
 
@@ -104,7 +100,8 @@ class AsyncCacheManager:
             # If estimated size is larger than 80% of max cache size, don't cache it
             if estimated_size > self.config.cache_max_size * 0.8:
                 logger.warning(
-                    f"Data for key {key} is too large ({estimated_size} bytes) to cache (limit: {int(self.config.cache_max_size * 0.8)} bytes)"
+                    f"Data for key {key} is too large ({estimated_size} bytes) to cache (limit: "
+                    f"{int(self.config.cache_max_size * 0.8)} bytes)"
                 )
                 return
 
@@ -123,7 +120,7 @@ class AsyncCacheManager:
         except Exception as e:
             logger.warning(f"Unexpected error caching data for {key}: {e}")
 
-    async def get_etag(self, key: str) -> Optional[str]:
+    async def get_etag(self, key: str) -> str | None:
         """Get the ETag for a cached response.
 
         Args:
@@ -149,7 +146,7 @@ class AsyncCacheManager:
         """Clear all cached data."""
         try:
             async with self._cache_lock:
-                for file_path in Path(self.config.cache_dir).glob("*"):
+                for file_path in Path(self.config.cache_dir).glob("*"):  # noqa: ASYNC240  # small local cache dir; guarded by the cache lock
                     if file_path.is_file():
                         file_path.unlink()
             logger.info("Cache cleared")
@@ -161,7 +158,7 @@ class AsyncCacheManager:
         try:
             total_size = 0
             async with self._cache_lock:
-                for file_path in Path(self.config.cache_dir).glob("*"):
+                for file_path in Path(self.config.cache_dir).glob("*"):  # noqa: ASYNC240  # small local cache dir; guarded by the cache lock
                     if file_path.is_file():
                         total_size += file_path.stat().st_size
             return total_size
@@ -169,7 +166,7 @@ class AsyncCacheManager:
             logger.warning(f"Failed to get cache size: {e}")
             return 0
 
-    async def get_cache_stats(self) -> Dict[str, Any]:
+    async def get_cache_stats(self) -> dict[str, Any]:
         """Get statistics about the cache."""
         try:
             file_count = 0
@@ -178,7 +175,7 @@ class AsyncCacheManager:
             newest_timestamp = 0
 
             async with self._cache_lock:
-                for file_path in Path(self.config.cache_dir).glob("*"):
+                for file_path in Path(self.config.cache_dir).glob("*"):  # noqa: ASYNC240  # small local cache dir; guarded by the cache lock
                     if file_path.is_file():
                         file_count += 1
                         file_size = file_path.stat().st_size
@@ -191,7 +188,7 @@ class AsyncCacheManager:
                                 timestamp = data.get("timestamp", 0)
                                 oldest_timestamp = min(oldest_timestamp, timestamp)
                                 newest_timestamp = max(newest_timestamp, timestamp)
-                        except:
+                        except Exception:
                             # If we can't read the file, use the file mtime
                             mtime = file_path.stat().st_mtime
                             oldest_timestamp = min(oldest_timestamp, mtime)
@@ -228,11 +225,10 @@ class AsyncCacheManager:
 
             if cache_size > self.config.cache_max_size:
                 logger.info(
-                    f"Cache size ({cache_size} bytes) exceeds max ({self.config.cache_max_size} bytes), pruning..."
+                    f"Cache size ({cache_size} bytes) exceeds max ({self.config.cache_max_size} "
+                    f"bytes), pruning..."
                 )
-                await self._prune_cache(
-                    target_size=int(self.config.cache_max_size * 0.8)
-                )
+                await self._prune_cache(target_size=int(self.config.cache_max_size * 0.8))
         except Exception as e:
             logger.warning(f"Failed to check/prune cache: {e}")
 
@@ -244,10 +240,10 @@ class AsyncCacheManager:
         """
         try:
             # Get all cache files with their access times
-            cache_files: List[Tuple[Path, float]] = []
+            cache_files: list[tuple[Path, float]] = []
 
             async with self._cache_lock:
-                for file_path in Path(self.config.cache_dir).glob("*"):
+                for file_path in Path(self.config.cache_dir).glob("*"):  # noqa: ASYNC240  # small local cache dir; guarded by the cache lock
                     if file_path.is_file():
                         # Use atime to determine which files were accessed least recently
                         atime = file_path.stat().st_atime
@@ -270,19 +266,15 @@ class AsyncCacheManager:
                         file_size = file_path.stat().st_size
                         file_path.unlink()
                         remaining_size -= file_size
-                        logger.debug(
-                            f"Pruned cache file: {file_path.name} ({file_size} bytes)"
-                        )
+                        logger.debug(f"Pruned cache file: {file_path.name} ({file_size} bytes)")
                     except Exception as e:
                         logger.warning(f"Failed to remove cache file {file_path}: {e}")
 
-            logger.info(
-                f"Pruned cache from {current_size} bytes to {remaining_size} bytes"
-            )
+            logger.info(f"Pruned cache from {current_size} bytes to {remaining_size} bytes")
         except Exception as e:
             logger.warning(f"Failed to prune cache: {e}")
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """Get statistics about the cache (compatibility wrapper).
 
         This is a wrapper around get_cache_stats for backwards compatibility.

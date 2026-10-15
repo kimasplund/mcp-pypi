@@ -6,26 +6,27 @@ Contains resource endpoints for PyPI feed data.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from mcp_pypi.server import PyPIMCPServer
+from fastmcp import FastMCP
+
+from mcp_pypi.core import PyPIClient
 
 logger = logging.getLogger("mcp-pypi.server")
 
 
-def register_resources(server: "PyPIMCPServer") -> None:
+def register_resources(mcp: FastMCP, client: PyPIClient) -> None:
     """Register PyPI resources with the MCP server.
 
     Args:
-        server: The PyPIMCPServer instance to register resources with.
+        mcp: The FastMCP server to register resources with.
+        client: The PyPI client used to fetch feeds.
     """
 
-    @server.mcp_server.resource("pypi://recent-releases")
+    @mcp.resource("pypi://recent-releases", title="Recent releases")
     async def get_recent_releases() -> str:
         """Get recent package releases from PyPI."""
         try:
-            feed = await server.client.get_releases_feed()
+            feed = await client.get_releases_feed()
             if not feed.get("error"):
                 releases = []
                 feed_releases = feed.get("releases", [])
@@ -40,11 +41,11 @@ def register_resources(server: "PyPIMCPServer") -> None:
             logger.error(f"Error getting recent releases: {e}")
             return f"Error getting recent releases: {str(e)}"
 
-    @server.mcp_server.resource("pypi://new-packages")
+    @mcp.resource("pypi://new-packages", title="New packages")
     async def get_new_packages() -> str:
         """Get newly created packages on PyPI."""
         try:
-            feed = await server.client.get_packages_feed()
+            feed = await client.get_packages_feed()
             if not feed.get("error"):
                 packages = []
                 feed_packages = feed.get("packages", [])
@@ -59,11 +60,11 @@ def register_resources(server: "PyPIMCPServer") -> None:
             logger.error(f"Error getting new packages: {e}")
             return f"Error getting new packages: {str(e)}"
 
-    @server.mcp_server.resource("pypi://updated-packages")
+    @mcp.resource("pypi://updated-packages", title="Updated packages")
     async def get_updated_packages() -> str:
         """Get recently updated packages on PyPI."""
         try:
-            feed = await server.client.get_updates_feed()
+            feed = await client.get_updates_feed()
             if not feed.get("error"):
                 updates = []
                 feed_updates = feed.get("updates", [])

@@ -4,20 +4,21 @@ Dependency operations mixin for PyPI client.
 
 import json
 import logging
-import os
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import TYPE_CHECKING, cast
 
 from packaging.requirements import Requirement
-from packaging.version import Version
 
+from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import (
     DependenciesResult,
+    Dependency,
     DependencyTreeResult,
     ErrorCode,
     TreeNode,
+    VersionInfo,
     format_error,
 )
-from mcp_pypi.utils.helpers import sanitize_package_name, sanitize_version
+from mcp_pypi.utils.sanitize import sanitize_package_name, sanitize_version
 
 logger = logging.getLogger("mcp-pypi.client")
 
@@ -25,8 +26,15 @@ logger = logging.getLogger("mcp-pypi.client")
 class DependencyOpsMixin:
     """Mixin providing dependency-related operations."""
 
+    # Provided by PyPIClient.
+    http: AsyncHTTPClient
+
+    if TYPE_CHECKING:
+
+        async def get_latest_version(self, package_name: str) -> VersionInfo: ...
+
     async def get_dependencies(
-        self, package_name: str, version: Optional[str] = None
+        self, package_name: str, version: str | None = None
     ) -> DependenciesResult:
         """Get the dependencies for a package."""
         try:
@@ -58,9 +66,7 @@ class DependencyOpsMixin:
                         logger.error(f"Error decoding JSON from raw_data: {e}")
                         return cast(
                             DependenciesResult,
-                            format_error(
-                                ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                            ),
+                            format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"),
                         )
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
@@ -76,13 +82,13 @@ class DependencyOpsMixin:
                 parsed_result = result
 
             requires_dist = parsed_result["info"].get("requires_dist", []) or []
-            dependencies = []
+            dependencies: list[Dependency] = []
 
             # Parse using packaging.requirements for better accuracy
             for req_str in requires_dist:
                 try:
                     req = Requirement(req_str)
-                    dep = {
+                    dep: Dependency = {
                         "name": req.name,
                         "version_spec": str(req.specifier) if req.specifier else "",
                         "extras": list(req.extras) if req.extras else [],
@@ -110,19 +116,15 @@ class DependencyOpsMixin:
 
             return {"dependencies": dependencies}
         except ValueError as e:
-            return cast(
-                DependenciesResult, format_error(ErrorCode.INVALID_INPUT, str(e))
-            )
+            return cast(DependenciesResult, format_error(ErrorCode.INVALID_INPUT, str(e)))
         except Exception as e:
             logger.exception(f"Error getting dependencies: {e}")
-            return cast(
-                DependenciesResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e))
-            )
+            return cast(DependenciesResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
     async def get_dependency_tree(
         self,
         package_name: str,
-        version: Optional[str] = None,
+        version: str | None = None,
         depth: int = 3,
         max_width: int = 50,
     ) -> DependencyTreeResult:
@@ -147,15 +149,15 @@ class DependencyOpsMixin:
 
             # Use iterative approach to avoid stack overflows with deep trees
             # Track visited packages to avoid cycles
-            visited: Dict[str, Optional[str]] = {}
-            flat_list: List[str] = []
+            visited: dict[str, str | None] = {}
+            flat_list: list[str] = []
 
             # Build dependency tree iteratively
             async def build_tree() -> TreeNode:
-                queue: List[Tuple[str, Optional[str], int, Optional[str]]] = [
+                queue: list[tuple[str, str | None, int, str | None]] = [
                     (sanitized_name, sanitized_version, 0, None)
                 ]
-                nodes: Dict[str, TreeNode] = {}
+                nodes: dict[str, TreeNode] = {}
 
                 # Root node
                 root: TreeNode = {
@@ -226,9 +228,7 @@ class DependencyOpsMixin:
                                 dep_name = dep["name"]
 
                                 # Get the version for this dependency
-                                dep_version_info = await self.get_latest_version(
-                                    dep_name
-                                )
+                                dep_version_info = await self.get_latest_version(dep_name)
                                 dep_version = (
                                     dep_version_info.get("version")
                                     if "error" not in dep_version_info
@@ -236,9 +236,7 @@ class DependencyOpsMixin:
                                 )
 
                                 # Add to queue
-                                queue.append(
-                                    (dep_name, dep_version, level + 1, pkg_key)
-                                )
+                                queue.append((dep_name, dep_version, level + 1, pkg_key))
 
                             # Note if dependencies were truncated
                             if len(deps_result["dependencies"]) > max_width:
@@ -253,50 +251,10 @@ class DependencyOpsMixin:
             # Build the tree
             tree = await build_tree()
 
-            # Generate visualization if Plotly is available
-            visualization_url = None
-            if self._has_plotly:
-                try:
-                    import plotly.graph_objects as go
-                    import plotly.io as pio
-
-                    # Create a simple tree visualization
-                    labels = [f"{node.split(' ')[0]}" for node in flat_list]
-                    parents = [""] + ["Root"] * (len(flat_list) - 1)
-
-                    fig = go.Figure(
-                        go.Treemap(
-                            labels=labels, parents=parents, root_color="lightgrey"
-                        )
-                    )
-
-                    fig.update_layout(
-                        title=f"Dependency Tree for {sanitized_name} {sanitized_version}",
-                        margin=dict(t=50, l=25, r=25, b=25),
-                    )
-
-                    # Save to temp file
-                    viz_file = os.path.join(
-                        self.config.cache_dir,
-                        f"deptree_{sanitized_name}_{sanitized_version}.html",
-                    )
-                    pio.write_html(fig, viz_file)
-                    visualization_url = f"file://{viz_file}"
-                except Exception as e:
-                    logger.warning(f"Failed to generate visualization: {e}")
-
             result: DependencyTreeResult = {"tree": tree, "flat_list": flat_list}
-
-            if visualization_url:
-                result["visualization_url"] = visualization_url
-
             return result
         except ValueError as e:
-            return cast(
-                DependencyTreeResult, format_error(ErrorCode.INVALID_INPUT, str(e))
-            )
+            return cast(DependencyTreeResult, format_error(ErrorCode.INVALID_INPUT, str(e)))
         except Exception as e:
             logger.exception(f"Error getting dependency tree: {e}")
-            return cast(
-                DependencyTreeResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e))
-            )
+            return cast(DependencyTreeResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))

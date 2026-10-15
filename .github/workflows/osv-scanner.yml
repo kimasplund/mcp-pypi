@@ -26,23 +26,26 @@ permissions:
   security-events: write
   # Read commit contents
   contents: read
+  # Required by the reusable workflows to upload SARIF (github/codeql-action#2117)
+  actions: read
 
 jobs:
   scan-scheduled:
     if: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
-    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@1f1242919d8a60496dd1874b24b62b2370ed4c78" # v1.7.1
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc" # v2.6.0
     with:
-      # Example of specifying custom arguments
+      # v2 is needed to read uv.lock. tests/fixtures holds lockfiles that pin
+      # vulnerable versions on purpose (audit test data), so it is excluded.
       scan-args: |-
         -r
-        --skip-git
+        --experimental-exclude=fixtures
         ./
   scan-pr:
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
-    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@1f1242919d8a60496dd1874b24b62b2370ed4c78" # v1.7.1
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc" # v2.6.0
     with:
-      # Example of specifying custom arguments
+      # Same arguments as scan-scheduled: uv.lock in, test fixtures out.
       scan-args: |-
         -r
-        --skip-git
+        --experimental-exclude=fixtures
         ./

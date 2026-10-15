@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import random
-from typing import Any, Dict, Optional, cast
+from typing import Any, NamedTuple, cast
 
 import aiohttp
 from aiohttp import ClientSession, ClientTimeout
@@ -17,6 +17,14 @@ from mcp_pypi.core.models import ErrorCode, PyPIClientConfig, format_error
 logger = logging.getLogger("mcp-pypi.http")
 
 
+class RawResponse(NamedTuple):
+    """Status, body and lower-cased headers of an uncached response."""
+
+    status: int
+    body: bytes
+    headers: dict[str, str]
+
+
 class AsyncHTTPClient:
     """Async HTTP client for making requests to PyPI."""
 
@@ -25,7 +33,7 @@ class AsyncHTTPClient:
         self.cache = cache_manager  # Changed from self.cache_manager to self.cache
         self.rate_limit_delay = 0.1  # Initial delay between requests
         self.last_request_time = 0.0
-        self._session: Optional[ClientSession] = None
+        self._session: ClientSession | None = None
 
     async def _get_session(self) -> ClientSession:
         """Get or create an aiohttp ClientSession."""
@@ -54,13 +62,36 @@ class AsyncHTTPClient:
 
         self.last_request_time = time.time()
 
+    async def fetch_raw(
+        self,
+        url: str,
+        headers: dict[str, str] | None = None,
+        total_timeout: float | None = None,
+    ) -> RawResponse:
+        """GET a URL without caching, parsing or retries (for large bodies).
+
+        `total_timeout` (seconds) replaces the session's PYPI_TIMEOUT for this request.
+        Network failures raise ``aiohttp.ClientError`` or ``TimeoutError``.
+        """
+        await self._apply_rate_limit()
+        session = await self._get_session()
+        request_headers = {"User-Agent": self.config.user_agent, **(headers or {})}
+        extra: dict[str, Any] = {}
+        if total_timeout is not None:
+            extra["timeout"] = ClientTimeout(total=total_timeout)  # type: ignore[call-arg]
+        async with session.get(url, headers=request_headers, **extra) as response:
+            body = await response.read()
+            return RawResponse(
+                response.status, body, {k.lower(): v for k, v in response.headers.items()}
+            )
+
     async def fetch(
         self,
         url: str,
         method: str = "GET",
-        headers: Optional[Dict[str, str]] = None,
-        data: Optional[bytes] = None,
-    ) -> Dict[str, Any]:
+        headers: dict[str, str] | None = None,
+        data: bytes | None = None,
+    ) -> dict[str, Any]:
         """Fetch data from URL with caching, rate limiting, and retries.
 
         Args:
@@ -72,6 +103,7 @@ class AsyncHTTPClient:
         Returns:
             The parsed response as a dictionary
         """
+        cached_data = None
         # Check cache first (only for GET requests)
         if method == "GET" and data is None:
             cached_data = await self.cache.get(url)
@@ -106,7 +138,8 @@ class AsyncHTTPClient:
                     method, url, headers=request_headers, data=data
                 ) as response:
                     logger.debug(
-                        f"Received response with status {response.status} and content type {response.headers.get('Content-Type', 'unknown')}"
+                        f"Received response with status {response.status} and content type "
+                        f"{response.headers.get('Content-Type', 'unknown')}"
                     )
 
                     # Handle HTTP status codes
@@ -118,29 +151,25 @@ class AsyncHTTPClient:
                             f"Received 304 Not Modified but no cached data available for {url}"
                         )
                         # Make a new request without any ETag or cache
-                        logger.debug(f"Retrying request without cache headers")
+                        logger.debug("Retrying request without cache headers")
                         retry_headers = {"User-Agent": self.config.user_agent}
                         if headers:
                             retry_headers.update(headers)
                         async with session.request(
                             method, url, headers=retry_headers, data=data
                         ) as retry_response:
-                            logger.debug(
-                                f"Retry response status: {retry_response.status}"
-                            )
+                            logger.debug(f"Retry response status: {retry_response.status}")
 
                             if retry_response.status >= 400:
-                                error_message = f"HTTP error {retry_response.status}: {retry_response.reason}"
+                                error_message = (
+                                    f"HTTP error {retry_response.status}: {retry_response.reason}"
+                                )
                                 return cast(
-                                    Dict[str, Any],
-                                    format_error(
-                                        ErrorCode.NETWORK_ERROR, error_message
-                                    ),
+                                    dict[str, Any],
+                                    format_error(ErrorCode.NETWORK_ERROR, error_message),
                                 )
 
-                            content_type = retry_response.headers.get(
-                                "Content-Type", ""
-                            )
+                            content_type = retry_response.headers.get("Content-Type", "")
                             new_etag = retry_response.headers.get("ETag")
 
                             if "application/json" in content_type:
@@ -151,7 +180,7 @@ class AsyncHTTPClient:
                                     return result
                                 except json.JSONDecodeError as e:
                                     return cast(
-                                        Dict[str, Any],
+                                        dict[str, Any],
                                         format_error(
                                             ErrorCode.PARSE_ERROR,
                                             f"Invalid JSON response from {url}: {e}",
@@ -160,10 +189,7 @@ class AsyncHTTPClient:
                             else:
                                 # For non-JSON responses
                                 data = await retry_response.read()
-                                if (
-                                    "application/xml" in content_type
-                                    or "text/xml" in content_type
-                                ):
+                                if "application/xml" in content_type or "text/xml" in content_type:
                                     return {
                                         "raw_data": data,
                                         "content_type": content_type,
@@ -191,24 +217,18 @@ class AsyncHTTPClient:
                                 60, self.rate_limit_delay * 2
                             ) + random.uniform(0, 1)
 
-                        logger.warning(
-                            f"Rate limited, retrying after {self.rate_limit_delay:.2f}s"
-                        )
+                        logger.warning(f"Rate limited, retrying after {self.rate_limit_delay:.2f}s")
                         await asyncio.sleep(self.rate_limit_delay)
                         continue
 
                     if response.status == 404:
                         return cast(
-                            Dict[str, Any],
-                            format_error(
-                                ErrorCode.NOT_FOUND, f"Resource not found: {url}"
-                            ),
+                            dict[str, Any],
+                            format_error(ErrorCode.NOT_FOUND, f"Resource not found: {url}"),
                         )
 
                     if response.status >= 400:
-                        error_message = (
-                            f"HTTP error {response.status}: {response.reason}"
-                        )
+                        error_message = f"HTTP error {response.status}: {response.reason}"
 
                         # Try to extract more details from response body
                         try:
@@ -223,13 +243,14 @@ class AsyncHTTPClient:
                             retries_left -= 1
                             retry_delay = self._get_next_retry_delay(retry_delay)
                             logger.warning(
-                                f"Server error {response.status}, retrying in {retry_delay:.2f}s ({retries_left} retries left)"
+                                f"Server error {response.status}, retrying in {retry_delay:.2f}s "
+                                f"({retries_left} retries left)"
                             )
                             await asyncio.sleep(retry_delay)
                             continue
                         else:  # Client errors are not retriable
                             return cast(
-                                Dict[str, Any],
+                                dict[str, Any],
                                 format_error(ErrorCode.NETWORK_ERROR, error_message),
                             )
 
@@ -237,16 +258,13 @@ class AsyncHTTPClient:
                     content_type = response.headers.get("Content-Type", "")
                     new_etag = response.headers.get("ETag")
 
-                    logger.debug(
-                        f"Processing response with content type: {content_type}"
-                    )
+                    logger.debug(f"Processing response with content type: {content_type}")
 
                     if "application/json" in content_type:
                         try:
                             result = await response.json()
-                            logger.debug(
-                                f"Successfully parsed JSON response with keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}"
-                            )
+                            keys = list(result.keys()) if isinstance(result, dict) else "Not a dict"
+                            logger.debug(f"Successfully parsed JSON response with keys: {keys}")
 
                             # Cache successful JSON responses (only for GET requests)
                             if isinstance(result, dict) and method == "GET":
@@ -257,7 +275,7 @@ class AsyncHTTPClient:
                         except json.JSONDecodeError as e:
                             logger.error(f"JSON decode error for {url}: {e}")
                             return cast(
-                                Dict[str, Any],
+                                dict[str, Any],
                                 format_error(
                                     ErrorCode.PARSE_ERROR,
                                     f"Invalid JSON response from {url}: {e}",
@@ -270,11 +288,8 @@ class AsyncHTTPClient:
                             logger.debug(f"Read raw data of length {len(data)} bytes")
 
                             # For XML responses, keep it as bytes for the XML parser
-                            if (
-                                "application/xml" in content_type
-                                or "text/xml" in content_type
-                            ):
-                                logger.debug(f"Returning XML data as bytes")
+                            if "application/xml" in content_type or "text/xml" in content_type:
+                                logger.debug("Returning XML data as bytes")
                                 return {"raw_data": data, "content_type": content_type}
 
                             # Convert bytes to UTF-8 string for text responses
@@ -289,14 +304,12 @@ class AsyncHTTPClient:
                                 }
                             except UnicodeDecodeError:
                                 # If it can't be decoded as UTF-8, return as bytes
-                                logger.debug(
-                                    f"Could not decode as UTF-8, returning as bytes"
-                                )
+                                logger.debug("Could not decode as UTF-8, returning as bytes")
                                 return {"raw_data": data, "content_type": content_type}
                         except Exception as e:
                             logger.error(f"Error reading response data: {e}")
                             return cast(
-                                Dict[str, Any],
+                                dict[str, Any],
                                 format_error(
                                     ErrorCode.PARSE_ERROR,
                                     f"Error reading response data: {e}",
@@ -309,15 +322,13 @@ class AsyncHTTPClient:
             except aiohttp.ClientError as e:
                 last_error = str(e)
                 logger.warning(f"Client error for {url}: {e}")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 last_error = "Request timed out"
                 logger.warning(f"Timeout for {url}")
             except json.JSONDecodeError as e:
                 return cast(
-                    Dict[str, Any],
-                    format_error(
-                        ErrorCode.PARSE_ERROR, f"Invalid JSON response from {url}: {e}"
-                    ),
+                    dict[str, Any],
+                    format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response from {url}: {e}"),
                 )
             except Exception as e:
                 last_error = str(e)
@@ -327,14 +338,12 @@ class AsyncHTTPClient:
             retries_left -= 1
             if retries_left > 0:
                 retry_delay = self._get_next_retry_delay(retry_delay)
-                logger.warning(
-                    f"Retrying in {retry_delay:.2f}s ({retries_left} retries left)"
-                )
+                logger.warning(f"Retrying in {retry_delay:.2f}s ({retries_left} retries left)")
                 await asyncio.sleep(retry_delay)
 
         # All retries failed
         return cast(
-            Dict[str, Any],
+            dict[str, Any],
             format_error(
                 ErrorCode.NETWORK_ERROR,
                 f"Failed to fetch {url} after {self.config.max_retries} retries: {last_error}",

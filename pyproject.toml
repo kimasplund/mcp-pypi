@@ -1,29 +1,27 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "mcp-pypi"
-version = "3.0.0"
-description = "🐍 AI-powered Python package intelligence - search, analyze, and understand PyPI packages through MCP"
+dynamic = ["version"]
+description = "AI-powered Python package intelligence - search, analyze, and understand PyPI packages through MCP"
 readme = "README.md"
-authors = [
-    {name = "Kim Asplund", email = "kim.asplund@gmail.com"}
-]
-license = {text = "MIT OR Commercial"}
+authors = [{ name = "Kim Asplund", email = "kim.asplund@gmail.com" }]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
     "Intended Audience :: System Administrators",
-    "License :: OSI Approved :: MIT License",
-    "License :: Other/Proprietary License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Software Distribution",
     "Topic :: Internet :: WWW/HTTP",
@@ -36,19 +34,6 @@ classifiers = [
     "Natural Language :: English",
     "Typing :: Typed",
 ]
-requires-python = ">=3.10"
-dependencies = [
-    "mcp>=1.9.4",
-    "fastmcp==3.2.0",
-    "aiohttp>=3.12.13",
-    "packaging>=23.0",
-    "typer>=0.9.0",
-    "rich>=13.0.0",
-    "defusedxml>=0.7.1",  # For secure XML parsing
-    "tomli>=2.0.0;python_version<'3.11'",  # For parsing pyproject.toml in Python <3.11
-    "typing_extensions>=4.3.0;python_version<'3.11'",  # For NotRequired in Python 3.10
-]
-
 keywords = [
     "mcp",
     "model-context-protocol",
@@ -61,48 +46,65 @@ keywords = [
     "llm-tools",
     "package-management",
     "version-tracking",
-    "security-scanning"
+    "security-scanning",
+]
+dependencies = [
+    "fastmcp>=4.1,<5",
+    "aiohttp>=3.12",
+    "packaging>=24.0",
+    "typer>=0.15",
+    "rich>=13.0",
+    "defusedxml>=0.7.1",
+    "platformdirs>=4.0",
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/kimasplund/mcp-pypi"
+Homepage = "https://github.com/kimasplund/mcp-pypi"
 "Bug Tracker" = "https://github.com/kimasplund/mcp-pypi/issues"
-"Documentation" = "https://github.com/kimasplund/mcp-pypi#readme"
+Documentation = "https://github.com/kimasplund/mcp-pypi#readme"
 "Source Code" = "https://github.com/kimasplund/mcp-pypi"
-"Changelog" = "https://github.com/kimasplund/mcp-pypi/releases"
-
-[project.optional-dependencies]
-all = [
-    "beautifulsoup4>=4.12.0",
-    "plotly>=5.13.0",
-    "kaleido>=0.2.1"
-]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "pytest-asyncio>=0.21.0",
-    "black>=23.0.0",
-    "isort>=5.12.0",
-    "mypy>=1.0.0",
-    "pylint>=2.17.0",
-]
-viz = [
-    "plotly>=5.13.0",
-    "kaleido>=0.2.1",
-]
-search = [
-    "beautifulsoup4>=4.12.0",
-]
-docs = [
-    "sphinx>=6.0.0",
-    "sphinx-rtd-theme>=1.2.0",
-    "myst-parser>=1.0.0",  # For Markdown support in Sphinx
-]
+Changelog = "https://github.com/kimasplund/mcp-pypi/releases"
 
 [project.scripts]
 mcp-pypi = "mcp_pypi.cli.main:app"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["mcp_pypi*"]
-exclude = ["tests*", "examples*", "docs*"] 
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5",
+    "ruff>=0.8",
+    "pyrefly>=1.3",
+    "types-defusedxml>=0.7.0.20260504",
+]
+
+[tool.hatch.version]
+path = "mcp_pypi/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mcp_pypi"]
+
+[tool.hatch.build.targets.sdist]
+include = ["mcp_pypi", "README.md", "CHANGELOG.md", "LICENSE*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.format]
+# Keep ruff from reformatting code blocks inside markdown docs.
+exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM"]
+
+[tool.pyrefly]
+project-includes = ["mcp_pypi"]
+project-excludes = ["tests", "build", "dist", "*.egg-info"]
+python-version = "3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-m 'not integration'"
+markers = ["integration: needs network; run with -m integration"]

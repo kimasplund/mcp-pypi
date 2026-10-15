@@ -48,7 +48,8 @@ def cache_stats(color: bool = typer.Option(True, help="Colorize output")):
                 console.print(
                     Panel(
                         f"[bold]Cache Directory:[/bold] {config.cache_dir}\n"
-                        f"[bold]Size:[/bold] {stats.get('size_mb', 0):.2f} MB of {stats.get('max_size_mb', 0):.2f} MB\n"
+                        f"[bold]Size:[/bold] {stats.get('size_mb', 0):.2f} MB of "
+                        f"{stats.get('max_size_mb', 0):.2f} MB\n"
                         f"[bold]Files:[/bold] {stats.get('file_count', 0)}\n"
                         f"[bold]TTL:[/bold] {stats.get('ttl_seconds', 0)} seconds\n",
                         title="Cache Statistics",

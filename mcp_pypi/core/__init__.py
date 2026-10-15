@@ -7,17 +7,21 @@ provide different categories of functionality.
 """
 
 # Re-export the main client class
+# Re-export cache and http for direct access
+from mcp_pypi.core.cache import AsyncCacheManager
 from mcp_pypi.core.client import PyPIClient
+from mcp_pypi.core.http import AsyncHTTPClient
 
 # Re-export all types from models for backward compatibility
 from mcp_pypi.core.models import (
-    BatchVulnerabilityResult,
-    CacheProtocol,
     DEFAULT_CACHE_DIR,
     DEFAULT_CACHE_MAX_SIZE,
     DEFAULT_CACHE_TTL,
     DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_DELAY,
+    USER_AGENT,
+    BatchVulnerabilityResult,
+    CacheProtocol,
     DependenciesResult,
     Dependency,
     DependencyTreeResult,
@@ -31,8 +35,6 @@ from mcp_pypi.core.models import (
     MetadataResult,
     PackageInfo,
     PackageMetadata,
-    PackageRequirement,
-    PackageRequirementsResult,
     PackagesFeed,
     PaginationInfo,
     PyPIClientConfig,
@@ -44,15 +46,10 @@ from mcp_pypi.core.models import (
     UpdatesFeed,
     UrlResult,
     UrlsInfo,
-    USER_AGENT,
     VersionComparisonResult,
     VersionInfo,
     format_error,
 )
-
-# Re-export cache and http for direct access
-from mcp_pypi.core.cache import AsyncCacheManager
-from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.stats import PackageStatsService
 
 # Define what gets exported with `from mcp_pypi.core import *`
@@ -84,8 +81,6 @@ __all__ = [
     "MetadataResult",
     "PackageInfo",
     "PackageMetadata",
-    "PackageRequirement",
-    "PackageRequirementsResult",
     "PackagesFeed",
     "PaginationInfo",
     "ReleasesFeed",

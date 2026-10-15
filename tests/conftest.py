@@ -1,8 +1,5 @@
 """Pytest configuration for MCP-PyPI tests."""
 
-import os
-import sys
-
 import pytest
 
 
@@ -22,12 +19,20 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip integration tests unless --run-integration is specified."""
+    """Skip integration tests unless --run-integration or `-m integration` is given."""
     # Handle integration tests
-    if not config.getoption("--run-integration"):
-        skip_integration = pytest.mark.skip(
-            reason="Needs --run-integration option to run"
-        )
+    selected = "integration" in (config.getoption("markexpr") or "").replace("not integration", "")
+    if not (config.getoption("--run-integration") or selected):
+        skip_integration = pytest.mark.skip(reason="Needs --run-integration option to run")
         for item in items:
             if "integration" in item.keywords:
                 item.add_marker(skip_integration)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _isolated_cache_dir(tmp_path_factory):
+    """Keep test runs out of the user's real (per-user, persistent) cache directory."""
+    patch = pytest.MonkeyPatch()
+    patch.setenv("PYPI_CACHE_DIR", str(tmp_path_factory.mktemp("pypi-cache")))
+    yield
+    patch.undo()

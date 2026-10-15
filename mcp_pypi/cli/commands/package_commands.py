@@ -5,7 +5,6 @@ Includes: info, version, releases, dependencies, exists, metadata, compare, and 
 """
 
 import asyncio
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -61,7 +60,8 @@ def latest_version(
 
             if color:
                 console.print(
-                    f"Latest version of [bold]{package_name}[/bold]: [green]{result['version']}[/green]"
+                    f"Latest version of [bold]{package_name}[/bold]: "
+                    f"[green]{result['version']}[/green]"
                 )
             else:
                 print(result["version"])
@@ -118,7 +118,7 @@ def package_releases(
 @package_app.command("dependencies")
 def package_dependencies(
     package_name: str = typer.Argument(..., help="Name of the package"),
-    version: Optional[str] = typer.Option(None, help="Package version (optional)"),
+    version: str | None = typer.Option(None, help="Package version (optional)"),
     color: bool = typer.Option(True, help="Colorize output"),
 ):
     """Get package dependencies."""
@@ -136,8 +136,7 @@ def package_dependencies(
 
             if color and "dependencies" in result:
                 table = Table(
-                    title=f"Dependencies for {package_name}"
-                    + (f" {version}" if version else "")
+                    title=f"Dependencies for {package_name}" + (f" {version}" if version else "")
                 )
                 table.add_column("Package")
                 table.add_column("Version Spec")
@@ -199,7 +198,7 @@ def check_package_exists(
 @package_app.command("metadata")
 def package_metadata(
     package_name: str = typer.Argument(..., help="Name of the package"),
-    version: Optional[str] = typer.Option(None, help="Package version (optional)"),
+    version: str | None = typer.Option(None, help="Package version (optional)"),
     color: bool = typer.Option(True, help="Colorize output"),
 ):
     """Get package metadata."""
@@ -259,15 +258,18 @@ def compare_versions(
             if color:
                 if result["are_equal"]:
                     console.print(
-                        f"Versions [bold]{version1}[/bold] and [bold]{version2}[/bold] are [green]equal[/green]"
+                        f"Versions [bold]{version1}[/bold] and [bold]{version2}[/bold] are "
+                        f"[green]equal[/green]"
                     )
                 elif result["is_version1_greater"]:
                     console.print(
-                        f"Version [bold]{version1}[/bold] is [green]greater than[/green] [bold]{version2}[/bold]"
+                        f"Version [bold]{version1}[/bold] is [green]greater than[/green] "
+                        f"[bold]{version2}[/bold]"
                     )
                 else:
                     console.print(
-                        f"Version [bold]{version2}[/bold] is [green]greater than[/green] [bold]{version1}[/bold]"
+                        f"Version [bold]{version2}[/bold] is [green]greater than[/green] "
+                        f"[bold]{version1}[/bold]"
                     )
             else:
                 output_json(result, False)
@@ -280,7 +282,6 @@ def compare_versions(
 @stats_app.command("downloads")
 def package_stats(
     package_name: str = typer.Argument(..., help="Name of the package"),
-    version: Optional[str] = typer.Option(None, help="Package version (optional)"),
     color: bool = typer.Option(True, help="Colorize output"),
 ):
     """Get package download statistics."""
@@ -290,17 +291,14 @@ def package_stats(
         client = PyPIClient(config)
 
         try:
-            result = await client.get_package_stats(package_name, version)
+            result = await client.get_package_stats(package_name)
 
             if "error" in result:
                 print_error(result["error"]["message"])
                 return
 
-            if color and "downloads" in result:
-                table = Table(
-                    title=f"Download Stats for {package_name}"
-                    + (f" {version}" if version else "")
-                )
+            if color:
+                table = Table(title=f"Download Stats for {package_name}")
                 table.add_column("Period")
                 table.add_column("Downloads")
 
@@ -309,15 +307,6 @@ def package_stats(
                 table.add_row("Last month", f"{result.get('last_month', 0):,}")
 
                 console.print(table)
-
-                monthly_table = Table(title="Monthly Downloads")
-                monthly_table.add_column("Month")
-                monthly_table.add_column("Downloads")
-
-                for month, count in result["downloads"].items():
-                    monthly_table.add_row(month, f"{count:,}")
-
-                console.print(monthly_table)
             else:
                 output_json(result, color)
         finally:

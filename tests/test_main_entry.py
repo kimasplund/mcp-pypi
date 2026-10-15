@@ -2,8 +2,7 @@
 
 import importlib.machinery
 import importlib.util
-import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 def test_main_entry_point():
@@ -18,9 +17,7 @@ def test_main_entry_point():
 
         with patch("sys.exit") as mock_exit:
             # Load the __main__.py file as a module
-            spec = importlib.util.spec_from_file_location(
-                "__main__", "mcp_pypi/__main__.py"
-            )
+            spec = importlib.util.spec_from_file_location("__main__", "mcp_pypi/__main__.py")
             main_module = importlib.util.module_from_spec(spec)
 
             # Execute the module with __name__ set to "__main__"

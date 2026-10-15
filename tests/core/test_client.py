@@ -2,14 +2,14 @@
 """Test script to verify multiple PyPI client methods."""
 
 import asyncio
-import json
 import logging
-from pprint import pprint
 
 import pytest
 
 from mcp_pypi.core import PyPIClient
 from mcp_pypi.core.models import PyPIClientConfig
+
+pytestmark = pytest.mark.integration  # talks to the live PyPI APIs
 
 # Configure logging
 logging.basicConfig(

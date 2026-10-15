@@ -2,20 +2,22 @@
 Main PyPI client that composes all operation mixins.
 """
 
+import difflib
 import logging
-from typing import Optional, cast
+from pathlib import Path
+from typing import cast
 
 from mcp_pypi.core.cache import AsyncCacheManager
 from mcp_pypi.core.dependency_ops import DependencyOpsMixin
 from mcp_pypi.core.feed_ops import FeedOpsMixin
 from mcp_pypi.core.http import AsyncHTTPClient
-from mcp_pypi.core.models import PyPIClientConfig, StatsResult, ErrorCode, format_error
+from mcp_pypi.core.models import ErrorCode, PyPIClientConfig, StatsResult, format_error
 from mcp_pypi.core.package_ops import PackageOpsMixin
-from mcp_pypi.core.requirements_ops import RequirementsOpsMixin
+from mcp_pypi.core.search_index import NameIndex, Popularity, normalize
 from mcp_pypi.core.search_ops import SearchOpsMixin
 from mcp_pypi.core.stats import PackageStatsService
 from mcp_pypi.core.vulnerability_ops import VulnerabilityOpsMixin
-from mcp_pypi.utils.helpers import sanitize_package_name, sanitize_version
+from mcp_pypi.utils.sanitize import sanitize_package_name
 
 logger = logging.getLogger("mcp-pypi.client")
 
@@ -25,7 +27,6 @@ class PyPIClient(
     DependencyOpsMixin,
     VulnerabilityOpsMixin,
     FeedOpsMixin,
-    RequirementsOpsMixin,
     SearchOpsMixin,
 ):
     """Client for interacting with PyPI.
@@ -37,16 +38,15 @@ class PyPIClient(
     - Dependency operations (dependencies, dependency tree)
     - Vulnerability checking (OSV API integration)
     - RSS feed operations (newest packages, updates, releases)
-    - Requirements file checking (requirements.txt, pyproject.toml)
     - Search and comparison operations
     """
 
     def __init__(
         self,
-        config: Optional[PyPIClientConfig] = None,
-        cache_manager: Optional[AsyncCacheManager] = None,
-        http_client: Optional[AsyncHTTPClient] = None,
-        stats_service: Optional[PackageStatsService] = None,
+        config: PyPIClientConfig | None = None,
+        cache_manager: AsyncCacheManager | None = None,
+        http_client: AsyncHTTPClient | None = None,
+        stats_service: PackageStatsService | None = None,
     ):
         """Initialize the PyPI client with optional dependency injection.
 
@@ -63,20 +63,8 @@ class PyPIClient(
         self.http = http_client or AsyncHTTPClient(self.config, self.cache)
         self.stats = stats_service or PackageStatsService(self.http)
 
-        # Check for optional dependencies
-        self._has_bs4 = self._check_import("bs4", "BeautifulSoup")
-        self._has_plotly = self._check_import("plotly.graph_objects", "go")
-
-    def _check_import(self, module: str, name: str) -> bool:
-        """Check if a module can be imported."""
-        try:
-            __import__(module)
-            return True
-        except ImportError:
-            logger.info(
-                f"Optional dependency {module} not found; some features will be limited"
-            )
-            return False
+        self.name_index = NameIndex(self.http, Path(self.config.cache_dir))
+        self.popularity = Popularity(self.http, Path(self.config.cache_dir))
 
     def set_user_agent(self, user_agent: str) -> None:
         """Set a custom User-Agent for all subsequent requests.
@@ -87,17 +75,21 @@ class PyPIClient(
         self.config.user_agent = user_agent
         logger.info(f"User-Agent updated to: {user_agent}")
 
+    async def suggest_names(self, name: str, limit: int = 3) -> list[str]:
+        """Popular package names close to `name` (for "did you mean" hints)."""
+        popular = await self.popularity.downloads()
+        if not popular:
+            return []
+        return difflib.get_close_matches(normalize(name), list(popular), n=limit, cutoff=0.85)
+
     async def close(self) -> None:
         """Close the client and release resources."""
         await self.http.close()
 
-    async def get_package_stats(
-        self, package_name: str, version: Optional[str] = None
-    ) -> StatsResult:
+    async def get_package_stats(self, package_name: str) -> StatsResult:
         """Get download statistics for a package."""
         try:
             sanitized_name = sanitize_package_name(package_name)
-            sanitized_version = sanitize_version(version) if version else None
 
             # Check if package exists first
             exists_result = await self.check_package_exists(sanitized_name)
@@ -107,13 +99,11 @@ class PyPIClient(
             if not exists_result.get("exists", False):
                 return cast(
                     StatsResult,
-                    format_error(
-                        ErrorCode.NOT_FOUND, f"Package '{sanitized_name}' not found"
-                    ),
+                    format_error(ErrorCode.NOT_FOUND, f"Package '{sanitized_name}' not found"),
                 )
 
             # Use the stats service to get real download stats
-            return await self.stats.get_package_stats(sanitized_name, sanitized_version)
+            return await self.stats.get_package_stats(sanitized_name)
 
         except ValueError as e:
             return cast(StatsResult, format_error(ErrorCode.INVALID_INPUT, str(e)))

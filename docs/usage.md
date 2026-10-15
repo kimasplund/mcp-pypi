@@ -1,356 +1,144 @@
 # MCP-PyPI Usage Guide
 
-This document provides comprehensive instructions on using MCP-PyPI, a security-focused Model Context Protocol server for Python package management.
+How to run mcp-pypi, call its tools, and use the command line. For client setup snippets see the [README](../README.md); for every parameter see [pypi.md](pypi.md).
 
-## Installation
+## Install and run
 
 ```bash
-# Basic installation
+# Run without installing
+uvx mcp-pypi serve
+
+# Or install
 pip install mcp-pypi
-
-# With search optimization
-pip install "mcp-pypi[search]"
-
-# Full installation with all features
-pip install "mcp-pypi[all]"
+mcp-pypi serve
 ```
 
-## Starting the Server
-
-MCP-PyPI uses a unified CLI with the `mcp-pypi` command:
+Requires Python 3.11 or newer. There are no optional extras.
 
 ```bash
-# Start with default stdio transport (for MCP clients)
-mcp-pypi serve
-
-# Start with HTTP transport
+mcp-pypi serve                                     # stdio (default)
+mcp-pypi serve --transport http                    # http://127.0.0.1:8143/mcp
 mcp-pypi serve --transport http --port 8080
-
-# Specify custom cache directory
 mcp-pypi serve --cache-dir /path/to/cache
-
-# Enable debug logging
 mcp-pypi serve --log-level DEBUG
-
-# Use specific cache strategy
-mcp-pypi serve --cache-strategy hybrid  # Options: memory, disk, hybrid
+mcp-pypi serve --help-connecting                   # print client connection examples
 ```
 
-## Transport Options
+See [transports.md](transports.md) for the two transports.
 
-### STDIO Transport (Default)
-Used for integration with MCP clients like Claude Desktop:
+## Environment variables
+
+| Variable | Default |
+|----------|---------|
+| `PYPI_CACHE_DIR` | per-user cache dir (`~/.cache/mcp-pypi` on Linux) |
+| `PYPI_CACHE_TTL` | `604800` (seconds) |
+| `PYPI_CACHE_MAX_SIZE` | `104857600` (bytes) |
+| `PYPI_CACHE_STRATEGY` | `hybrid` (accepted for compatibility; no effect) |
+| `PYPI_VULNERABILITY_CACHE_TTL` | `3600` (seconds) |
+| `PYPI_MAX_RETRIES` | `3` |
+| `PYPI_RETRY_DELAY` | `1.0` (seconds) |
+| `PYPI_TIMEOUT` | `30.0` (seconds) |
+| `PYPI_USER_AGENT` | `mcp-pypi/<version> (+https://github.com/kimasplund/mcp-pypi)` |
+
+## The tools
+
+| Task | Tool |
+|------|------|
+| Find the exact name of a package | `search_packages` |
+| Read a package's metadata | `get_package` |
+| List or page through releases | `get_package_versions` |
+| Compare two versions | `compare_versions` |
+| Read release notes | `get_package_changelog` |
+| Popularity signal | `get_download_stats` |
+| Direct or transitive requirements | `get_dependencies` |
+| Check that names exist before suggesting them | `check_packages` |
+| Vulnerabilities for specific packages or versions | `check_vulnerabilities` |
+| Audit a repository's dependency files | `audit_project` |
+| Audit an installed virtualenv | `scan_installed_packages` |
+
+### Example calls
+
+These are the arguments an MCP client sends. With the FastMCP client:
+
+```python
+from fastmcp import Client
+
+async with Client("http://127.0.0.1:8143/mcp") as client:
+    # Do these names exist, and what are their latest versions?
+    checked = await client.call_tool("check_packages", {"names": ["httpx", "requessts"]})
+
+    # Known vulnerabilities for a pinned version, including dependencies
+    vulns = await client.call_tool(
+        "check_vulnerabilities",
+        {"packages": ["django==4.2.0"], "include_transitive": True, "max_depth": 2},
+    )
+
+    # Audit a project directory (or one file, e.g. "requirements.txt")
+    audit = await client.call_tool("audit_project", {"path": "/path/to/project"})
+    print(audit.data.totals)
+```
+
+### Reading results
+
+Results are structured data matching each tool's `outputSchema`. Look at `result.data` (or `structuredContent` in raw MCP). Problems with a whole call, such as an unknown package or a network failure, raise an error (`isError: true` in raw MCP) with a short message. Problems with one item of a batch appear in that item's `error` field.
+
+### Audits never report unchecked items as clean
+
+`audit_project` and `scan_installed_packages` list dependencies they could not check (`totals.unchecked`, `unchecked`) and unreadable files (`totals.files_with_errors`). Treat a result with unchecked items as incomplete, not as "no vulnerabilities".
+
+## Command line
+
+The CLI uses the same code as the server.
 
 ```bash
-mcp-pypi serve
-```
+mcp-pypi --version
 
-### HTTP Transport
-Provides both SSE and streamable-HTTP endpoints on the same port:
+mcp-pypi search "http client" --limit 10
 
-```bash
-mcp-pypi serve --transport http --host 0.0.0.0 --port 8143
-```
-
-This starts:
-- SSE endpoint: `http://host:port/sse`
-- Streamable-HTTP endpoint: `http://host:port/mcp`
-
-## Configuration
-
-### Claude Desktop Configuration
-
-Add to your Claude Desktop settings:
-
-```json
-{
-  "mcpServers": {
-    "mcp-pypi": {
-      "command": "mcp-pypi",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-### Environment Variables
-
-- `MCP_PYPI_CACHE_DIR`: Override default cache location
-- `MCP_PYPI_LOG_LEVEL`: Set logging verbosity (DEBUG, INFO, WARNING, ERROR)
-- `MCP_PYPI_USER_AGENT`: Custom user agent for PyPI requests
-
-## Available Tools
-
-MCP-PyPI provides 21 comprehensive tools organized by category:
-
-### Package Information (11 tools)
-- `search_packages` - Search PyPI to discover Python packages
-- `get_package_info` - Get comprehensive package details
-- `get_package_releases` - Get detailed release information
-- `get_latest_version` - Check the latest version
-- `get_dependencies` - Analyze package dependencies
-- `get_dependency_tree` - Get full dependency tree
-- `get_package_stats` - Get download statistics
-- `check_package_exists` - Check if package exists
-- `get_package_metadata` - Get package metadata
-- `list_package_versions` - List all available versions
-- `compare_versions` - Compare two versions
-
-### Security Scanning (7 tools)
-- `check_vulnerabilities` - Check for known vulnerabilities
-- `scan_dependency_vulnerabilities` - Deep scan dependency tree
-- `scan_installed_packages` - Scan Python environments
-- `quick_security_check` - Pass/fail security check
-- `get_security_report` - Formatted security report
-- `security_audit_project` - Comprehensive project audit
-- `check_requirements_txt` - Analyze requirements files
-- `check_pyproject_toml` - Analyze pyproject.toml files
-
-### Documentation (2 tools)
-- `get_package_documentation` - Get documentation links
-- `get_package_changelog` - Get changelog information
-
-## Command-Line Usage
-
-MCP-PyPI also provides direct CLI commands for testing:
-
-### Package Commands
-```bash
-# Get package info
 mcp-pypi package info requests
-
-# Get latest version
 mcp-pypi package version numpy
-
-# Show releases
-mcp-pypi package releases django --limit 5
-
-# Get dependencies
+mcp-pypi package releases django
 mcp-pypi package dependencies flask
-```
+mcp-pypi package dependencies flask --version 3.0.0
+mcp-pypi package exists some-name
+mcp-pypi package metadata requests
+mcp-pypi package compare pandas 2.0.0 2.1.0
 
-### Search Commands
-```bash
-# Search for packages
-mcp-pypi search "web scraping" --limit 10
-```
+mcp-pypi stats downloads requests
 
-### Security Commands
-```bash
-# Check vulnerabilities
-mcp-pypi package info requests --check-vulnerabilities
+mcp-pypi check-requirements .
+mcp-pypi check-requirements requirements.txt --format json --full
 
-# Check requirements file
-mcp-pypi check-requirements /path/to/requirements.txt
-```
-
-### Statistics Commands
-```bash
-# Get download stats
-mcp-pypi stats requests
-```
-
-### Cache Management
-```bash
-# Clear cache
-mcp-pypi cache clear
-
-# Show cache statistics
 mcp-pypi cache stats
+mcp-pypi cache clear
 ```
 
-## Usage Examples
+`search` matches package names only; `--limit` is 1-50. `stats downloads` reports the last day, week and month from pypistats.
 
-### Basic Package Information
-```python
-# Through MCP client
-result = await client.invoke_tool(
-    "get_package_info",
-    {"package_name": "requests"}
-)
-```
+### check-requirements and CI
 
-### Security Audit
-```python
-# Comprehensive project audit
-result = await client.invoke_tool(
-    "security_audit_project",
-    {
-        "project_path": "/path/to/project",
-        "check_transitive": True,
-        "max_depth": 3
-    }
-)
-```
+`check-requirements PATH` accepts a project directory or a single dependency file and runs the full audit (vulnerable, outdated and unchecked dependencies). Options: `--format table|json` and `--full` (also list clean dependencies).
 
-### Dependency Analysis
-```python
-# Deep dependency scanning
-result = await client.invoke_tool(
-    "scan_dependency_vulnerabilities",
-    {
-        "package_name": "django",
-        "max_depth": 3,
-        "include_dev": True
-    }
-)
-```
-
-### Requirements File Check
-```python
-# Check for outdated and vulnerable packages
-result = await client.invoke_tool(
-    "check_requirements_txt",
-    {"file_path": "/absolute/path/to/requirements.txt"}
-)
-```
-
-## Error Handling
-
-All tools return standardized error responses:
-
-```json
-{
-  "error": {
-    "code": "error_code",
-    "message": "Human-readable error message"
-  }
-}
-```
-
-Common error codes:
-- `not_found`: Package or resource not found
-- `invalid_input`: Invalid parameter value
-- `network_error`: Error communicating with PyPI
-- `parse_error`: Error parsing response
-- `file_error`: Error accessing file
-- `permission_error`: Insufficient permissions
-
-## Advanced Features
-
-### Caching Strategies
-
-MCP-PyPI supports three caching strategies:
-
-1. **Memory Cache** (fast, limited size)
-   ```bash
-   mcp-pypi serve --cache-strategy memory
-   ```
-
-2. **Disk Cache** (persistent, unlimited size)
-   ```bash
-   mcp-pypi serve --cache-strategy disk --cache-dir /path/to/cache
-   ```
-
-3. **Hybrid Cache** (best of both, default)
-   ```bash
-   mcp-pypi serve --cache-strategy hybrid
-   ```
-
-### Security Features
-
-1. **Version Constraint Analysis**
-   - Detects when constraints like `>=2.0.0` allow vulnerable versions
-   - Recommends safe version ranges
-
-2. **Transitive Dependency Scanning**
-   - Scans dependencies of dependencies
-   - Configurable depth (1-3 levels)
-
-3. **File Discovery**
-   - Automatically finds ALL dependency files
-   - Checks consistency across files
-
-### Performance Optimization
-
-- Async operations throughout
-- Parallel dependency resolution
-- ETag-based HTTP caching
-- Configurable rate limiting
-
-## Integration Examples
-
-### Python Client Example
-
-```python
-import asyncio
-import httpx
-from mcp import Client
-
-async def use_mcp_pypi():
-    async with httpx.AsyncClient() as http_client:
-        async with Client("http://localhost:8080/mcp", http_client) as client:
-            # Search for packages
-            result = await client.invoke_tool(
-                "search_packages",
-                {"query": "data visualization", "limit": 5}
-            )
-            
-            # Check each for vulnerabilities
-            for package in result["packages"]:
-                vulns = await client.invoke_tool(
-                    "check_vulnerabilities",
-                    {"package_name": package["name"]}
-                )
-                print(f"{package['name']}: {vulns['total_vulnerabilities']} vulnerabilities")
-
-asyncio.run(use_mcp_pypi())
-```
-
-### CI/CD Integration
+Exit codes: `1` if any dependency has a known vulnerability, `2` on an error, `0` otherwise. An audit with unchecked dependencies but no vulnerabilities exits `0`, so for a strict gate use JSON output and also fail on `totals.unchecked`:
 
 ```yaml
-# GitHub Actions example
-- name: Security Check
+- name: Dependency audit
   run: |
     pip install mcp-pypi
-    mcp-pypi serve --transport http --port 8080 &
-    sleep 2
-    # Use the quick_security_check tool via your MCP client
+    mcp-pypi check-requirements . --format json > audit.json
+    jq -e '.totals.unchecked == 0' audit.json
 ```
 
-## Best Practices
+With the default `bash -e` shell, `check-requirements` fails the step when a dependency is vulnerable (exit 1) or on an error (exit 2), and `jq -e` fails it when any dependency could not be checked.
 
-1. **Always Check Security First**
-   - Run `security_audit_project` before deployments
-   - Use `check_vulnerabilities` before installing new packages
+## Prompts and resources
 
-2. **Keep Dependencies Updated**
-   - Regular audits with `check_requirements_txt`
-   - Monitor transitive dependencies
-
-3. **Use Specific Versions in Production**
-   - Pin exact versions after security verification
-   - Document why specific versions were chosen
-
-4. **Leverage Caching Wisely**
-   - Use hybrid cache for development
-   - Clear cache when security checking
+Prompts: `analyze_dependencies` (argument `package_name`; walks through `get_dependencies` and `check_vulnerabilities` with `include_transitive=True`) and `compare_packages` (argument `packages`, comma-separated; uses `get_package`, `get_download_stats` and `check_vulnerabilities`). Resources: `pypi://recent-releases`, `pypi://new-packages`, `pypi://updated-packages`.
 
 ## Troubleshooting
 
-### Server Won't Start
-- Check if port is already in use
-- Verify `mcp-pypi` is in PATH
-- Try with `--log-level DEBUG`
-
-### Connection Issues
-- For stdio: Ensure proper MCP client configuration
-- For HTTP: Check firewall/network settings
-- Verify transport matches client expectations
-
-### Cache Issues
-- Clear cache with `mcp-pypi cache clear`
-- Check cache directory permissions
-- Try different cache strategy
-
-### Performance Issues
-- Reduce `max_depth` for dependency scanning
-- Use memory cache for faster responses
-- Enable HTTP keep-alive for multiple requests
-
-## Support
-
-- GitHub Issues: https://github.com/kimasplund/mcp-pypi/issues
-- Author: Kim Asplund (kim.asplund@gmail.com)
-- Website: https://asplund.kim
+- **Server will not start**: run `mcp-pypi serve --log-level DEBUG` in a terminal; check that the port is free in HTTP mode.
+- **Client cannot find the command**: use the absolute path to `uvx` or `mcp-pypi`.
+- **Search fails with an index error**: the first search needs network access to download the package-name index (see [caching.md](caching.md)).
+- **Stale data**: `mcp-pypi cache clear`.
+- **Issues**: https://github.com/kimasplund/mcp-pypi/issues
