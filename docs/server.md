@@ -76,7 +76,7 @@ Failures raise `ToolError`, which FastMCP sends as a tool result with `isError: 
 | Package names for search | PyPI Simple index (PEP 691 JSON) |
 | Popularity ranking | top-pypi-packages (30-day downloads) |
 | Download stats | pypistats.org |
-| Vulnerabilities | OSV (`querybatch` for multiple packages) |
+| Vulnerabilities | OSV `/v1/query`, one query per package and version (up to 10 at a time); OSV does the version matching |
 | Changelogs | Project links in metadata, GitHub releases |
 
 ## Caching

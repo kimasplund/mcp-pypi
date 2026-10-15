@@ -255,7 +255,7 @@ def osv(vid: str, name: str, severity: str = "HIGH") -> dict[str, Any]:
 
 
 @pytest.fixture
-async def real(request):
+async def real(request, fake_osv_response):
     """A server over the REAL PyPIClient batch code with a fake OSV http layer."""
     from unittest.mock import AsyncMock, MagicMock
 
@@ -273,11 +273,7 @@ async def real(request):
     async def fetch(url, method="GET", headers=None, data=None, **kw):
         if data is None:  # package-exists GET made by the single-package path
             return {"info": {"name": "x", "version": "1"}}
-        payload = json.loads(data)
-        if "queries" not in payload:  # single-package OSV query
-            return {"vulns": osv_db.get(payload["package"]["name"], [])}
-        queries = payload["queries"]
-        return {"results": [{"vulns": osv_db.get(q["package"]["name"], [])} for q in queries]}
+        return fake_osv_response(url, json.loads(data), osv_db)
 
     http = AsyncMock(spec=AsyncHTTPClient)
     http.fetch = AsyncMock(side_effect=fetch)

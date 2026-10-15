@@ -53,6 +53,7 @@ Removed without replacement: ANSI-colour report formatting and the `output_forma
 
 ### Fixed
 
+- **Vulnerability checks now use OSV's own version matching.** Earlier versions sent the version where OSV ignores it and then filtered the advisories themselves. Checks of several packages at once (`check_vulnerabilities` with two or more items, `audit_project`, `scan_installed_packages`, `check-requirements`) could report vulnerable pins as clean, and single-package checks missed advisories that cover several version ranges (for example 20 of the 56 advisories for Django 3.2.5). Vulnerability results cached by earlier versions are ignored.
 - **Search works again.** PyPI's HTML search page is behind a JavaScript challenge. `search_packages` now searches the PyPI Simple index of package names locally and ranks by name match and download popularity. It matches package names, not full descriptions. The index is cached on disk (see `docs/caching.md`).
 - Download stats no longer fabricate numbers when pypistats is unavailable; the call fails instead.
 - Vulnerability checks match mixed-case and underscore names (`Django`, `PyYAML`, `typing_extensions`) and count GitHub advisory `MODERATE` severity as medium.

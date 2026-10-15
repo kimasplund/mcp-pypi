@@ -259,7 +259,7 @@ def releases(*versions: str, yanked: tuple[str, ...] = ()) -> dict[str, list[dic
 
 
 @pytest.fixture
-async def real_osv():
+async def real_osv(fake_osv_response):
     INFOS.clear()
     """A server over the REAL PyPIClient batch code with a fake OSV http layer."""
     from unittest.mock import AsyncMock, MagicMock
@@ -281,9 +281,7 @@ async def real_osv():
                 if f"/{pkg}/" in url:
                     return info
             return {"info": {"name": "x", "version": "9.0"}}
-        payload = json.loads(data)
-        queries = payload["queries"]
-        return {"results": [{"vulns": osv_db.get(q["package"]["name"], [])} for q in queries]}
+        return fake_osv_response(url, json.loads(data), osv_db)
 
     http = AsyncMock(spec=AsyncHTTPClient)
     http.fetch = AsyncMock(side_effect=fetch)

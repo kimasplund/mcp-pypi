@@ -117,7 +117,7 @@ Check up to 100 packages against [OSV](https://osv.dev/) for known vulnerabiliti
 | `include_transitive` | boolean | `false` | Also check dependencies |
 | `max_depth` | integer | `2` | Clamped to 1-3; used with `include_transitive` |
 
-Extras are ignored and any other specifier is rejected for that item only. With `include_transitive` the dependency tree is resolved to `max_depth` and every dependency is checked too; vulnerable dependencies are listed with `introduced_via`, the shortest root-to-dependency chain of names. Items whose version cannot be resolved are reported as errors, never checked across all versions. Package names match OSV case- and separator-insensitively (`Django`, `PyYAML`, `typing_extensions`).
+Extras are ignored and any other specifier is rejected for that item only. With `include_transitive` the dependency tree is resolved to `max_depth` and every dependency is checked too; vulnerable dependencies are listed with `introduced_via`, the shortest root-to-dependency chain of names. Items whose version cannot be resolved are reported as errors, never checked across all versions. Each package and version is sent to OSV, which decides which advisories affect that version. Package names match OSV case- and separator-insensitively (`Django`, `PyYAML`, `typing_extensions`).
 
 Result: `results` (per package: `package`, `version`, `vulnerable`, `vulnerabilities`, `total_vulnerabilities`, `vulnerabilities_truncated`, `introduced_via`, `note`, `error`), `total_packages`, `vulnerable_packages`, `total_vulnerabilities`, `severity_counts` and `transitive_checked`. Each vulnerability has `id`, `summary`, `severity`, `aliases`, `affected_versions` and `references`. GitHub advisory severity `MODERATE` is counted as `medium`.
 
