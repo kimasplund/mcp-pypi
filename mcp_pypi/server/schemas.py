@@ -177,3 +177,45 @@ class InstalledScan(BaseModel):
     unchecked: list[str] = Field(default_factory=list)
     update_commands: list[str] = Field(default_factory=list)
     recommendation: str
+
+
+class AuditedDependency(BaseModel):
+    name: str
+    specifier: str = ""
+    group: str | None = None
+    checked_version: str | None = None
+    latest_version: str | None = None
+    outdated: bool = False
+    vulnerable: bool = False
+    vulnerabilities: list[VulnerabilityItem] = Field(default_factory=list)
+    error: str | None = None
+
+
+class AuditedFile(BaseModel):
+    path: str
+    kind: str
+    dependencies: list[AuditedDependency] = Field(default_factory=list)
+    error: str | None = None
+
+
+class ConsistencyWarning(BaseModel):
+    package: str
+    specifiers: dict[str, str] = Field(default_factory=dict)
+
+
+class AuditTotals(BaseModel):
+    files: int = 0
+    dependencies: int = 0
+    vulnerable: int = 0
+    outdated: int = 0
+    vulnerabilities: int = 0
+    unchecked: int = 0
+
+
+class ProjectAudit(BaseModel):
+    path: str
+    files: list[AuditedFile] = Field(default_factory=list)
+    consistency_warnings: list[ConsistencyWarning] = Field(default_factory=list)
+    totals: AuditTotals
+    recommendations: list[str] = Field(default_factory=list)
+    summary: str
