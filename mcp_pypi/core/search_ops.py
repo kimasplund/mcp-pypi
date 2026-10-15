@@ -19,10 +19,12 @@ from mcp_pypi.core.models import (
     format_error,
 )
 from mcp_pypi.core.search_index import (
+    TIER_EXACT,
     Candidate,
     IndexUnavailable,
     NameIndex,
     Popularity,
+    enrichment_pool,
     normalize,
     query_tokens,
     rank_candidates,
@@ -64,7 +66,8 @@ class SearchOpsMixin:
         try:
             downloads = await self.popularity.downloads()
             candidates = await asyncio.to_thread(rank_candidates, query, names, downloads)
-            top = candidates[: max(limit, min(3 * limit, 30))]
+            # The best few by score, plus the most popular matching names however they scored.
+            top = enrichment_pool(candidates, downloads, max(limit, min(3 * limit, 30)))
 
             by_downloads = sorted(downloads, key=downloads.__getitem__, reverse=True)
             ranks = {name: rank for rank, name in enumerate(by_downloads, 1)}
@@ -72,7 +75,9 @@ class SearchOpsMixin:
 
             errors: list[dict[str, Any]] = []
 
-            async def enrich(candidate: Candidate) -> tuple[float, dict[str, Any]] | None:
+            async def enrich(
+                candidate: Candidate,
+            ) -> tuple[tuple[bool, float], dict[str, Any]] | None:
                 async with semaphore:
                     data = await self.get_package_info(candidate.name)
                 info = data.get("info") if isinstance(data, dict) else None
@@ -83,7 +88,8 @@ class SearchOpsMixin:
                 summary = info.get("summary") or ""
                 boost = 40 * sum(t in summary.lower() for t in tokens)
                 name = info.get("name") or candidate.name
-                return candidate.score + boost, {
+                exact = candidate.tier == TIER_EXACT  # the exact name match stays first
+                return (exact, candidate.score + boost), {
                     "name": name,
                     "version": info.get("version") or "",
                     "summary": summary,

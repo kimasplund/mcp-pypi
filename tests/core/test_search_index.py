@@ -296,3 +296,133 @@ async def test_popularity_failure_backs_off(tmp_path):
     assert await pop.downloads() == {}
     assert await pop.downloads() == {}
     assert len(http.calls) == 1
+
+
+# --- ranking with realistic popularity (R27) -----------------------------------------
+
+# 30-day downloads from top-pypi-packages (October 2026), rounded.
+REAL_DOWNLOADS = {
+    "pyjwt": 565_000_000,
+    "djangorestframework-simplejwt": 6_470_000,
+    "flask-jwt-extended": 5_560_000,
+    "jwt": 2_710_000,
+    "types-pyjwt": 341_000,
+    "python-jwt": 301_000,
+    "pyyaml": 911_000_000,
+    "ruamel-yaml": 155_000_000,
+    "types-pyyaml": 73_800_000,
+    "yamllint": 24_900_000,
+    "strictyaml": 22_300_000,
+    "pyyaml-env-tag": 13_300_000,
+    "yaml-config": 2_520_000,
+    "yamlfix": 1_280_000,
+    "httpx": 617_000_000,
+    "httpcore": 614_000_000,
+    "aiohttp": 456_000_000,
+    "httpx2": 222_000_000,
+    "httptools": 212_000_000,
+    "websocket-client": 166_000_000,
+    "prometheus-client": 137_000_000,
+    "google-api-python-client": 126_000_000,
+    "httplib2": 119_000_000,
+    "opentelemetry-instrumentation-aiohttp-client": 22_200_000,
+    "python-http-client": 20_800_000,
+    "geventhttpclient": 10_900_000,
+    "ndg-httpsclient": 5_310_000,
+    "aiohttp-client-cache": 1_270_000,
+    "vonage-http-client": 232_000,
+    "ipfshttpclient": 187_000,
+    "http-client": 131_000,
+    "aiohttp-sse-client": 104_000,
+    "types-python-http-client": 82_000,
+    "cube-http-client": 57_000,
+    "yamlordereddictloader": 346_000,
+    "yamlloader": 207_000,
+    "yamlable": 113_000,
+    "yaml-rs": 93_000,
+    "yamlcore": 90_000,
+    "yamlpath": 87_000,
+    "requests": 1_210_000_000,
+    "urllib3": 1_320_000_000,
+    "boto3": 2_460_000_000,
+}
+# Real names without download data that ranked first before R27, plus filler hits.
+OBSCURE = [
+    "yaml", "jwts", "jwtee", "jwtpy", "jwtv2", "jwtlib", "jwtpie", "jwtgen", "jwt-py",
+    "jwt-kms", "jwtools", "jwt-pro", "yamld", "yamlu",
+    *(f"jwt-tool-{i}" for i in range(200)),
+    *(f"yaml-thing-{i}" for i in range(200)),
+    *(f"http-client-{i}" for i in range(200)),
+]  # fmt: skip
+SUMMARIES = {
+    "pyjwt": "JSON Web Token implementation in Python",
+    "jwt": "JSON Web Token library for Python 3.",
+    "pyyaml": "YAML parser and emitter for Python",
+    "yamllint": "A linter for YAML files.",
+    "ruamel-yaml": "a YAML parser/emitter that supports roundtrip preservation",
+    "httpx": "The next generation HTTP client.",
+    "httpcore": "A minimal low-level HTTP client.",
+    "aiohttp": "Async http client/server framework (asyncio)",
+    "python-http-client": "HTTP REST client, simplified for Python",
+}
+
+
+def realistic_names() -> str:
+    return joined([*REAL_DOWNLOADS, *OBSCURE])
+
+
+def realistic_summary(name: str) -> str:
+    # Worst case: every obscure name's summary repeats the query words.
+    return SUMMARIES.get(name, f"{name}: a JWT YAML HTTP client helper")
+
+
+def realistic_client(tmp_path) -> PyPIClient:
+    http = FakeHTTP(body=index_body([*REAL_DOWNLOADS, *OBSCURE]))
+    client = make_client(tmp_path, http, REAL_DOWNLOADS)
+
+    async def info(name):
+        return {"info": {"name": name, "version": "1.0", "summary": realistic_summary(name)}}
+
+    client.get_package_info = AsyncMock(side_effect=info)
+    return client
+
+
+@pytest.mark.parametrize(
+    ("query", "expected", "within"),
+    [("jwt", "pyjwt", 3), ("yaml", "pyyaml", 3), ("http client", "httpx", 5)],
+)
+def test_rank_candidates_lets_popularity_cross_tiers(query, expected, within):
+    ranked = [c.name for c in rank_candidates(query, realistic_names(), REAL_DOWNLOADS)]
+    assert expected in ranked[:within], ranked[:10]
+
+
+@pytest.mark.parametrize(
+    ("query", "expected", "within"),
+    [("jwt", "pyjwt", 3), ("yaml", "pyyaml", 3), ("http client", "httpx", 5)],
+)
+async def test_search_finds_the_main_package_for_common_queries(tmp_path, query, expected, within):
+    result = await realistic_client(tmp_path).search_packages(query, limit=10)
+    names = [r["name"] for r in result["results"]]
+    assert expected in names[:within], names
+
+
+@pytest.mark.parametrize("query", ["jwt", "yaml"])
+async def test_exact_match_is_always_first_even_when_outscored(tmp_path, query):
+    client = realistic_client(tmp_path)
+    ranked = rank_candidates(query, realistic_names(), REAL_DOWNLOADS)
+    assert ranked[0].name == query
+    assert ranked[1].score > ranked[0].score  # pyjwt / pyyaml outscore the exact name
+    result = await client.search_packages(query, limit=10)
+    assert result["results"][0]["name"] == query
+
+
+async def test_enrichment_always_includes_most_popular_token_matches(tmp_path):
+    client = realistic_client(tmp_path)
+    await client.search_packages("http client", limit=1)
+    enriched = {c.args[0] for c in client.get_package_info.await_args_list}
+    popular = sorted(
+        (n for n in REAL_DOWNLOADS if "http" in n or "client" in n),
+        key=REAL_DOWNLOADS.__getitem__,
+        reverse=True,
+    )[:10]
+    assert set(popular) <= enriched

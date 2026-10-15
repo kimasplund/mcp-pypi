@@ -160,7 +160,7 @@ Parameters and result fields are documented in [docs/pypi.md](docs/pypi.md). The
 
 ### Notes on search
 
-PyPI's own search page sits behind a JavaScript challenge, so `search_packages` does not use it. It searches the PyPI Simple index of package names locally and ranks matches by name similarity and download popularity. It matches names, not descriptions, so name-like keywords (`web scraping` is weaker than `scrapy` or `beautifulsoup`) work best.
+PyPI's own search page sits behind a JavaScript challenge, so `search_packages` does not use it. It searches the PyPI Simple index of package names locally and ranks matches by name similarity and download popularity (an exact name match first, then popular packages such as `pyjwt` for `jwt` ahead of obscure name matches). It matches names, not descriptions, so name-like keywords (`web scraping` is weaker than `scrapy` or `beautifulsoup`) work best.
 
 ## 💡 Example Usage
 

@@ -25,8 +25,16 @@ INDEX_URL = "https://pypi.org/simple/"
 INDEX_ACCEPT = "application/vnd.pypi.simple.v1+json"
 POPULARITY_URL = "https://hugovk.github.io/top-pypi-packages/top-pypi-packages.min.json"
 
+# Ranking. score = tier weight + popularity - 0.5 * len(name); search_ops adds 40 per
+# query word found in the summary. Tiers are 100 apart and popularity is 100 points per
+# tenfold monthly downloads above 10,000, so a name one tier lower overtakes a match
+# with ~10x fewer downloads (pyjwt beats the obscure prefix hits of "jwt"). The exact
+# name match is always ranked first regardless of score.
 TIER_EXACT, TIER_PREFIX, TIER_ALL_TOKENS, TIER_ANY_TOKEN = 4, 3, 2, 1
-TIER_WEIGHTS = {TIER_EXACT: 1000, TIER_PREFIX: 500, TIER_ALL_TOKENS: 200, TIER_ANY_TOKEN: 50}
+TIER_WEIGHTS = {TIER_EXACT: 400, TIER_PREFIX: 300, TIER_ALL_TOKENS: 200, TIER_ANY_TOKEN: 100}
+POPULARITY_WEIGHT = 100  # points per tenfold downloads
+POPULARITY_FLOOR = 10_000  # monthly downloads worth 0 points
+POPULAR_POOL = 10  # most-downloaded matching names always enriched
 FAILURE_BACKOFF = timedelta(seconds=60)
 _SCAN_CAP = 50_000  # max raw substring hits gathered per query term
 
@@ -265,10 +273,40 @@ def _names_starting_with(names: str, prefix: str, cap: int = _SCAN_CAP) -> set[s
     return found
 
 
+def popularity_points(downloads: int) -> float:
+    if downloads <= POPULARITY_FLOOR:
+        return 0.0
+    return POPULARITY_WEIGHT * math.log10(downloads / POPULARITY_FLOOR)
+
+
+def _rank_key(candidate: Candidate) -> tuple[bool, float]:
+    return candidate.tier == TIER_EXACT, candidate.score
+
+
+def most_popular(
+    candidates: list[Candidate], downloads: dict[str, int], n: int = POPULAR_POOL
+) -> list[Candidate]:
+    """The `n` candidates with the most downloads (only those with download data)."""
+    known = [c for c in candidates if downloads.get(c.name, 0) > 0]
+    return sorted(known, key=lambda c: downloads[c.name], reverse=True)[:n]
+
+
+def enrichment_pool(
+    candidates: list[Candidate], downloads: dict[str, int], size: int
+) -> list[Candidate]:
+    """The best `size` candidates plus the most popular matching names."""
+    head = candidates[:size]
+    seen = {c.name for c in head}
+    return head + [c for c in most_popular(candidates, downloads) if c.name not in seen]
+
+
 def rank_candidates(
     query: str, names: str, downloads: dict[str, int], pool: int = 500
 ) -> list[Candidate]:
-    """Rank index names against a query; best score first, at most `pool` results."""
+    """Rank index names against a query, exact match first then best score.
+
+    Returns at most `pool` results plus the most popular matching names.
+    """
     q = normalize(query.strip())
     tokens = query_tokens(query)
     if not q or not tokens:
@@ -296,12 +334,12 @@ def rank_candidates(
             tier = TIER_ANY_TOKEN
         else:
             continue
-        score = TIER_WEIGHTS[tier] - 0.5 * len(name)
-        if downloads.get(name, 0) > 0:
-            score += 25 * math.log10(downloads[name])
+        score = TIER_WEIGHTS[tier] - 0.5 * len(name) + popularity_points(downloads.get(name, 0))
         scored.append(Candidate(name, tier, score))
 
-    scored.sort(key=lambda c: (c.tier, c.score), reverse=True)
+    scored.sort(key=_rank_key, reverse=True)
     pooled = scored[:pool]
-    pooled.sort(key=lambda c: c.score, reverse=True)
+    kept = {c.name for c in pooled}
+    pooled += [c for c in most_popular(scored, downloads) if c.name not in kept]
+    pooled.sort(key=_rank_key, reverse=True)
     return pooled

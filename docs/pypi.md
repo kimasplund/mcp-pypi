@@ -22,7 +22,7 @@ Search PyPI package names and return ranked matches with summaries.
 | `query` | string | required | Name-like keywords work best |
 | `limit` | integer | `10` | Clamped to 1-50 |
 
-PyPI's HTML search is behind a JavaScript challenge, so mcp-pypi matches against the PyPI Simple index of package names and ranks hits by name similarity and download popularity. It matches names, not descriptions. Result: `query`, `results` (each with `name`, `version`, `summary`, `package_url`, `popularity_rank`), `total_candidates` and an optional `note`. See [caching.md](caching.md) for how the index is stored.
+PyPI's HTML search is behind a JavaScript challenge, so mcp-pypi matches against the PyPI Simple index of package names and ranks hits by name similarity and download popularity. It matches names, not descriptions. An exact name match is always listed first; after that, a widely used package that contains a query word (`pyjwt` for `jwt`, `pyyaml` for `yaml`, `httpx` for `http client`) ranks above obscure names that merely start with it, and the most downloaded matching names are always considered. Result: `query`, `results` (each with `name`, `version`, `summary`, `package_url`, `popularity_rank`), `total_candidates` and an optional `note`. See [caching.md](caching.md) for how the index is stored.
 
 ### get_package
 
