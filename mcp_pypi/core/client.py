@@ -15,7 +15,7 @@ from mcp_pypi.core.requirements_ops import RequirementsOpsMixin
 from mcp_pypi.core.search_ops import SearchOpsMixin
 from mcp_pypi.core.stats import PackageStatsService
 from mcp_pypi.core.vulnerability_ops import VulnerabilityOpsMixin
-from mcp_pypi.utils.helpers import sanitize_package_name, sanitize_version
+from mcp_pypi.utils.sanitize import sanitize_package_name, sanitize_version
 
 logger = logging.getLogger("mcp-pypi.client")
 

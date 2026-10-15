@@ -4,7 +4,7 @@ Helper utility functions for the MCP-PyPI client.
 
 import re
 
-from mcp_pypi.utils.common.validation import normalize_package_name
+from mcp_pypi.utils.validation import normalize_package_name
 
 
 def sanitize_package_name(package_name: str) -> str:

@@ -2,7 +2,7 @@
 
 import pytest
 
-from mcp_pypi.utils.common.validation import (
+from mcp_pypi.utils.validation import (
     sanitize_package_name,
     sanitize_version,
     validate_file_path,

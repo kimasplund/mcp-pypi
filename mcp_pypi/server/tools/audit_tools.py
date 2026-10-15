@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from mcp.types import ToolAnnotations
 
-from mcp_pypi.utils.common.validation import make_error_response, validate_file_path
+from mcp_pypi.utils.validation import make_error_response, validate_file_path
 
 if TYPE_CHECKING:
     from mcp_pypi.server import PyPIMCPServer

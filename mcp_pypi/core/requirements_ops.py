@@ -17,8 +17,8 @@ from mcp_pypi.core.models import (
     PackageRequirementsResult,
     format_error,
 )
-from mcp_pypi.utils.common.validation import validate_file_path
-from mcp_pypi.utils.helpers import sanitize_package_name
+from mcp_pypi.utils.validation import validate_file_path
+from mcp_pypi.utils.sanitize import sanitize_package_name
 
 # For Python < 3.11, use tomli for parsing TOML files
 if sys.version_info < (3, 11):

@@ -15,7 +15,7 @@ from mcp_pypi.core.models import (
     UpdatesFeed,
     format_error,
 )
-from mcp_pypi.utils.helpers import sanitize_package_name
+from mcp_pypi.utils.sanitize import sanitize_package_name
 
 logger = logging.getLogger("mcp-pypi.client")
 

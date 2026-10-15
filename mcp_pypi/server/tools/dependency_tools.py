@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Optional
 from mcp.types import ToolAnnotations
 
 from mcp_pypi.core.models import DependenciesResult, DependencyTreeResult
-from mcp_pypi.utils.common.validation import validate_depth
+from mcp_pypi.utils.validation import validate_depth
 
 if TYPE_CHECKING:
     from mcp_pypi.server import PyPIMCPServer

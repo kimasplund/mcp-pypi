@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 
 from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import ErrorCode, StatsResult, format_error
-from mcp_pypi.utils.helpers import sanitize_package_name
+from mcp_pypi.utils.sanitize import sanitize_package_name
 
 logger = logging.getLogger("mcp-pypi.stats")
 

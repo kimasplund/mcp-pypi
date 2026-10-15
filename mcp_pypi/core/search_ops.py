@@ -16,7 +16,7 @@ from mcp_pypi.core.models import (
     VersionComparisonResult,
     format_error,
 )
-from mcp_pypi.utils.helpers import sanitize_package_name, sanitize_version
+from mcp_pypi.utils.sanitize import sanitize_package_name, sanitize_version
 
 logger = logging.getLogger("mcp-pypi.client")
 

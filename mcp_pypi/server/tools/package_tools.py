@@ -18,7 +18,7 @@ from mcp_pypi.core.models import (
     VersionComparisonResult,
     VersionInfo,
 )
-from mcp_pypi.utils.common.validation import validate_pagination
+from mcp_pypi.utils.validation import validate_pagination
 
 if TYPE_CHECKING:
     from mcp_pypi.server import PyPIMCPServer
