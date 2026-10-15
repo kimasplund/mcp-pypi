@@ -1,6 +1,5 @@
 """Tests for the MCP server implementation."""
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -52,7 +51,7 @@ def mock_fastmcp():
 @pytest.mark.asyncio
 async def test_pypi_mcp_server_init(mock_pypi_client, mock_fastmcp):
     """Test PyPIMCPServer initialization."""
-    server = PyPIMCPServer()
+    PyPIMCPServer()
 
     # Check that FastMCP was initialized with name parameter
     mock_fastmcp.assert_called_once()
@@ -63,7 +62,7 @@ async def test_pypi_mcp_server_init(mock_pypi_client, mock_fastmcp):
 @pytest.mark.asyncio
 async def test_register_tools(mock_pypi_client, mock_fastmcp):
     """Test that tools are registered."""
-    server = PyPIMCPServer()
+    PyPIMCPServer()
 
     # Verify the decorator was called for each tool
     mcp_instance = mock_fastmcp.return_value
@@ -73,7 +72,7 @@ async def test_register_tools(mock_pypi_client, mock_fastmcp):
 @pytest.mark.asyncio
 async def test_register_resources(mock_pypi_client, mock_fastmcp):
     """Test that resources are registered."""
-    server = PyPIMCPServer()
+    PyPIMCPServer()
 
     # Verify the decorator was called for each resource
     mcp_instance = mock_fastmcp.return_value
@@ -83,7 +82,7 @@ async def test_register_resources(mock_pypi_client, mock_fastmcp):
 @pytest.mark.asyncio
 async def test_register_prompts(mock_pypi_client, mock_fastmcp):
     """Test that prompts are registered."""
-    server = PyPIMCPServer()
+    PyPIMCPServer()
 
     # Verify the decorator was called for each prompt
     mcp_instance = mock_fastmcp.return_value

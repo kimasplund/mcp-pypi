@@ -2,9 +2,7 @@
 """Test script to verify multiple PyPI client methods."""
 
 import asyncio
-import json
 import logging
-from pprint import pprint
 
 import pytest
 

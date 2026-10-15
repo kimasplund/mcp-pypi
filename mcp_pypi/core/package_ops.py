@@ -4,7 +4,7 @@ Package operations mixin for PyPI client.
 
 import json
 import logging
-from typing import Any, Dict, Optional, cast
+from typing import cast
 
 from mcp_pypi.core.models import (
     ErrorCode,
@@ -60,9 +60,7 @@ class PackageOpsMixin:
                         logger.error(f"Error decoding JSON from raw_data: {e}")
                         return cast(
                             PackageInfo,
-                            format_error(
-                                ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                            ),
+                            format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"),
                         )
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
@@ -109,9 +107,7 @@ class PackageOpsMixin:
                         logger.error(f"Error decoding JSON from raw_data: {e}")
                         return cast(
                             VersionInfo,
-                            format_error(
-                                ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                            ),
+                            format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"),
                         )
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
@@ -159,9 +155,7 @@ class PackageOpsMixin:
                         logger.error(f"Error decoding JSON from raw_data: {e}")
                         return cast(
                             ReleasesInfo,
-                            format_error(
-                                ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                            ),
+                            format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"),
                         )
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
@@ -209,9 +203,7 @@ class PackageOpsMixin:
                         logger.error(f"Error processing JSON from raw_data: {e}")
                         return cast(
                             UrlsInfo,
-                            format_error(
-                                ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                            ),
+                            format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"),
                         )
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
@@ -254,7 +246,7 @@ class PackageOpsMixin:
         python_tag: str,
         abi_tag: str,
         platform_tag: str,
-        build_tag: Optional[str] = None,
+        build_tag: str | None = None,
     ) -> UrlResult:
         """Generate a predictable wheel package URL."""
         try:
@@ -276,7 +268,10 @@ class PackageOpsMixin:
                 build_suffix = f"-{build_tag.replace('.', '_')}"
 
             # Format wheel filename
-            filename = f"{wheel_parts['name']}-{wheel_parts['version']}{build_suffix}-{wheel_parts['python_tag']}-{wheel_parts['abi_tag']}-{wheel_parts['platform_tag']}.whl"
+            filename = (
+                f"{wheel_parts['name']}-{wheel_parts['version']}{build_suffix}-"
+                f"{wheel_parts['python_tag']}-{wheel_parts['abi_tag']}-{wheel_parts['platform_tag']}.whl"
+            )
 
             first_letter = sanitized_name[0]
             url = f"https://files.pythonhosted.org/packages/{wheel_parts['python_tag']}/{first_letter}/{sanitized_name}/{filename}"
@@ -315,7 +310,7 @@ class PackageOpsMixin:
             return cast(ExistsResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
     async def get_package_metadata(
-        self, package_name: str, version: Optional[str] = None
+        self, package_name: str, version: str | None = None
     ) -> MetadataResult:
         """Get detailed metadata for a package."""
         try:
@@ -347,9 +342,7 @@ class PackageOpsMixin:
                         logger.error(f"Error decoding JSON from raw_data: {e}")
                         return cast(
                             MetadataResult,
-                            format_error(
-                                ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                            ),
+                            format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"),
                         )
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
@@ -376,9 +369,7 @@ class PackageOpsMixin:
                 "homepage": info.get("home_page", ""),
                 "requires_python": info.get("requires_python", ""),
                 "classifiers": info.get("classifiers", []),
-                "keywords": (
-                    info.get("keywords", "").split(",") if info.get("keywords") else []
-                ),
+                "keywords": (info.get("keywords", "").split(",") if info.get("keywords") else []),
             }
 
             return {"metadata": metadata}

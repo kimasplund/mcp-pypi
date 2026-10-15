@@ -6,7 +6,7 @@ to ensure they are safe for use in PyPI requests.
 """
 
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 
 def normalize_package_name(name: str) -> str:
@@ -74,7 +74,7 @@ def validate_pagination(
     offset: int,
     max_limit: int = 100,
     min_limit: int = 1,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """
     Validate and clamp pagination parameters.
 
@@ -107,7 +107,7 @@ def validate_depth(depth: int, max_depth: int = 5, min_depth: int = 1) -> int:
     return max(min_depth, min(depth, max_depth))
 
 
-def validate_file_path(file_path: str) -> Tuple[bool, Optional[str]]:
+def validate_file_path(file_path: str) -> tuple[bool, str | None]:
     """
     Validate a file path for security.
 
@@ -128,7 +128,7 @@ def validate_file_path(file_path: str) -> Tuple[bool, Optional[str]]:
     return True, None
 
 
-def make_error_response(message: str, code: str = "error") -> Dict[str, Any]:
+def make_error_response(message: str, code: str = "error") -> dict[str, Any]:
     """Create a standardized error response.
 
     Args:

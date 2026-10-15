@@ -5,7 +5,6 @@ Command Line Interface for the MCP-PyPI client.
 import asyncio
 import logging
 import sys
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -28,15 +27,11 @@ stderr_console = Console(stderr=True)
 
 def show_stdio_connection_help():
     """Show connection examples for stdio transport."""
-    console.print(
-        "\n[bold cyan]Connection Examples for MCP-PyPI (stdio transport)[/bold cyan]\n"
-    )
+    console.print("\n[bold cyan]Connection Examples for MCP-PyPI (stdio transport)[/bold cyan]\n")
 
     console.print("[bold]1. Claude Desktop Configuration[/bold]")
     console.print("Add to your Claude Desktop configuration file:")
-    console.print(
-        "[dim]* macOS: ~/Library/Application Support/Claude/claude.json[/dim]"
-    )
+    console.print("[dim]* macOS: ~/Library/Application Support/Claude/claude.json[/dim]")
     console.print("[dim]* Windows: %APPDATA%\\Claude\\claude.json[/dim]\n")
 
     config_example = """{
@@ -81,13 +76,9 @@ def show_stdio_connection_help():
 
 def show_http_connection_help(host: str = "127.0.0.1", port: int = 8080):
     """Show connection examples for HTTP transport."""
-    console.print(
-        "\n[bold cyan]Connection Examples for MCP-PyPI (HTTP transport)[/bold cyan]\n"
-    )
+    console.print("\n[bold cyan]Connection Examples for MCP-PyPI (HTTP transport)[/bold cyan]\n")
 
-    console.print(
-        f"[bold]Server will be available at:[/bold] http://{host}:{port}\n"
-    )
+    console.print(f"[bold]Server will be available at:[/bold] http://{host}:{port}\n")
 
     console.print("[bold]1. MCP Client Configuration[/bold]")
     console.print("Configure your MCP client to connect to the HTTP endpoints:\n")
@@ -114,6 +105,10 @@ def show_http_connection_help(host: str = "127.0.0.1", port: int = 8080):
     console.print("\n[bold]3. Direct API Usage[/bold]")
     console.print("You can also interact with the server directly:\n")
 
+    search_payload = (
+        '{"method": "tools/call", "params": '
+        '{"name": "search_packages", "arguments": {"query": "requests"}}}'
+    )
     api_example = f"""# List available tools
 curl -X POST http://{host}:{port}/mcp \\
   -H "Content-Type: application/json" \\
@@ -122,7 +117,7 @@ curl -X POST http://{host}:{port}/mcp \\
 # Search for packages
 curl -X POST http://{host}:{port}/mcp \\
   -H "Content-Type: application/json" \\
-  -d '{{"method": "tools/call", "params": {{"name": "search_packages", "arguments": {{"query": "requests"}}}}}}'
+  -d '{search_payload}'
 """
     syntax = Syntax(api_example, "bash", theme="monokai", line_numbers=False)
     console.print(Panel(syntax, title="API Examples", border_style="yellow"))
@@ -143,7 +138,7 @@ def version_callback(value: bool):
         raise typer.Exit()
 
 
-def get_markdown_file(filename: str) -> Optional[str]:
+def get_markdown_file(filename: str) -> str | None:
     """Get markdown file content from package or filesystem."""
     import importlib.resources
     from pathlib import Path
@@ -159,9 +154,7 @@ def get_markdown_file(filename: str) -> Optional[str]:
         else:
             import pkg_resources
 
-            content = pkg_resources.resource_string("mcp_pypi", filename).decode(
-                "utf-8"
-            )
+            content = pkg_resources.resource_string("mcp_pypi", filename).decode("utf-8")
     except Exception:
         pass
 
@@ -173,7 +166,7 @@ def get_markdown_file(filename: str) -> Optional[str]:
             file_path = package_dir.parent / filename
 
         if file_path.exists():
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
     return content
@@ -194,7 +187,8 @@ def readme_callback(value: bool):
         else:
             console.print("[red]README.md file not found![/red]")
             console.print(
-                "[dim]This might happen if the package was installed without including README.md[/dim]"
+                "[dim]This might happen if the package was installed without including "
+                "README.md[/dim]"
             )
             console.print(
                 "\n[bold]View online at:[/bold] https://github.com/kimasplund/mcp-pypi#readme"
@@ -218,7 +212,8 @@ def changelog_callback(value: bool):
         else:
             console.print("[red]CHANGELOG.md file not found![/red]")
             console.print(
-                "[dim]This might happen if the package was installed without including CHANGELOG.md[/dim]"
+                "[dim]This might happen if the package was installed without including "
+                "CHANGELOG.md[/dim]"
             )
             console.print(
                 "\n[bold]View online at:[/bold] https://github.com/kimasplund/mcp-pypi/blob/main/CHANGELOG.md"
@@ -244,9 +239,7 @@ app.command("search")(search_packages)
 
 @app.command("stdio")
 def stdio_command(
-    cache_dir: Optional[str] = typer.Option(
-        None, "--cache-dir", help="Custom cache directory"
-    ),
+    cache_dir: str | None = typer.Option(None, "--cache-dir", help="Custom cache directory"),
     cache_strategy: str = typer.Option(
         "hybrid", "--cache-strategy", help="Cache strategy: memory, disk, or hybrid"
     ),
@@ -254,9 +247,7 @@ def stdio_command(
         604800, "--cache-ttl", help="Cache TTL in seconds (default: 1 week)"
     ),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging level"),
-    user_agent: Optional[str] = typer.Option(
-        None, "--user-agent", help="Custom user agent string"
-    ),
+    user_agent: str | None = typer.Option(None, "--user-agent", help="Custom user agent string"),
     help_connecting: bool = typer.Option(
         False, "--help-connecting", help="Show connection examples for Claude"
     ),
@@ -289,15 +280,14 @@ def check_requirements(
     file_path: str = typer.Argument(
         ..., help="Path to requirements file to check (.txt, .pip, or pyproject.toml)"
     ),
-    format: str = typer.Option(
-        None, "--format", "-f", help="Output format (json, table)"
-    ),
+    format: str = typer.Option(None, "--format", "-f", help="Output format (json, table)"),
     color: bool = typer.Option(True, "--color/--no-color", help="Colorize output"),
 ):
     """
     Check a requirements file for updates.
 
-    Supports requirements.txt format and pyproject.toml (dependencies from Poetry, PEP 621, PDM, and Flit will be detected).
+    Supports requirements.txt format and pyproject.toml (dependencies from Poetry,
+    PEP 621, PDM, and Flit will be detected).
     """
 
     async def run():
@@ -381,16 +371,12 @@ def check_requirements(
 
 @app.callback()
 def main(
-    cache_dir: Optional[str] = typer.Option(
-        None, "--cache-dir", help="Cache directory path"
-    ),
+    cache_dir: str | None = typer.Option(None, "--cache-dir", help="Cache directory path"),
     cache_ttl: int = typer.Option(
         604800, "--cache-ttl", help="Cache TTL in seconds (default: 1 week)"
     ),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Enable verbose logging"
-    ),
-    log_file: Optional[str] = typer.Option(None, "--log-file", help="Log file path"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
+    log_file: str | None = typer.Option(None, "--log-file", help="Log file path"),
     version: bool = typer.Option(
         None,
         "--version",

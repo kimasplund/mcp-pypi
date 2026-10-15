@@ -97,7 +97,8 @@ async def test_dependency_tree_max_width(client, mock_http_client, mock_cache_ma
                 "name": "test-package",
                 "version": "1.0.0",
                 "requires_dist": [
-                    f"dep-{i}" for i in range(100)  # 100 dependencies
+                    f"dep-{i}"
+                    for i in range(100)  # 100 dependencies
                 ],
             }
         },

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Tests for batch vulnerability checking functionality."""
 
-import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -69,7 +68,9 @@ async def test_check_vulnerabilities_batch_basic(client, mock_http_client, mock_
                         "affected": [
                             {
                                 "package": {"name": "flask", "ecosystem": "PyPI"},
-                                "ranges": [{"events": [{"introduced": "1.0.0"}, {"fixed": "2.0.0"}]}],
+                                "ranges": [
+                                    {"events": [{"introduced": "1.0.0"}, {"fixed": "2.0.0"}]}
+                                ],
                             }
                         ],
                         "aliases": ["CVE-2021-1234"],
@@ -148,7 +149,9 @@ async def test_check_vulnerabilities_batch_chunking(client, mock_http_client, mo
 
 
 @pytest.mark.asyncio
-async def test_check_vulnerabilities_batch_error_handling(client, mock_http_client, mock_cache_manager):
+async def test_check_vulnerabilities_batch_error_handling(
+    client, mock_http_client, mock_cache_manager
+):
     """Test batch vulnerability check handles API errors gracefully."""
     mock_http_client.fetch.return_value = {"error": "API rate limit exceeded"}
 
@@ -194,11 +197,13 @@ async def test_check_vulnerabilities_pagination(client, mock_http_client, mock_c
     assert result["offset"] == 0
     assert result["total_vulnerabilities"] == 25
     assert len(result["vulnerabilities"]) <= 10
-    assert result["has_more"] == True
+    assert result["has_more"]
 
 
 @pytest.mark.asyncio
-async def test_check_vulnerabilities_pagination_last_page(client, mock_http_client, mock_cache_manager):
+async def test_check_vulnerabilities_pagination_last_page(
+    client, mock_http_client, mock_cache_manager
+):
     """Test check_vulnerabilities pagination on last page."""
     mock_http_client.fetch.side_effect = [
         {"info": {"name": "test-package", "version": "1.0.0"}},
@@ -226,4 +231,4 @@ async def test_check_vulnerabilities_pagination_last_page(client, mock_http_clie
 
     assert result["limit"] == 5
     assert result["offset"] == 3
-    assert result["has_more"] == False
+    assert not result["has_more"]

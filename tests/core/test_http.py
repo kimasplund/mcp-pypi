@@ -1,13 +1,12 @@
 """Tests for the HTTP client."""
 
-import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
 import pytest
 import pytest_asyncio
-from aiohttp import ClientConnectionError, ClientResponse, ClientSession
+from aiohttp import ClientResponse, ClientSession
 
 from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import PyPIClientConfig
@@ -106,7 +105,6 @@ async def test_fetch_not_modified(http_client, mock_cache):
     """Test fetch with 304 Not Modified response."""
     url = "https://test.example.com/api/not-modified"
     cached_data = {"cached": "data"}
-    etag = 'W/"test-etag"'
 
     # Skip the cache get/etag setup and patch the HTTP client's implementation
     # directly for this test
@@ -160,9 +158,7 @@ async def test_fetch_retry_on_server_error(http_client):
     success_response.headers = {"Content-Type": "application/json"}
 
     # Mock session with side effect to return different responses
-    with patch.object(
-        ClientSession, "request", side_effect=[error_response, success_response]
-    ):
+    with patch.object(ClientSession, "request", side_effect=[error_response, success_response]):
         result = await http_client.fetch(url)
 
         # Should eventually get success response
@@ -198,9 +194,7 @@ async def test_fetch_connection_error(http_client):
     # Create a connection error with a proper constructor
     conn_key = Mock()
     conn_key.ssl = False
-    connection_error = aiohttp.ClientConnectorError(
-        conn_key, OSError("Connection refused")
-    )
+    connection_error = aiohttp.ClientConnectorError(conn_key, OSError("Connection refused"))
 
     # Mock session to raise connection error
     with patch.object(ClientSession, "request", side_effect=connection_error):
@@ -217,13 +211,11 @@ async def test_fetch_timeout(http_client):
     url = "https://test.example.com/api/timeout"
 
     # Mock session to raise timeout on first call, then return success
-    timeout_error = asyncio.TimeoutError("Request timed out")
+    timeout_error = TimeoutError("Request timed out")
     success_response = create_mock_response(200, {"test": "data"})
     success_response.headers = {"Content-Type": "application/json"}
 
-    with patch.object(
-        ClientSession, "request", side_effect=[timeout_error, success_response]
-    ):
+    with patch.object(ClientSession, "request", side_effect=[timeout_error, success_response]):
         result = await http_client.fetch(url)
 
         # Should retry and eventually succeed
@@ -240,9 +232,7 @@ async def test_fetch_json_decode_error(http_client):
     mock_response.headers = {"Content-Type": "application/json"}
 
     # Make json() raise JSONDecodeError
-    mock_response.json = AsyncMock(
-        side_effect=json.JSONDecodeError("Invalid JSON", "", 0)
-    )
+    mock_response.json = AsyncMock(side_effect=json.JSONDecodeError("Invalid JSON", "", 0))
 
     # Mock session
     with patch.object(ClientSession, "request", return_value=mock_response):

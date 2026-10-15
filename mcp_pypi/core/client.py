@@ -3,13 +3,13 @@ Main PyPI client that composes all operation mixins.
 """
 
 import logging
-from typing import Optional, cast
+from typing import cast
 
 from mcp_pypi.core.cache import AsyncCacheManager
 from mcp_pypi.core.dependency_ops import DependencyOpsMixin
 from mcp_pypi.core.feed_ops import FeedOpsMixin
 from mcp_pypi.core.http import AsyncHTTPClient
-from mcp_pypi.core.models import PyPIClientConfig, StatsResult, ErrorCode, format_error
+from mcp_pypi.core.models import ErrorCode, PyPIClientConfig, StatsResult, format_error
 from mcp_pypi.core.package_ops import PackageOpsMixin
 from mcp_pypi.core.requirements_ops import RequirementsOpsMixin
 from mcp_pypi.core.search_ops import SearchOpsMixin
@@ -43,10 +43,10 @@ class PyPIClient(
 
     def __init__(
         self,
-        config: Optional[PyPIClientConfig] = None,
-        cache_manager: Optional[AsyncCacheManager] = None,
-        http_client: Optional[AsyncHTTPClient] = None,
-        stats_service: Optional[PackageStatsService] = None,
+        config: PyPIClientConfig | None = None,
+        cache_manager: AsyncCacheManager | None = None,
+        http_client: AsyncHTTPClient | None = None,
+        stats_service: PackageStatsService | None = None,
     ):
         """Initialize the PyPI client with optional dependency injection.
 
@@ -73,9 +73,7 @@ class PyPIClient(
             __import__(module)
             return True
         except ImportError:
-            logger.info(
-                f"Optional dependency {module} not found; some features will be limited"
-            )
+            logger.info(f"Optional dependency {module} not found; some features will be limited")
             return False
 
     def set_user_agent(self, user_agent: str) -> None:
@@ -91,9 +89,7 @@ class PyPIClient(
         """Close the client and release resources."""
         await self.http.close()
 
-    async def get_package_stats(
-        self, package_name: str, version: Optional[str] = None
-    ) -> StatsResult:
+    async def get_package_stats(self, package_name: str, version: str | None = None) -> StatsResult:
         """Get download statistics for a package."""
         try:
             sanitized_name = sanitize_package_name(package_name)
@@ -107,9 +103,7 @@ class PyPIClient(
             if not exists_result.get("exists", False):
                 return cast(
                     StatsResult,
-                    format_error(
-                        ErrorCode.NOT_FOUND, f"Package '{sanitized_name}' not found"
-                    ),
+                    format_error(ErrorCode.NOT_FOUND, f"Package '{sanitized_name}' not found"),
                 )
 
             # Use the stats service to get real download stats

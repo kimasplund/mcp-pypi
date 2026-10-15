@@ -1,14 +1,11 @@
 """Tests for utility functions."""
 
-import io
 import logging
-import sys
 
 import pytest
 
 from mcp_pypi.core.models import ErrorCode, format_error
-from mcp_pypi.utils import (configure_logging, sanitize_package_name,
-                            sanitize_version)
+from mcp_pypi.utils import configure_logging, sanitize_package_name, sanitize_version
 
 
 def test_format_error():

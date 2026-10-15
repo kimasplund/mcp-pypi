@@ -1,8 +1,5 @@
 """Pytest configuration for MCP-PyPI tests."""
 
-import os
-import sys
-
 import pytest
 
 
@@ -25,9 +22,7 @@ def pytest_collection_modifyitems(config, items):
     """Skip integration tests unless --run-integration is specified."""
     # Handle integration tests
     if not config.getoption("--run-integration"):
-        skip_integration = pytest.mark.skip(
-            reason="Needs --run-integration option to run"
-        )
+        skip_integration = pytest.mark.skip(reason="Needs --run-integration option to run")
         for item in items:
             if "integration" in item.keywords:
                 item.add_marker(skip_integration)

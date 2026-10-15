@@ -4,9 +4,9 @@ Requirements file operations mixin for PyPI client.
 
 import logging
 import re
-import sys
+import tomllib
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 from packaging.requirements import Requirement
 from packaging.version import Version
@@ -17,14 +17,8 @@ from mcp_pypi.core.models import (
     PackageRequirementsResult,
     format_error,
 )
-from mcp_pypi.utils.validation import validate_file_path
 from mcp_pypi.utils.sanitize import sanitize_package_name
-
-# For Python < 3.11, use tomli for parsing TOML files
-if sys.version_info < (3, 11):
-    import tomli as tomllib  # type: ignore[import-not-found]
-else:
-    import tomllib
+from mcp_pypi.utils.validation import validate_file_path
 
 logger = logging.getLogger("mcp-pypi.client")
 
@@ -32,9 +26,7 @@ logger = logging.getLogger("mcp-pypi.client")
 class RequirementsOpsMixin:
     """Mixin providing requirements file operations."""
 
-    async def check_requirements_file(
-        self, file_path: str
-    ) -> PackageRequirementsResult:
+    async def check_requirements_file(self, file_path: str) -> PackageRequirementsResult:
         """Check a requirements file for outdated packages."""
         try:
             # Validate file path for security (prevent path traversal attacks)
@@ -45,7 +37,7 @@ class RequirementsOpsMixin:
                     format_error(ErrorCode.INVALID_INPUT, error_msg or "Invalid file path"),
                 )
 
-            path = Path(file_path).resolve()
+            path = Path(file_path).resolve()  # noqa: ASYNC240  # single cheap fs call
 
             # Check if file exists
             if not path.exists():
@@ -55,7 +47,7 @@ class RequirementsOpsMixin:
                 )
 
             # Check file extension
-            if path.name.endswith((".toml")):
+            if path.name.endswith(".toml"):
                 return await self._check_pyproject_toml(path)
             elif path.name.endswith((".txt", ".pip")):
                 return await self._check_requirements_txt(path)
@@ -98,8 +90,8 @@ class RequirementsOpsMixin:
                     format_error(ErrorCode.FILE_ERROR, f"Error reading file: {str(e)}"),
                 )
 
-            outdated: List[PackageRequirement] = []
-            up_to_date: List[PackageRequirement] = []
+            outdated: list[PackageRequirement] = []
+            up_to_date: list[PackageRequirement] = []
 
             for req_line in requirements:
                 req_line = req_line.strip()
@@ -146,16 +138,12 @@ class RequirementsOpsMixin:
                                 current_version = f"{spec.operator}{spec.version}"
 
                                 # Check vulnerabilities for minimum allowed version
-                                vuln_check = await self.check_vulnerabilities(
-                                    pkg_name, min_version
-                                )
+                                vuln_check = await self.check_vulnerabilities(pkg_name, min_version)
 
                                 if vuln_check.get("vulnerable", False):
                                     # Find the earliest safe version
-                                    safe_version = (
-                                        await self._find_earliest_safe_version(
-                                            pkg_name, min_version, latest_version
-                                        )
+                                    safe_version = await self._find_earliest_safe_version(
+                                        pkg_name, min_version, latest_version
                                     )
 
                                     if safe_version and safe_version != min_version:
@@ -195,20 +183,14 @@ class RequirementsOpsMixin:
                     # Try a simple extraction for unparseable requirements
                     try:
                         # Extract package name using regex
-                        match = re.match(
-                            r"^([a-zA-Z0-9_.-]+)(?:[<>=~!]=?|@)(.+)?", req_line
-                        )
+                        match = re.match(r"^([a-zA-Z0-9_.-]+)(?:[<>=~!]=?|@)(.+)?", req_line)
 
                         if match:
                             pkg_name = match.group(1)
-                            version_spec = (
-                                match.group(2).strip() if match.group(2) else None
-                            )
+                            version_spec = match.group(2).strip() if match.group(2) else None
 
                             # Get latest version
-                            latest_version_info = await self.get_latest_version(
-                                pkg_name
-                            )
+                            latest_version_info = await self.get_latest_version(pkg_name)
 
                             if "error" not in latest_version_info:
                                 latest_version = latest_version_info["version"]
@@ -238,9 +220,7 @@ class RequirementsOpsMixin:
                             pkg_name = req_line
 
                             # Get latest version
-                            latest_version_info = await self.get_latest_version(
-                                pkg_name
-                            )
+                            latest_version_info = await self.get_latest_version(pkg_name)
 
                             if "error" not in latest_version_info:
                                 latest_version = latest_version_info["version"]
@@ -280,15 +260,22 @@ class RequirementsOpsMixin:
                         "CHECK pyproject.toml FIRST - it's the primary dependency source",
                         "UPDATE pyproject.toml with the recommended secure versions",
                         "THEN update this requirements.txt to match pyproject.toml",
-                        f"VERIFY consistency with other files: {', '.join(f for f in other_dep_files if 'pyproject.toml' not in f)}" if any(f for f in other_dep_files if 'pyproject.toml' not in f) else None,
-                        "COMMIT changes with message: 'chore: Update dependencies for security (all files)'"
+                        f"VERIFY consistency with other files: "
+                        f"{', '.join(f for f in other_dep_files if 'pyproject.toml' not in f)}"
+                        if any(f for f in other_dep_files if "pyproject.toml" not in f)
+                        else None,
+                        "COMMIT changes with message: 'chore: Update dependencies for security "
+                        "(all files)'",
                     ]
                 else:
                     # No pyproject.toml - requirements.txt is primary
                     result["next_steps"] = [
                         "UPDATE this file with the recommended secure versions",
-                        f"CHECK other dependency files for consistency: {', '.join(other_dep_files)}" if other_dep_files else None,
-                        "COMMIT changes with message mentioning all updated files"
+                        f"CHECK other dependency files for consistency: "
+                        f"{', '.join(other_dep_files)}"
+                        if other_dep_files
+                        else None,
+                        "COMMIT changes with message mentioning all updated files",
                     ]
 
                 result["next_steps"] = [step for step in result["next_steps"] if step]
@@ -304,9 +291,7 @@ class RequirementsOpsMixin:
                 ),
             )
 
-    def _extract_dependencies_from_pyproject(
-        self, pyproject_data: Dict[str, Any]
-    ) -> List[str]:
+    def _extract_dependencies_from_pyproject(self, pyproject_data: dict[str, Any]) -> list[str]:
         """Extract dependencies from various pyproject.toml formats.
 
         Args:
@@ -322,56 +307,45 @@ class RequirementsOpsMixin:
             dependencies.extend(pyproject_data["project"]["dependencies"])
 
         # 2. Poetry format - tool.poetry.dependencies
-        if "tool" in pyproject_data and "poetry" in pyproject_data["tool"]:
-            if "dependencies" in pyproject_data["tool"]["poetry"]:
-                poetry_deps = pyproject_data["tool"]["poetry"]["dependencies"]
-                for name, constraint in poetry_deps.items():
-                    if name == "python":  # Skip python dependency
-                        continue
-                    if isinstance(constraint, str):
-                        dependencies.append(f"{name}{constraint}")
-                    elif isinstance(constraint, dict) and "version" in constraint:
-                        dependencies.append(f"{name}{constraint['version']}")
+        if ("tool" in pyproject_data and "poetry" in pyproject_data["tool"]) and (
+            "dependencies" in pyproject_data["tool"]["poetry"]
+        ):
+            poetry_deps = pyproject_data["tool"]["poetry"]["dependencies"]
+            for name, constraint in poetry_deps.items():
+                if name == "python":  # Skip python dependency
+                    continue
+                if isinstance(constraint, str):
+                    dependencies.append(f"{name}{constraint}")
+                elif isinstance(constraint, dict) and "version" in constraint:
+                    dependencies.append(f"{name}{constraint['version']}")
 
         # 3. PDM format - tool.pdm.dependencies
-        if "tool" in pyproject_data and "pdm" in pyproject_data["tool"]:
-            if "dependencies" in pyproject_data["tool"]["pdm"]:
-                pdm_deps = pyproject_data["tool"]["pdm"]["dependencies"]
-                for name, constraint in pdm_deps.items():
-                    if isinstance(constraint, str):
-                        dependencies.append(f"{name}{constraint}")
-                    elif isinstance(constraint, dict) and "version" in constraint:
-                        dependencies.append(f"{name}{constraint['version']}")
+        if ("tool" in pyproject_data and "pdm" in pyproject_data["tool"]) and (
+            "dependencies" in pyproject_data["tool"]["pdm"]
+        ):
+            pdm_deps = pyproject_data["tool"]["pdm"]["dependencies"]
+            for name, constraint in pdm_deps.items():
+                if isinstance(constraint, str):
+                    dependencies.append(f"{name}{constraint}")
+                elif isinstance(constraint, dict) and "version" in constraint:
+                    dependencies.append(f"{name}{constraint['version']}")
 
         # 4. Flit format - tool.flit.metadata.requires
-        if "tool" in pyproject_data and "flit" in pyproject_data["tool"]:
-            if (
+        if (
+            "tool" in pyproject_data
+            and "flit" in pyproject_data["tool"]
+            and (
                 "metadata" in pyproject_data["tool"]["flit"]
                 and "requires" in pyproject_data["tool"]["flit"]["metadata"]
-            ):
-                dependencies.extend(
-                    pyproject_data["tool"]["flit"]["metadata"]["requires"]
-                )
+            )
+        ):
+            dependencies.extend(pyproject_data["tool"]["flit"]["metadata"]["requires"])
 
         return dependencies
 
     def _load_toml_module(self):
-        """Load the appropriate TOML parsing module.
-
-        Returns:
-            The tomllib or tomli module, or None if not available
-        """
-        try:
-            import tomllib
-
-            return tomllib
-        except ImportError:
-            try:
-                import tomli as tomllib  # type: ignore[import-not-found]
-
-                return tomllib
-            except ImportError:
-                return None
+        """Return the stdlib TOML parser."""
+        return tomllib
 
     async def _check_pyproject_toml(self, path: Path) -> PackageRequirementsResult:
         """Check a pyproject.toml file for outdated packages."""
@@ -382,7 +356,8 @@ class RequirementsOpsMixin:
                 PackageRequirementsResult,
                 format_error(
                     ErrorCode.MISSING_DEPENDENCY,
-                    "Parsing pyproject.toml requires tomli package. Please install with: pip install tomli",
+                    "Parsing pyproject.toml requires tomli package. Please install with: pip "
+                    "install tomli",
                 ),
             )
 
@@ -401,9 +376,7 @@ class RequirementsOpsMixin:
         except Exception as e:
             return cast(
                 PackageRequirementsResult,
-                format_error(
-                    ErrorCode.FILE_ERROR, f"Error reading TOML file: {str(e)}"
-                ),
+                format_error(ErrorCode.FILE_ERROR, f"Error reading TOML file: {str(e)}"),
             )
 
         # Extract dependencies using helper method
@@ -424,7 +397,8 @@ class RequirementsOpsMixin:
                 # Check if we got a valid result
                 if "error" in info_result:
                     logger.warning(
-                        f"Could not get latest version for {package_name}: {info_result['error']['message']}"
+                        f"Could not get latest version for {package_name}: "
+                        f"{info_result['error']['message']}"
                     )
                     continue
 
@@ -451,12 +425,10 @@ class RequirementsOpsMixin:
                                 latest_ver = Version(latest_version)
                                 is_outdated = latest_ver > current_ver
                             except Exception as e:
-                                logger.warning(
-                                    f"Error comparing versions for {package_name}: {e}"
-                                )
+                                logger.warning(f"Error comparing versions for {package_name}: {e}")
                                 continue
                         else:
-                            # For other operators (>=, >, etc.) use as constraint but don't mark as outdated
+                            # Other operators (>=, >, etc.): use as constraint, don't mark outdated
                             if not current_version:
                                 current_version = f"{spec.operator}{spec.version}"
 
@@ -489,7 +461,13 @@ class RequirementsOpsMixin:
         project_dir = toml_path.parent
 
         other_dep_files = []
-        for pattern in ["requirements.txt", "requirements-*.txt", "setup.py", "setup.cfg", "Pipfile"]:
+        for pattern in [
+            "requirements.txt",
+            "requirements-*.txt",
+            "setup.py",
+            "setup.cfg",
+            "Pipfile",
+        ]:
             if pattern.startswith("requirements-"):
                 # Handle wildcard pattern
                 for req_file in project_dir.glob(pattern):
@@ -509,10 +487,13 @@ class RequirementsOpsMixin:
             # pyproject.toml is primary - changes should trickle down
             result["next_steps"] = [
                 "UPDATE this pyproject.toml FIRST with the recommended secure versions",
-                f"TRICKLE DOWN changes to secondary files: {', '.join(other_dep_files)}" if other_dep_files else None,
+                f"TRICKLE DOWN changes to secondary files: {', '.join(other_dep_files)}"
+                if other_dep_files
+                else None,
                 "ENSURE all files have IDENTICAL version constraints",
                 "REGENERATE requirements.txt if using pip-tools: pip-compile pyproject.toml",
-                "COMMIT changes with message: 'chore: Update dependencies for security (all files)'"
+                "COMMIT changes with message: 'chore: Update dependencies for security (all "
+                "files)'",
             ]
             result["next_steps"] = [step for step in result["next_steps"] if step]
 

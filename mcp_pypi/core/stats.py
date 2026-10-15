@@ -4,7 +4,7 @@ Package statistics service for the MCP-PyPI client.
 
 import datetime
 import logging
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import cast
 
 from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import ErrorCode, StatsResult, format_error
@@ -20,7 +20,7 @@ class PackageStatsService:
         self.http_client = http_client
 
     async def get_package_stats(
-        self, package_name: str, version: Optional[str] = None, periods: int = 12
+        self, package_name: str, version: str | None = None, periods: int = 12
     ) -> StatsResult:
         """Get download statistics for a package from PyPI Stats API.
 
@@ -69,9 +69,7 @@ class PackageStatsService:
                         logger.error(f"Error decoding JSON from raw_data: {e}")
                         return cast(
                             StatsResult,
-                            format_error(
-                                ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                            ),
+                            format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"),
                         )
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
@@ -109,9 +107,7 @@ class PackageStatsService:
                         logger.error(f"Error decoding JSON from raw_data: {e}")
                         return cast(
                             StatsResult,
-                            format_error(
-                                ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"
-                            ),
+                            format_error(ErrorCode.PARSE_ERROR, f"Invalid JSON response: {e}"),
                         )
                 else:
                     logger.warning(f"Received non-JSON content: {content_type}")
@@ -129,10 +125,7 @@ class PackageStatsService:
             # Process the results
             try:
                 # Extract data from the API response
-                if (
-                    isinstance(overall_data_parsed, dict)
-                    and "data" in overall_data_parsed
-                ):
+                if isinstance(overall_data_parsed, dict) and "data" in overall_data_parsed:
                     overall_data = overall_data_parsed["data"]
 
                     # Calculate totals
@@ -141,15 +134,12 @@ class PackageStatsService:
                     last_month = 0
 
                     # Process by date if available
-                    monthly_downloads: Dict[str, int] = {}
+                    monthly_downloads: dict[str, int] = {}
 
                     today = datetime.date.today()
 
                     # Try to get monthly data from the response
-                    if (
-                        isinstance(detailed_data_parsed, dict)
-                        and "data" in detailed_data_parsed
-                    ):
+                    if isinstance(detailed_data_parsed, dict) and "data" in detailed_data_parsed:
                         detailed_data = detailed_data_parsed["data"]
 
                         # Group downloads by month
@@ -177,13 +167,10 @@ class PackageStatsService:
                                     # Add to monthly aggregation
                                     month_key = date_obj.strftime("%Y-%m")
                                     monthly_downloads[month_key] = (
-                                        monthly_downloads.get(month_key, 0)
-                                        + entry["downloads"]
+                                        monthly_downloads.get(month_key, 0) + entry["downloads"]
                                     )
                                 except (ValueError, KeyError):
-                                    logger.warning(
-                                        f"Couldn't parse date entry: {entry}"
-                                    )
+                                    logger.warning(f"Couldn't parse date entry: {entry}")
                                     continue
 
                     # If we don't have monthly data, try to estimate from overall totals
@@ -220,9 +207,7 @@ class PackageStatsService:
                     # Limit to the requested number of periods
                     if len(monthly_downloads) > periods:
                         # Sort by date (newest first) and take the latest periods
-                        sorted_months = sorted(monthly_downloads.items(), reverse=True)[
-                            :periods
-                        ]
+                        sorted_months = sorted(monthly_downloads.items(), reverse=True)[:periods]
                         monthly_downloads = dict(sorted_months)
 
                     # Ensure we have values for all metrics
@@ -255,14 +240,12 @@ class PackageStatsService:
             logger.exception(f"Unexpected error getting package stats: {e}")
             return cast(StatsResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
-    def _generate_synthetic_stats(
-        self, package_name: str, periods: int = 6
-    ) -> StatsResult:
+    def _generate_synthetic_stats(self, package_name: str, periods: int = 6) -> StatsResult:
         """Generate synthetic statistics when real data is unavailable."""
         logger.warning(f"Generating synthetic stats for {package_name}")
 
         current_date = datetime.datetime.now()
-        downloads: Dict[str, int] = {}
+        downloads: dict[str, int] = {}
 
         # Generate 6 months of data
         for i in range(periods):

@@ -4,7 +4,7 @@ Search and comparison operations mixin for PyPI client.
 
 import logging
 import re
-from typing import Any, Dict, Optional, cast
+from typing import cast
 from urllib.parse import quote_plus
 
 from packaging.version import Version
@@ -75,7 +75,10 @@ class SearchOpsMixin:
                 )
                 return {
                     "search_url": url,
-                    "message": "PyPI returned a security challenge page. Try using a web browser to search PyPI directly.",
+                    "message": (
+                        "PyPI returned a security challenge page. Try using a web "
+                        "browser to search PyPI directly."
+                    ),
                     "results": [],
                 }
 
@@ -121,7 +124,9 @@ class SearchOpsMixin:
             # Fallback if BeautifulSoup is not available
             return {
                 "search_url": url,
-                "message": "For better search results, install Beautiful Soup: pip install beautifulsoup4",
+                "message": (
+                    "For better search results, install Beautiful Soup: pip install beautifulsoup4"
+                ),
                 "results": [],  # Return empty results rather than raw HTML
             }
         except Exception as e:
@@ -136,7 +141,7 @@ class SearchOpsMixin:
     ) -> VersionComparisonResult:
         """Compare two version numbers of a package."""
         try:
-            sanitized_name = sanitize_package_name(package_name)
+            sanitize_package_name(package_name)
             sanitized_v1 = sanitize_version(version1)
             sanitized_v2 = sanitize_version(version2)
 
@@ -152,17 +157,13 @@ class SearchOpsMixin:
                 "are_equal": v1 == v2,
             }
         except ValueError as e:
-            return cast(
-                VersionComparisonResult, format_error(ErrorCode.INVALID_INPUT, str(e))
-            )
+            return cast(VersionComparisonResult, format_error(ErrorCode.INVALID_INPUT, str(e)))
         except Exception as e:
             logger.exception(f"Error comparing versions: {e}")
-            return cast(
-                VersionComparisonResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e))
-            )
+            return cast(VersionComparisonResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
     async def get_documentation_url(
-        self, package_name: str, version: Optional[str] = None
+        self, package_name: str, version: str | None = None
     ) -> DocumentationResult:
         """Get documentation URL for a package."""
         try:
@@ -210,18 +211,12 @@ class SearchOpsMixin:
 
             return {"docs_url": docs_url or "Not available", "summary": summary}
         except ValueError as e:
-            return cast(
-                DocumentationResult, format_error(ErrorCode.INVALID_INPUT, str(e))
-            )
+            return cast(DocumentationResult, format_error(ErrorCode.INVALID_INPUT, str(e)))
         except Exception as e:
             logger.exception(f"Error getting documentation URL: {e}")
-            return cast(
-                DocumentationResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e))
-            )
+            return cast(DocumentationResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
-    async def get_package_changelog(
-        self, package_name: str, version: Optional[str] = None
-    ) -> str:
+    async def get_package_changelog(self, package_name: str, version: str | None = None) -> str:
         """Get changelog for a package.
 
         This method attempts to retrieve changelog information from:
@@ -249,8 +244,7 @@ class SearchOpsMixin:
             changelog_url = None
             for key, url in project_urls.items():
                 if any(
-                    term in key.lower()
-                    for term in ["changelog", "changes", "history", "release"]
+                    term in key.lower() for term in ["changelog", "changes", "history", "release"]
                 ):
                     changelog_url = url
                     break
@@ -271,20 +265,16 @@ class SearchOpsMixin:
                             response = await self.http.fetch(api_url)
                             if isinstance(response, dict) and "error" not in response:
                                 # GitHub API returns array directly
-                                releases = (
-                                    response if isinstance(response, list) else []
-                                )
+                                releases = response if isinstance(response, list) else []
                             else:
-                                releases = (
-                                    response if isinstance(response, list) else []
-                                )
+                                releases = response if isinstance(response, list) else []
 
                             if releases:
                                 # Format releases into changelog
                                 changelog_parts = [f"# Changelog for {package_name}\n"]
 
                                 # Limit to 5 releases to avoid token limits
-                                for i, release in enumerate(releases[:5]):
+                                for _i, release in enumerate(releases[:5]):
                                     tag = release.get("tag_name", "")
                                     name = release.get("name", "")
                                     body = release.get("body", "")
@@ -303,14 +293,14 @@ class SearchOpsMixin:
                                             max_body_length = 1000
                                             if len(body) > max_body_length:
                                                 body = (
-                                                    body[:max_body_length]
-                                                    + "\n\n... (truncated)"
+                                                    body[:max_body_length] + "\n\n... (truncated)"
                                                 )
                                             changelog_parts.append(f"\n{body}")
 
                                 # Add note about limited releases
                                 changelog_parts.append(
-                                    f"\n\n---\n\n*Showing up to 5 most recent releases. Visit {changelog_url} for the complete changelog.*"
+                                    f"\n\n---\n\n*Showing up to 5 most recent releases. Visit "
+                                    f"{changelog_url} for the complete changelog.*"
                                 )
 
                                 return "\n".join(changelog_parts)
@@ -330,8 +320,8 @@ class SearchOpsMixin:
 
             # Check if there's a GitHub repo to check releases
             github_url = None
-            for key, url in project_urls.items():
-                if "github.com" in str(url) and not "/releases" in str(url):
+            for url in project_urls.values():
+                if "github.com" in str(url) and "/releases" not in str(url):
                     github_url = url
                     break
 

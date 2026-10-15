@@ -1,7 +1,7 @@
 """MCP server command for the main CLI."""
 
 import logging
-from typing import Any, Dict, Literal, Optional
+from typing import Any
 
 import typer
 
@@ -17,11 +17,11 @@ def serve_command(
         "stdio",
         "--transport",
         "-t",
-        help="Transport method: stdio or http (http provides both SSE and streamable-http endpoints)",
+        help=(
+            "Transport method: stdio or http (http provides both SSE and streamable-http endpoints)"
+        ),
     ),
-    cache_dir: Optional[str] = typer.Option(
-        None, "--cache-dir", help="Cache directory path"
-    ),
+    cache_dir: str | None = typer.Option(None, "--cache-dir", help="Cache directory path"),
     cache_strategy: str = typer.Option(
         "hybrid", "--cache-strategy", help="Cache strategy: memory, disk, hybrid"
     ),
@@ -29,9 +29,7 @@ def serve_command(
         604800, "--cache-ttl", help="Cache TTL in seconds (default: 1 week)"
     ),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging level"),
-    user_agent: Optional[str] = typer.Option(
-        None, "--user-agent", help="Custom user agent string"
-    ),
+    user_agent: str | None = typer.Option(None, "--user-agent", help="Custom user agent string"),
     help_connecting: bool = typer.Option(
         False, "--help-connecting", help="Show connection examples for Claude"
     ),
@@ -43,8 +41,7 @@ def serve_command(
     - http: HTTP server with SSE and streamable-http endpoints
     """
     # Import the help functions from main
-    from mcp_pypi.cli.main import (show_http_connection_help,
-                                   show_stdio_connection_help)
+    from mcp_pypi.cli.main import show_http_connection_help, show_stdio_connection_help
 
     # Show connection help if requested
     if help_connecting:
@@ -60,7 +57,7 @@ def serve_command(
 
     try:
         # Create client configuration with only non-None values
-        config_kwargs: Dict[str, Any] = {
+        config_kwargs: dict[str, Any] = {
             "cache_strategy": cache_strategy,
             "cache_ttl": cache_ttl,
         }
@@ -79,7 +76,7 @@ def serve_command(
         logger.info(f"Cache strategy: {cache_strategy}, TTL: {cache_ttl}s")
 
         if transport == "http":
-            logger.info(f"Server will be available at:")
+            logger.info("Server will be available at:")
             logger.info(f"  SSE endpoint: http://{host}:{port}/sse")
             logger.info(f"  Streamable-HTTP endpoint: http://{host}:{port}/mcp")
 
@@ -90,4 +87,4 @@ def serve_command(
         logger.info("Server stopped by user")
     except Exception as e:
         logger.error(f"Server error: {e}", exc_info=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e

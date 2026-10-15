@@ -43,21 +43,15 @@ async def test_get_package_stats_success(stats_service, mock_http_client):
         "data": [
             {"date": datetime.date.today().strftime("%Y-%m-%d"), "downloads": 1000},
             {
-                "date": (datetime.date.today() - datetime.timedelta(days=1)).strftime(
-                    "%Y-%m-%d"
-                ),
+                "date": (datetime.date.today() - datetime.timedelta(days=1)).strftime("%Y-%m-%d"),
                 "downloads": 1100,
             },
             {
-                "date": (datetime.date.today() - datetime.timedelta(days=6)).strftime(
-                    "%Y-%m-%d"
-                ),
+                "date": (datetime.date.today() - datetime.timedelta(days=6)).strftime("%Y-%m-%d"),
                 "downloads": 1200,
             },
             {
-                "date": (datetime.date.today() - datetime.timedelta(days=29)).strftime(
-                    "%Y-%m-%d"
-                ),
+                "date": (datetime.date.today() - datetime.timedelta(days=29)).strftime("%Y-%m-%d"),
                 "downloads": 1300,
             },
         ]
@@ -248,11 +242,7 @@ async def test_get_package_stats_handle_raw_json_data(stats_service, mock_http_c
     overall_json = json.dumps({"data": [{"category": "last_day", "downloads": 1000}]})
 
     detailed_json = json.dumps(
-        {
-            "data": [
-                {"date": datetime.date.today().strftime("%Y-%m-%d"), "downloads": 1000}
-            ]
-        }
+        {"data": [{"date": datetime.date.today().strftime("%Y-%m-%d"), "downloads": 1000}]}
     )
 
     mock_http_client.fetch.side_effect = [

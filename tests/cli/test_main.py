@@ -1,16 +1,15 @@
 """Tests for the CLI main module."""
 
 import asyncio
-import json
+import contextlib
 import os
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
 
 from mcp_pypi.cli.main import app
-from mcp_pypi.core import PyPIClient
 
 
 @pytest.fixture
@@ -65,7 +64,6 @@ def mock_asyncio_run(mock_client, coro_result=None):
     Create a mock for asyncio.run that actually executes the coroutine
     and captures the client method calls.
     """
-    original_run = asyncio.run
 
     def patched_run(coro):
         """Execute the coroutine and return a mock result."""
@@ -94,10 +92,12 @@ def test_cache_clear(runner):
     mock_client.cache.clear = AsyncMock(return_value={"success": True})
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.cache_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, {"success": True}):
-            result = runner.invoke(app, ["cache", "clear"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.cache_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, {"success": True}),
+    ):
+        result = runner.invoke(app, ["cache", "clear"])
+        assert result.exit_code == 0
 
     mock_client.cache.clear.assert_called_once()
     mock_client.close.assert_called_once()
@@ -116,10 +116,12 @@ def test_cache_stats(runner):
     mock_client.cache.get_stats = AsyncMock(return_value=mock_stats)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.cache_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_stats):
-            result = runner.invoke(app, ["cache", "stats"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.cache_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_stats),
+    ):
+        result = runner.invoke(app, ["cache", "stats"])
+        assert result.exit_code == 0
 
     mock_client.cache.get_stats.assert_called_once()
     mock_client.close.assert_called_once()
@@ -139,10 +141,12 @@ def test_package_info(runner):
     mock_client.get_package_info = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(app, ["package", "info", "test-package"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["package", "info", "test-package"])
+        assert result.exit_code == 0
 
     mock_client.get_package_info.assert_called_once_with("test-package")
     mock_client.close.assert_called_once()
@@ -160,12 +164,14 @@ def test_package_info_with_error(runner):
     mock_client.get_package_info = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(app, ["package", "info", "nonexistent-package"])
-            assert result.exit_code == 0
-            # The command outputs JSON, so error should be in the output
-            assert "package_not_found" in result.stdout or "error" in result.stdout
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["package", "info", "nonexistent-package"])
+        assert result.exit_code == 0
+        # The command outputs JSON, so error should be in the output
+        assert "package_not_found" in result.stdout or "error" in result.stdout
 
     mock_client.get_package_info.assert_called_once_with("nonexistent-package")
     mock_client.close.assert_called_once()
@@ -179,10 +185,12 @@ def test_latest_version(runner):
     mock_client.get_latest_version = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(app, ["package", "version", "test-package"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["package", "version", "test-package"])
+        assert result.exit_code == 0
 
     mock_client.get_latest_version.assert_called_once_with("test-package")
     mock_client.close.assert_called_once()
@@ -196,14 +204,14 @@ def test_latest_version_with_error(runner):
     mock_client.get_latest_version = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            with patch("mcp_pypi.cli.commands.package_commands.print_error") as mock_print_error:
-                result = runner.invoke(
-                    app, ["package", "version", "nonexistent-package"]
-                )
-                assert result.exit_code == 0
-                mock_print_error.assert_called_once_with("Package not found")
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+        patch("mcp_pypi.cli.commands.package_commands.print_error") as mock_print_error,
+    ):
+        result = runner.invoke(app, ["package", "version", "nonexistent-package"])
+        assert result.exit_code == 0
+        mock_print_error.assert_called_once_with("Package not found")
 
     mock_client.get_latest_version.assert_called_once_with("nonexistent-package")
     mock_client.close.assert_called_once()
@@ -217,10 +225,12 @@ def test_package_exists(runner):
     mock_client.check_package_exists = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(app, ["package", "exists", "test-package"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["package", "exists", "test-package"])
+        assert result.exit_code == 0
 
     mock_client.check_package_exists.assert_called_once_with("test-package")
     mock_client.close.assert_called_once()
@@ -239,10 +249,12 @@ def test_package_dependencies(runner):
     mock_client.get_dependencies = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(app, ["package", "dependencies", "test-package"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["package", "dependencies", "test-package"])
+        assert result.exit_code == 0
 
     mock_client.get_dependencies.assert_called_once_with("test-package", None)
     mock_client.close.assert_called_once()
@@ -261,10 +273,12 @@ def test_search_packages(runner):
     mock_client.search_packages = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.search_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(app, ["search", "test"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.search_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["search", "test"])
+        assert result.exit_code == 0
 
     # The CLI passes page=1 by default
     mock_client.search_packages.assert_called_once_with("test", 1)
@@ -282,10 +296,12 @@ def test_search_packages_with_message(runner):
     mock_client.search_packages = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.search_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(app, ["search", "test"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.search_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["search", "test"])
+        assert result.exit_code == 0
 
     mock_client.search_packages.assert_called_once_with("test", 1)
     mock_client.close.assert_called_once()
@@ -314,10 +330,12 @@ def test_check_requirements(runner):
         mock_client.check_requirements_file = AsyncMock(return_value=mock_data)
         mock_client.close = AsyncMock()
 
-        with patch("mcp_pypi.cli.main.PyPIClient", return_value=mock_client):
-            with mock_asyncio_run(mock_client, mock_data):
-                result = runner.invoke(app, ["check-requirements", requirements_path])
-                assert result.exit_code == 0
+        with (
+            patch("mcp_pypi.cli.main.PyPIClient", return_value=mock_client),
+            mock_asyncio_run(mock_client, mock_data),
+        ):
+            result = runner.invoke(app, ["check-requirements", requirements_path])
+            assert result.exit_code == 0
 
         mock_client.check_requirements_file.assert_called_once_with(requirements_path)
         mock_client.close.assert_called_once()
@@ -352,15 +370,17 @@ def test_check_requirements_with_json_format(runner):
         mock_client.check_requirements_file = AsyncMock(return_value=mock_data)
         mock_client.close = AsyncMock()
 
-        with patch("mcp_pypi.cli.main.PyPIClient", return_value=mock_client):
-            with mock_asyncio_run(mock_client, mock_data):
-                with patch("mcp_pypi.cli.main.output_json") as mock_output_json:
-                    result = runner.invoke(
-                        app,
-                        ["check-requirements", requirements_path, "--format", "json"],
-                    )
-                    assert result.exit_code == 0
-                    mock_output_json.assert_called_once_with(mock_data, False)
+        with (
+            patch("mcp_pypi.cli.main.PyPIClient", return_value=mock_client),
+            mock_asyncio_run(mock_client, mock_data),
+            patch("mcp_pypi.cli.main.output_json") as mock_output_json,
+        ):
+            result = runner.invoke(
+                app,
+                ["check-requirements", requirements_path, "--format", "json"],
+            )
+            assert result.exit_code == 0
+            mock_output_json.assert_called_once_with(mock_data, False)
 
         mock_client.check_requirements_file.assert_called_once_with(requirements_path)
         mock_client.close.assert_called_once()
@@ -372,24 +392,20 @@ def test_check_requirements_with_json_format(runner):
 
 def test_check_requirements_file_error(runner):
     """Test check requirements file command with file error."""
-    mock_data = {
-        "error": {"code": "file_error", "message": "File not found or not readable"}
-    }
+    mock_data = {"error": {"code": "file_error", "message": "File not found or not readable"}}
 
     mock_client = MagicMock()
     mock_client.check_requirements_file = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.main.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            with patch("mcp_pypi.cli.main.print_error") as mock_print_error:
-                result = runner.invoke(
-                    app, ["check-requirements", "nonexistent-file.txt"]
-                )
-                assert result.exit_code == 0
-                mock_print_error.assert_called_once_with(
-                    "File not found or not readable"
-                )
+    with (
+        patch("mcp_pypi.cli.main.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+        patch("mcp_pypi.cli.main.print_error") as mock_print_error,
+    ):
+        result = runner.invoke(app, ["check-requirements", "nonexistent-file.txt"])
+        assert result.exit_code == 0
+        mock_print_error.assert_called_once_with("File not found or not readable")
 
     mock_client.check_requirements_file.assert_called_once_with("nonexistent-file.txt")
     mock_client.close.assert_called_once()
@@ -420,10 +436,12 @@ def test_newest_packages(runner):
     mock_client.get_newest_packages = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.feed_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(app, ["feed", "newest", "--limit", "5"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.feed_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["feed", "newest", "--limit", "5"])
+        assert result.exit_code == 0
 
     # The API doesn't accept limit parameter, it's handled in the CLI
     mock_client.get_newest_packages.assert_called_once()
@@ -453,10 +471,12 @@ def test_latest_updates(runner):
     mock_client.get_latest_updates = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.feed_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(app, ["feed", "updates", "--limit", "5"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.feed_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["feed", "updates", "--limit", "5"])
+        assert result.exit_code == 0
 
     # The API doesn't accept limit parameter, it's handled in the CLI
     mock_client.get_latest_updates.assert_called_once()
@@ -477,16 +497,14 @@ def test_compare_versions(runner):
     mock_client.compare_versions = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(
-                app, ["package", "compare", "test-package", "1.0.0", "2.0.0"]
-            )
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["package", "compare", "test-package", "1.0.0", "2.0.0"])
+        assert result.exit_code == 0
 
-    mock_client.compare_versions.assert_called_once_with(
-        "test-package", "1.0.0", "2.0.0"
-    )
+    mock_client.compare_versions.assert_called_once_with("test-package", "1.0.0", "2.0.0")
     mock_client.close.assert_called_once()
 
 
@@ -503,15 +521,15 @@ def test_package_releases(runner):
 
     mock_client = MagicMock()
     mock_client.get_package_releases = AsyncMock(return_value=releases_mock_data)
-    mock_client.get_project_releases = AsyncMock(
-        return_value=project_releases_mock_data
-    )
+    mock_client.get_project_releases = AsyncMock(return_value=project_releases_mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, releases_mock_data):
-            result = runner.invoke(app, ["package", "releases", "test-package"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, releases_mock_data),
+    ):
+        result = runner.invoke(app, ["package", "releases", "test-package"])
+        assert result.exit_code == 0
 
     mock_client.get_package_releases.assert_called_once_with("test-package")
     mock_client.get_project_releases.assert_called_once_with("test-package")
@@ -526,14 +544,14 @@ def test_package_releases_with_error(runner):
     mock_client.get_package_releases = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            with patch("mcp_pypi.cli.commands.package_commands.print_error") as mock_print_error:
-                result = runner.invoke(
-                    app, ["package", "releases", "nonexistent-package"]
-                )
-                assert result.exit_code == 0
-                mock_print_error.assert_called_once_with("Package not found")
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+        patch("mcp_pypi.cli.commands.package_commands.print_error") as mock_print_error,
+    ):
+        result = runner.invoke(app, ["package", "releases", "nonexistent-package"])
+        assert result.exit_code == 0
+        mock_print_error.assert_called_once_with("Package not found")
 
     mock_client.get_package_releases.assert_called_once_with("nonexistent-package")
     mock_client.close.assert_called_once()
@@ -557,10 +575,12 @@ def test_package_metadata(runner):
     mock_client.get_package_metadata = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(app, ["package", "metadata", "test-package"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["package", "metadata", "test-package"])
+        assert result.exit_code == 0
 
     mock_client.get_package_metadata.assert_called_once_with("test-package", None)
     mock_client.close.assert_called_once()
@@ -584,12 +604,12 @@ def test_package_metadata_with_version(runner):
     mock_client.get_package_metadata = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(
-                app, ["package", "metadata", "test-package", "--version", "1.0.0"]
-            )
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["package", "metadata", "test-package", "--version", "1.0.0"])
+        assert result.exit_code == 0
 
     mock_client.get_package_metadata.assert_called_once_with("test-package", "1.0.0")
     mock_client.close.assert_called_once()
@@ -603,18 +623,16 @@ def test_package_metadata_with_error(runner):
     mock_client.get_package_metadata = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            with patch("mcp_pypi.cli.commands.package_commands.print_error") as mock_print_error:
-                result = runner.invoke(
-                    app, ["package", "metadata", "nonexistent-package"]
-                )
-                assert result.exit_code == 0
-                mock_print_error.assert_called_once_with("Package not found")
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+        patch("mcp_pypi.cli.commands.package_commands.print_error") as mock_print_error,
+    ):
+        result = runner.invoke(app, ["package", "metadata", "nonexistent-package"])
+        assert result.exit_code == 0
+        mock_print_error.assert_called_once_with("Package not found")
 
-    mock_client.get_package_metadata.assert_called_once_with(
-        "nonexistent-package", None
-    )
+    mock_client.get_package_metadata.assert_called_once_with("nonexistent-package", None)
     mock_client.close.assert_called_once()
 
 
@@ -631,10 +649,12 @@ def test_package_stats(runner):
     mock_client.get_package_stats = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(app, ["stats", "downloads", "test-package"])
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["stats", "downloads", "test-package"])
+        assert result.exit_code == 0
 
     mock_client.get_package_stats.assert_called_once_with("test-package", None)
     mock_client.close.assert_called_once()
@@ -653,12 +673,12 @@ def test_package_stats_with_version(runner):
     mock_client.get_package_stats = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            result = runner.invoke(
-                app, ["stats", "downloads", "test-package", "--version", "1.0.0"]
-            )
-            assert result.exit_code == 0
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+    ):
+        result = runner.invoke(app, ["stats", "downloads", "test-package", "--version", "1.0.0"])
+        assert result.exit_code == 0
 
     mock_client.get_package_stats.assert_called_once_with("test-package", "1.0.0")
     mock_client.close.assert_called_once()
@@ -672,14 +692,14 @@ def test_package_stats_with_error(runner):
     mock_client.get_package_stats = AsyncMock(return_value=mock_data)
     mock_client.close = AsyncMock()
 
-    with patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client):
-        with mock_asyncio_run(mock_client, mock_data):
-            with patch("mcp_pypi.cli.commands.package_commands.print_error") as mock_print_error:
-                result = runner.invoke(
-                    app, ["stats", "downloads", "nonexistent-package"]
-                )
-                assert result.exit_code == 0
-                mock_print_error.assert_called_once_with("Package not found")
+    with (
+        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
+        mock_asyncio_run(mock_client, mock_data),
+        patch("mcp_pypi.cli.commands.package_commands.print_error") as mock_print_error,
+    ):
+        result = runner.invoke(app, ["stats", "downloads", "nonexistent-package"])
+        assert result.exit_code == 0
+        mock_print_error.assert_called_once_with("Package not found")
 
     mock_client.get_package_stats.assert_called_once_with("nonexistent-package", None)
     mock_client.close.assert_called_once()
@@ -692,19 +712,18 @@ def test_package_stats_with_error(runner):
 
 def test_version_callback():
     """Test version callback function."""
-    import typer
 
     from mcp_pypi.cli.main import version_callback
 
     # Mock typer.Exit so we can test if it's raised
-    with patch("mcp_pypi.__version__", "1.0.0"):
-        with patch("typer.Exit", side_effect=SystemExit) as mock_exit:
-            try:
-                version_callback(True)
-            except SystemExit:
-                pass  # This is expected
+    with (
+        patch("mcp_pypi.__version__", "1.0.0"),
+        patch("typer.Exit", side_effect=SystemExit) as mock_exit,
+    ):
+        with contextlib.suppress(SystemExit):  # expected
+            version_callback(True)
 
-            mock_exit.assert_called_once()
+        mock_exit.assert_called_once()
 
 
 def test_check_requirements_pyproject_toml(runner):
@@ -758,10 +777,12 @@ aiohttp = ">=3.8.0"
         mock_client.check_requirements_file = AsyncMock(return_value=mock_data)
         mock_client.close = AsyncMock()
 
-        with patch("mcp_pypi.cli.main.PyPIClient", return_value=mock_client):
-            with mock_asyncio_run(mock_client, mock_data):
-                result = runner.invoke(app, ["check-requirements", pyproject_path])
-                assert result.exit_code == 0
+        with (
+            patch("mcp_pypi.cli.main.PyPIClient", return_value=mock_client),
+            mock_asyncio_run(mock_client, mock_data),
+        ):
+            result = runner.invoke(app, ["check-requirements", pyproject_path])
+            assert result.exit_code == 0
 
         mock_client.check_requirements_file.assert_called_once_with(pyproject_path)
         mock_client.close.assert_called_once()
@@ -822,14 +843,14 @@ aiohttp = ">=3.8.0"
         mock_client.check_requirements_file = AsyncMock(return_value=mock_data)
         mock_client.close = AsyncMock()
 
-        with patch("mcp_pypi.cli.main.PyPIClient", return_value=mock_client):
-            with mock_asyncio_run(mock_client, mock_data):
-                with patch("mcp_pypi.cli.main.output_json") as mock_output_json:
-                    result = runner.invoke(
-                        app, ["check-requirements", pyproject_path, "--format", "json"]
-                    )
-                    assert result.exit_code == 0
-                    mock_output_json.assert_called_once_with(mock_data, False)
+        with (
+            patch("mcp_pypi.cli.main.PyPIClient", return_value=mock_client),
+            mock_asyncio_run(mock_client, mock_data),
+            patch("mcp_pypi.cli.main.output_json") as mock_output_json,
+        ):
+            result = runner.invoke(app, ["check-requirements", pyproject_path, "--format", "json"])
+            assert result.exit_code == 0
+            mock_output_json.assert_called_once_with(mock_data, False)
 
         mock_client.check_requirements_file.assert_called_once_with(pyproject_path)
         mock_client.close.assert_called_once()

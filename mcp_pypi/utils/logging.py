@@ -1,7 +1,6 @@
 """Logging configuration for MCP-PyPI."""
 
 import logging
-from typing import List, Optional
 
 # Set up logging
 logger = logging.getLogger("mcp-pypi")
@@ -10,7 +9,7 @@ logger = logging.getLogger("mcp-pypi")
 def configure_logging(
     level: int = logging.INFO,
     format_str: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    file_path: Optional[str] = None,
+    file_path: str | None = None,
 ) -> None:
     """Configure logging for the MCP-PyPI client.
 
@@ -19,7 +18,7 @@ def configure_logging(
         format_str: The logging format string
         file_path: Optional file path for logging to a file
     """
-    handlers: List[logging.Handler] = []
+    handlers: list[logging.Handler] = []
 
     # Add console handler
     console_handler = logging.StreamHandler()
@@ -36,9 +35,7 @@ def configure_logging(
             # Use print to stderr directly since logger might not be configured yet
             import sys
 
-            print(
-                f"Failed to create file handler for {file_path}: {e}", file=sys.stderr
-            )
+            print(f"Failed to create file handler for {file_path}: {e}", file=sys.stderr)
 
     # Configure the logger
     logger.setLevel(level)

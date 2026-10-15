@@ -14,7 +14,6 @@ import pytest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from mcp_pypi.core import PyPIClient
-from mcp_pypi.core.models import PyPIClientConfig
 
 pytestmark = pytest.mark.integration
 
