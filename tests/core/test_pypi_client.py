@@ -439,6 +439,55 @@ async def test_get_package_changelog_error_dict(client):
 
 
 @pytest.mark.asyncio
+async def test_changelog_never_fetches_arbitrary_metadata_urls(client, mock_http_client):
+    """A package's changelog URL is untrusted metadata: never request it (SSRF)."""
+    client.get_package_info = AsyncMock(
+        return_value={"info": {"project_urls": {"Changelog": "http://127.0.0.1:8080/admin"}}}
+    )
+
+    result = await client.get_package_changelog("pkg")
+
+    mock_http_client.fetch.assert_not_called()
+    assert "http://127.0.0.1:8080/admin" in result["changelog"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "project_urls",
+    [
+        {"Changelog": "https://evil.example/github.com/a/b/releases"},
+        {"Changelog": "https://github.com.evil.example/a/b/releases"},
+        {"Source": "https://evil.example/?u=github.com/a/b"},
+    ],
+)
+async def test_changelog_ignores_github_lookalike_hosts(client, mock_http_client, project_urls):
+    client.get_package_info = AsyncMock(return_value={"info": {"project_urls": project_urls}})
+
+    result = await client.get_package_changelog("pkg")
+
+    mock_http_client.fetch.assert_not_called()
+    assert "https://github.com/a/b/releases" not in result["changelog"]
+
+
+@pytest.mark.asyncio
+async def test_changelog_uses_github_api_for_real_github_releases(client, mock_http_client):
+    client.get_package_info = AsyncMock(
+        return_value={"info": {"project_urls": {"Changelog": "https://github.com/o/r/releases"}}}
+    )
+    mock_http_client.fetch.return_value = [
+        {"tag_name": "v2.0", "name": "v2.0", "body": "Big release", "published_at": "2026-01-02"}
+    ]
+
+    result = await client.get_package_changelog("pkg")
+
+    mock_http_client.fetch.assert_awaited_once_with(
+        "https://api.github.com/repos/o/r/releases?per_page=5"
+    )
+    assert "## v2.0" in result["changelog"]
+    assert "Big release" in result["changelog"]
+
+
+@pytest.mark.asyncio
 async def test_get_latest_version_success(client, mock_http_client):
     """Test getting latest version with successful response."""
     # Setup mock response

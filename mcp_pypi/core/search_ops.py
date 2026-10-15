@@ -7,6 +7,7 @@ import logging
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
+from urllib.parse import urlparse
 
 from packaging.version import Version
 
@@ -32,6 +33,36 @@ from mcp_pypi.core.search_index import (
 from mcp_pypi.utils.sanitize import sanitize_package_name, sanitize_version
 
 logger = logging.getLogger("mcp-pypi.client")
+
+_MAX_RELEASE_BODY = 1000
+_GITHUB_HOSTS = frozenset({"github.com", "www.github.com"})
+_GITHUB_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+def _github_repo(url: object) -> tuple[str, str] | None:
+    """Return (owner, repo) when url is an http(s) URL on github.com, else None.
+
+    Matches on the parsed hostname, not a substring, so lookalikes such as
+    ``https://evil.example/github.com/a/b`` or ``https://github.com.evil.example``
+    are rejected.
+    """
+    if not isinstance(url, str):
+        return None
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    if parsed.scheme not in ("http", "https") or (parsed.hostname or "").lower() not in (
+        _GITHUB_HOSTS
+    ):
+        return None
+    parts = [p for p in parsed.path.split("/") if p]
+    if len(parts) < 2:
+        return None
+    owner, repo = parts[0], parts[1].removesuffix(".git")
+    if not (_GITHUB_NAME.match(owner) and _GITHUB_NAME.match(repo)):
+        return None
+    return owner, repo
 
 
 class SearchOpsMixin:
@@ -222,6 +253,44 @@ class SearchOpsMixin:
             logger.error(f"Error getting changelog for {package_name}: {e}")
             return cast(ChangelogResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
+    async def _github_releases_changelog(
+        self, owner: str, repo: str, *, package_name: str, changelog_url: str
+    ) -> str | None:
+        """Format the 5 most recent GitHub releases, or None if none could be fetched."""
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/releases?per_page=5"
+        try:
+            response = await self.http.fetch(api_url)
+        except Exception as e:
+            logger.debug(f"Could not fetch GitHub releases: {e}")
+            return None
+        releases = response if isinstance(response, list) else []
+        if not releases:
+            return None
+
+        parts = [f"# Changelog for {package_name}\n"]
+        for release in releases[:5]:
+            tag = release.get("tag_name", "")
+            if not tag:
+                continue
+            name = release.get("name", "")
+            body = release.get("body", "")
+            published = release.get("published_at", "")
+            parts.append(f"\n## {tag}")
+            if name and name != tag:
+                parts.append(f" - {name}")
+            if published:
+                parts.append(f"\n*Released: {published[:10]}*")
+            if body:
+                # Truncate long bodies to keep responses small
+                if len(body) > _MAX_RELEASE_BODY:
+                    body = body[:_MAX_RELEASE_BODY] + "\n\n... (truncated)"
+                parts.append(f"\n{body}")
+        parts.append(
+            f"\n\n---\n\n*Showing up to 5 most recent releases. Visit "
+            f"{changelog_url} for the complete changelog.*"
+        )
+        return "\n".join(parts)
+
     async def _changelog_text(self, package_name: str, info_result: Any) -> str:
         """Find changelog text from package metadata, GitHub releases or project URLs.
 
@@ -241,97 +310,25 @@ class SearchOpsMixin:
                     changelog_url = url
                     break
 
-            # If we found a changelog URL, try to fetch it
+            # Project URLs are untrusted package metadata: only the GitHub API is ever
+            # requested (for real github.com release pages); other URLs are returned
+            # as links, never fetched.
             if changelog_url:
-                # Handle GitHub releases specially
-                if "github.com" in changelog_url and "/releases" in changelog_url:
-                    # Extract owner and repo from GitHub URL
-                    match = re.search(r"github\.com/([^/]+)/([^/]+)", changelog_url)
-                    if match:
-                        owner, repo = match.groups()
-                        # Use GitHub API to get releases
-                        # Limit to 5 releases using GitHub API parameter
-                        api_url = f"https://api.github.com/repos/{owner}/{repo}/releases?per_page=5"
+                github = _github_repo(changelog_url)
+                if github and "/releases" in urlparse(str(changelog_url)).path:
+                    text = await self._github_releases_changelog(
+                        *github, package_name=package_name, changelog_url=str(changelog_url)
+                    )
+                    if text:
+                        return text
+                return f"Changelog available at: {changelog_url}"
 
-                        try:
-                            response = await self.http.fetch(api_url)
-                            if isinstance(response, dict) and "error" not in response:
-                                # GitHub API returns array directly
-                                releases = response if isinstance(response, list) else []
-                            else:
-                                releases = response if isinstance(response, list) else []
-
-                            if releases:
-                                # Format releases into changelog
-                                changelog_parts = [f"# Changelog for {package_name}\n"]
-
-                                # Limit to 5 releases to avoid token limits
-                                for _i, release in enumerate(releases[:5]):
-                                    tag = release.get("tag_name", "")
-                                    name = release.get("name", "")
-                                    body = release.get("body", "")
-                                    published = release.get("published_at", "")
-
-                                    if tag:
-                                        changelog_parts.append(f"\n## {tag}")
-                                        if name and name != tag:
-                                            changelog_parts.append(f" - {name}")
-                                        if published:
-                                            changelog_parts.append(
-                                                f"\n*Released: {published[:10]}*"
-                                            )
-                                        if body:
-                                            # Truncate long bodies to avoid token limits
-                                            max_body_length = 1000
-                                            if len(body) > max_body_length:
-                                                body = (
-                                                    body[:max_body_length] + "\n\n... (truncated)"
-                                                )
-                                            changelog_parts.append(f"\n{body}")
-
-                                # Add note about limited releases
-                                changelog_parts.append(
-                                    f"\n\n---\n\n*Showing up to 5 most recent releases. Visit "
-                                    f"{changelog_url} for the complete changelog.*"
-                                )
-
-                                return "\n".join(changelog_parts)
-                        except Exception as e:
-                            logger.debug(f"Could not fetch GitHub releases: {e}")
-
-                # Try to fetch as regular webpage
-                try:
-                    response = await self.http.fetch(changelog_url)
-                    if isinstance(response, dict):
-                        # If it's JSON, try to extract text
-                        return str(response)
-                    return f"Changelog available at: {changelog_url}"
-                except Exception as e:
-                    logger.debug(f"Could not fetch changelog URL: {e}")
-                    return f"Changelog available at: {changelog_url}"
-
-            # Check if there's a GitHub repo to check releases
-            github_url = None
-            for url in project_urls.values():
-                if "github.com" in str(url) and "/releases" not in str(url):
-                    github_url = url
-                    break
-
-            if (
-                not github_url
-                and info.get("home_page")
-                and "github.com" in str(info.get("home_page"))
-            ):
-                github_url = info.get("home_page")
-
-            if github_url:
-                # Extract owner and repo
-                match = re.search(r"github\.com/([^/]+)/([^/]+)", github_url)
-                if match:
-                    owner, repo = match.groups()
-                    repo = repo.rstrip("/")  # Remove trailing slash if present
-
-                    # Construct changelog URL
+            # Fall back to a releases link for a GitHub repository URL
+            candidates = [*project_urls.values(), info.get("home_page")]
+            for url in candidates:
+                github = _github_repo(url)
+                if github:
+                    owner, repo = github
                     releases_url = f"https://github.com/{owner}/{repo}/releases"
                     return f"Changelog might be available at: {releases_url}"
 
