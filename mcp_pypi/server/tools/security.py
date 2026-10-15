@@ -175,7 +175,9 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
         the dependency tree is resolved to `max_depth` (1-3) and every dependency is
         checked too; vulnerable dependencies are listed with `introduced_via`, the
         shortest root-to-dependency chain of names. Items whose version cannot be
-        resolved are reported as errors, never checked across all versions.
+        resolved are reported as errors, never checked across all versions. Items that
+        could not be checked are listed in `unchecked` (never counted as clean); the call
+        fails only if no item could be checked.
         """
         if len(packages) > MAX_PACKAGES:
             raise ToolError(f"Invalid input: at most {MAX_PACKAGES} packages per call")
@@ -282,6 +284,10 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
                 )
             )
 
+        unchecked = [r.package for r in results if r.error]
+        if results and len(unchecked) == len(results):
+            raise ToolError(f"Could not check any of the packages: {results[0].error}")
+
         severity_counts = dict.fromkeys(SEVERITIES, 0)
         vulnerable_packages = 0
         total_vulns = 0
@@ -301,6 +307,7 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
             total_vulnerabilities=total_vulns,
             severity_counts=severity_counts,
             transitive_checked=include_transitive and not notes,
+            unchecked=unchecked,
         )
 
     @mcp.tool(title="Scan installed packages", annotations=TOOL_ANNOTATIONS, timeout=180)

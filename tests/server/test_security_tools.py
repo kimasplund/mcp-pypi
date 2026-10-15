@@ -115,11 +115,68 @@ async def test_check_vulnerabilities_rejects_ranges_per_item(fake_client, mcp_cl
 
 async def test_check_vulnerabilities_item_not_found_is_per_item(fake_client, mcp_client):
     fake_client.get_package_info.return_value = NOT_FOUND
+    fake_client.check_vulnerabilities.return_value = clean("flask", "3.0")
     res = await mcp_client.call_tool(
-        "check_vulnerabilities", {"packages": ["nope"]}, raise_on_error=False
+        "check_vulnerabilities", {"packages": ["nope", "flask==3.0"]}, raise_on_error=False
     )
     assert not res.is_error
-    assert "'nope' not found" in res.structured_content["results"][0]["error"]
+    d = res.structured_content
+    assert "'nope' not found" in d["results"][0]["error"]
+    assert d["unchecked"] == ["nope"]
+
+
+async def test_check_vulnerabilities_lists_unchecked_items(fake_client, mcp_client):
+    fake_client.check_vulnerabilities.return_value = clean("flask", "3.0")
+    d = (
+        await mcp_client.call_tool(
+            "check_vulnerabilities", {"packages": ["django>=4", "flask==3.0"]}
+        )
+    ).structured_content
+    assert d["unchecked"] == ["django>=4"]
+    assert d["results"][0]["vulnerable"] is False
+
+
+async def test_check_vulnerabilities_all_items_failed_raises(fake_client, mcp_client):
+    fake_client.get_package_info.return_value = NOT_FOUND
+    res = await mcp_client.call_tool(
+        "check_vulnerabilities", {"packages": ["nope", "x>=1"]}, raise_on_error=False
+    )
+    assert res.is_error
+    assert res.content[0].text.startswith("Could not check any of the packages:")
+    assert "'nope' not found" in res.content[0].text
+
+
+async def test_invalid_version_error_reads_invalid_input(fake_client, mcp_client):
+    fake_client.check_vulnerabilities.return_value = {
+        "package": "django",
+        "version": "4.2",
+        "vulnerabilities": [],
+        "error": {"code": "invalid_input", "message": "Invalid version: 4.2"},
+    }
+    res = await mcp_client.call_tool(
+        "check_vulnerabilities", {"packages": ["django==4.2"]}, raise_on_error=False
+    )
+    assert res.content[0].text.endswith("Invalid input: Invalid version: 4.2")
+
+
+async def test_batch_item_errors_use_the_shared_messages(fake_client, mcp_client):
+    fake_client.check_vulnerabilities_batch.return_value = {
+        "results": {"django:4.2": clean("django", "4.2")},
+        "errors": [
+            {
+                "package": "flask:3.0",
+                "error": "OSV query failed: Failed to fetch https://api.osv.dev/v1/query",
+                "code": "network_error",
+            }
+        ],
+    }
+    d = (
+        await mcp_client.call_tool(
+            "check_vulnerabilities", {"packages": ["django==4.2", "flask==3.0"]}
+        )
+    ).structured_content
+    assert d["results"][1]["error"] == "OSV request failed (network_error); retry later."
+    assert d["unchecked"] == ["flask"]
 
 
 async def test_check_vulnerabilities_rejects_over_100(mcp_client):

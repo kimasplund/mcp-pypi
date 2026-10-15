@@ -167,6 +167,7 @@ class VulnerabilityReport(BaseModel):
     total_vulnerabilities: int
     severity_counts: dict[str, int] = Field(default_factory=dict)
     transitive_checked: bool = False
+    unchecked: list[str] = Field(default_factory=list)
 
 
 class InstalledScan(BaseModel):

@@ -7,6 +7,7 @@ from typing import Any
 
 from mcp_pypi.core import PyPIClient
 from mcp_pypi.core.search_index import normalize
+from mcp_pypi.server.errors import item_error
 from mcp_pypi.server.schemas import PackageVulnerabilities, VulnerabilityItem
 from mcp_pypi.utils.sanitize import sanitize_package_name, sanitize_version
 
@@ -22,15 +23,8 @@ def severity_bucket(raw: object) -> str:
 
 
 def core_error(res: Mapping[str, Any], name: str) -> str | None:
-    """Message for an error in a single-package core result, or None."""
-    error = res.get("error")
-    if not error:
-        return None
-    if isinstance(error, dict):
-        if error.get("code") == "not_found":
-            return f"Package '{name}' not found on PyPI."
-        return f"OSV request failed ({error.get('code', 'unknown_error')}); retry later."
-    return f"OSV request failed: {error}"
+    """Message for an error in a single-package core result, or None (shared wording)."""
+    return item_error(res, name)
 
 
 async def query_osv(client: PyPIClient, pairs: list[Key]) -> dict[Key, dict[str, Any] | str]:
@@ -65,7 +59,7 @@ async def query_osv(client: PyPIClient, pairs: list[Key]) -> dict[Key, dict[str,
         for pair in valid:
             out[pair] = f"OSV request failed: {exc}"
         return out
-    errors = {e.get("package"): str(e.get("error")) for e in batch.get("errors", [])}
+    errors = {e.get("package"): _batch_error(e) for e in batch.get("errors", [])}
     for name, version in valid:
         key = f"{normalize(name)}:{version}"  # core keys results by the PEP 503 name
         res = batch.get("results", {}).get(key)
@@ -74,6 +68,15 @@ async def query_osv(client: PyPIClient, pairs: list[Key]) -> dict[Key, dict[str,
 
 
 NO_RESULT = "No result returned from OSV"
+
+
+def _batch_error(entry: Mapping[str, Any]) -> str:
+    """Message for one `errors` entry of a core batch result (shared wording)."""
+    message = str(entry.get("error"))
+    code = entry.get("code")
+    if code:
+        return item_error({"error": {"code": code, "message": message}}) or message
+    return message
 
 
 def vulnerability_totals(res: Mapping[str, Any]) -> tuple[int, dict[str, int]]:

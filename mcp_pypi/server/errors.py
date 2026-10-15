@@ -82,9 +82,11 @@ async def checked_release(
     return await checked(result, client=client, package=package)
 
 
-def item_error(result: dict) -> str | None:
+def item_error(result: Mapping[str, Any], package: str | None = None) -> str | None:
     """Message for a failed batch item, or None if the item succeeded."""
     error = result.get("error")
     if not error:
         return None
-    return _message(error, None, ())
+    if not isinstance(error, dict):
+        error = {"code": "unknown_error", "message": str(error)}
+    return _message(error, package, ())
