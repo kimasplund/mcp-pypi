@@ -8,7 +8,7 @@ from fastmcp import FastMCP
 from packaging.version import InvalidVersion, Version
 
 from mcp_pypi.core import PyPIClient
-from mcp_pypi.server.errors import checked
+from mcp_pypi.server.errors import checked, checked_release
 from mcp_pypi.server.schemas import (
     Changelog,
     DownloadStats,
@@ -88,12 +88,14 @@ def register_package_tools(mcp: FastMCP, client: PyPIClient) -> None:
 
         Without `version` it describes the latest release. With `version` it describes
         that release (including whether it was yanked) while `latest_version` still reports
-        the newest release on PyPI. Unknown packages return a "did you mean" suggestion.
+        the newest release on PyPI. Unknown packages return a "did you mean" suggestion;
+        an unknown version of an existing package is reported as such, with the latest.
         """
-        pinned = await checked(
+        pinned = await checked_release(
             await client.get_package_info(package_name, version),
             client=client,
             package=package_name,
+            version=version,
         )
         latest = (
             await checked(

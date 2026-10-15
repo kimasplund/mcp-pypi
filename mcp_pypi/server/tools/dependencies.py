@@ -10,7 +10,7 @@ from fastmcp.exceptions import ToolError
 
 from mcp_pypi.core import PyPIClient
 from mcp_pypi.core.search_index import normalize
-from mcp_pypi.server.errors import checked, item_error
+from mcp_pypi.server.errors import checked_release, item_error
 from mcp_pypi.server.schemas import (
     Dependencies,
     DependencyEntry,
@@ -47,10 +47,11 @@ def register_dependency_tools(mcp: FastMCP, client: PyPIClient) -> None:
         `depth` is clamped to 1-5 and `version` defaults to the latest release.
         """
         depth = max(1, min(depth, 5))
-        data = await checked(
+        data = await checked_release(
             await client.get_dependencies(package_name, version),
             client=client,
             package=package_name,
+            version=version,
         )
         entries = [
             DependencyEntry(
@@ -63,10 +64,11 @@ def register_dependency_tools(mcp: FastMCP, client: PyPIClient) -> None:
         ]
         tree = None
         if depth > 1:
-            tree_data = await checked(
+            tree_data = await checked_release(
                 await client.get_dependency_tree(package_name, version, depth),
                 client=client,
                 package=package_name,
+                version=version,
             )
             tree = _node(tree_data["tree"])
         return Dependencies(

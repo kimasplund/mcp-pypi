@@ -33,7 +33,7 @@ Get metadata for a package: versions, license, URLs, classifiers and yank status
 | `package_name` | string | required | |
 | `version` | string | latest | Describe this release instead |
 
-Without `version` it describes the latest release. With `version` it describes that release (including whether it was yanked) while `latest_version` still reports the newest release. Result fields include `package_name`, `version`, `latest_version`, `summary`, `requires_python`, `license`, `author`, `maintainer`, `homepage_url`, `documentation_url`, `source_url`, `changelog_url`, `project_urls`, `classifiers`, `yanked`, `yanked_reason`, `release_count`, `latest_upload_time` and `package_url`. An unknown package returns a "did you mean" suggestion in the error message.
+Without `version` it describes the latest release. With `version` it describes that release (including whether it was yanked) while `latest_version` still reports the newest release. Result fields include `package_name`, `version`, `latest_version`, `summary`, `requires_python`, `license`, `author`, `maintainer`, `homepage_url`, `documentation_url`, `source_url`, `changelog_url`, `project_urls`, `classifiers`, `yanked`, `yanked_reason`, `release_count`, `latest_upload_time` and `package_url`. An unknown package returns a "did you mean" suggestion in the error message; an unknown version of an existing package says so and names the latest release.
 
 ### get_package_versions
 
@@ -153,6 +153,7 @@ Result: `path`, `files` (each with `path`, `kind`, `dependencies`, `error`), `co
 Failures are returned as MCP tool errors (`isError: true` on the tool result) with a short, actionable message, not as an `{"error": ...}` result. For example:
 
 - `Package 'reqests' not found on PyPI. Did you mean 'requests'? Use search_packages to find the exact name.`
+- `Version '99.0.0' of 'requests' not found on PyPI (latest is 2.32.3). Use get_package_versions to list versions.` (from `get_package` and `get_dependencies` when `version` does not exist)
 - `Invalid input: at most 100 names per call`
 - `PyPI request failed (network_error); retry later.` (also for OSV)
 - `Cannot read file: <reason>`

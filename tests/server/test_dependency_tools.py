@@ -140,3 +140,44 @@ async def test_progress_reported(fake_client, mcp_client):
     )
     assert calls
     assert calls[-1] == (3, 3)
+
+
+async def test_get_dependencies_unknown_version_names_the_version(fake_client, mcp_client):
+    fake_client.get_dependencies.return_value = NOT_FOUND
+    fake_client.get_package_info.return_value = {"info": {"name": "requests", "version": "2.32.3"}}
+    res = await mcp_client.call_tool(
+        "get_dependencies",
+        {"package_name": "requests", "version": "99.0.0", "depth": 2},
+        raise_on_error=False,
+    )
+    assert res.is_error
+    assert res.content[0].text == (
+        "Version '99.0.0' of 'requests' not found on PyPI (latest is 2.32.3). "
+        "Use get_package_versions to list versions."
+    )
+    fake_client.get_dependency_tree.assert_not_called()
+
+
+async def test_get_dependencies_unknown_package_with_version_keeps_package_message(
+    fake_client, mcp_client
+):
+    fake_client.get_dependencies.return_value = NOT_FOUND
+    fake_client.get_package_info.return_value = NOT_FOUND
+    res = await mcp_client.call_tool(
+        "get_dependencies", {"package_name": "nope", "version": "1.0"}, raise_on_error=False
+    )
+    assert res.is_error
+    assert res.content[0].text.startswith("Package 'nope' not found on PyPI.")
+
+
+async def test_get_dependency_tree_unknown_version_names_the_version(fake_client, mcp_client):
+    fake_client.get_dependencies.return_value = {"dependencies": []}
+    fake_client.get_dependency_tree.return_value = NOT_FOUND
+    fake_client.get_package_info.return_value = {"info": {"name": "requests", "version": "2.32.3"}}
+    res = await mcp_client.call_tool(
+        "get_dependencies",
+        {"package_name": "requests", "version": "99.0.0", "depth": 2},
+        raise_on_error=False,
+    )
+    assert res.is_error
+    assert res.content[0].text.startswith("Version '99.0.0' of 'requests' not found on PyPI")

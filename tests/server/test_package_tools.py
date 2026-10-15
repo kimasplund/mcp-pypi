@@ -294,3 +294,37 @@ async def test_download_stats_parse_error_is_tool_error(fake_client, mcp_client)
     )
     assert res.is_error
     assert "parse_error" in res.content[0].text or "Unexpected error" in res.content[0].text
+
+
+VERSION_MISSING = (
+    "Version '99.0.0' of 'requests' not found on PyPI (latest is 2.32.3). "
+    "Use get_package_versions to list versions."
+)
+
+
+async def test_get_package_unknown_version_is_not_reported_as_unknown_package(
+    fake_client, mcp_client
+):
+    async def info(name, version=None):
+        return NOT_FOUND if version else pypi_doc(name="requests", version="2.32.3")
+
+    fake_client.get_package_info.side_effect = info
+    fake_client.suggest_names.return_value = ["requests"]
+    res = await mcp_client.call_tool(
+        "get_package", {"package_name": "requests", "version": "99.0.0"}, raise_on_error=False
+    )
+    assert res.is_error
+    assert res.content[0].text == VERSION_MISSING
+
+
+async def test_get_package_unknown_package_with_version_keeps_package_message(
+    fake_client, mcp_client
+):
+    fake_client.get_package_info.return_value = NOT_FOUND
+    fake_client.suggest_names.return_value = ["requests"]
+    res = await mcp_client.call_tool(
+        "get_package", {"package_name": "reqests", "version": "1.0"}, raise_on_error=False
+    )
+    assert res.is_error
+    assert res.content[0].text.startswith("Package 'reqests' not found on PyPI.")
+    assert "Did you mean 'requests'?" in res.content[0].text

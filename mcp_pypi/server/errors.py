@@ -59,6 +59,29 @@ async def checked(
     return unwrap(result, package=package, suggestions=suggestions)
 
 
+async def checked_release(
+    result: Mapping[str, Any], *, client: PyPIClient, package: str, version: str | None
+) -> dict[str, Any]:
+    """Like `checked` for a version-specific lookup: a missing release of an existing
+    package is reported as a missing version, not as a missing package."""
+    error = result.get("error")
+    if version and error and error.get("code") == "not_found":
+        try:
+            base = await client.get_package_info(package)
+        except Exception:  # fall back to the package-not-found message
+            logger.debug("package lookup for version error failed", exc_info=True)
+            base = None
+        if isinstance(base, dict) and not base.get("error"):
+            info = base.get("info") or {}
+            name = info.get("name") or package
+            raise ToolError(
+                f"Version '{version}' of '{name}' not found on PyPI "
+                f"(latest is {info.get('version') or 'unknown'}). "
+                "Use get_package_versions to list versions."
+            )
+    return await checked(result, client=client, package=package)
+
+
 def item_error(result: dict) -> str | None:
     """Message for a failed batch item, or None if the item succeeded."""
     error = result.get("error")
