@@ -27,6 +27,7 @@ POPULARITY_URL = "https://hugovk.github.io/top-pypi-packages/top-pypi-packages.m
 
 TIER_EXACT, TIER_PREFIX, TIER_ALL_TOKENS, TIER_ANY_TOKEN = 4, 3, 2, 1
 TIER_WEIGHTS = {TIER_EXACT: 1000, TIER_PREFIX: 500, TIER_ALL_TOKENS: 200, TIER_ANY_TOKEN: 50}
+FAILURE_BACKOFF = timedelta(seconds=60)
 _SCAN_CAP = 50_000  # max raw substring hits gathered per query term
 
 
@@ -61,6 +62,8 @@ class _DiskBacked:
         self._data: Any = None
         self._etag: str | None = None
         self._fetched_at: datetime | None = None
+        self._failed_at: datetime | None = None
+        self._failure = ""
 
     # Subclass hooks. All run in a worker thread.
     def _parse(self, body: bytes) -> tuple[Any, bytes]:
@@ -87,6 +90,11 @@ class _DiskBacked:
                 await asyncio.to_thread(self._read_disk)
                 if self._fresh():
                     return self._data
+            # Callers queued behind a failed refresh reuse its outcome during the back-off.
+            if self._failed_at and datetime.now(UTC) - self._failed_at < FAILURE_BACKOFF:
+                if self._data is not None:
+                    return self._data
+                raise IndexUnavailable(self._failure)
             return await self._refresh()
 
     def _read_disk(self) -> None:
@@ -94,8 +102,8 @@ class _DiskBacked:
             meta = json.loads((self.cache_dir / self.meta_file).read_text())
             fetched_at = datetime.fromisoformat(meta["fetched_at"])
             data = self._load((self.cache_dir / self.data_file).read_bytes())
-        except (OSError, ValueError, KeyError, TypeError, EOFError) as e:
-            logger.debug(f"No usable disk copy of {self.data_file}: {e}")
+        except Exception as e:  # corrupt copies (zlib.error, bad JSON...) count as absent
+            logger.warning(f"Ignoring unusable disk copy of {self.data_file}: {e!r}")
             return
         self._data, self._etag = data, meta.get("etag")
         self._fetched_at = fetched_at if fetched_at.tzinfo else fetched_at.replace(tzinfo=UTC)
@@ -111,10 +119,12 @@ class _DiskBacked:
                 etag = response.headers.get("etag")
                 self._data, self._etag = data, etag
                 self._fetched_at = datetime.now(UTC)
+                self._failed_at = None
                 await asyncio.to_thread(self._write_disk, stored)
                 return self._data
             if response.status == 304 and self._data is not None:
                 self._fetched_at = datetime.now(UTC)
+                self._failed_at = None
                 await asyncio.to_thread(self._write_meta)
                 return self._data
             raise IndexUnavailable(f"{self.url} returned HTTP {response.status}")
@@ -126,6 +136,8 @@ class _DiskBacked:
             KeyError,
             TypeError,
         ) as e:
+            self._failed_at = datetime.now(UTC)
+            self._failure = str(e) or type(e).__name__
             if self._data is not None:
                 logger.warning(f"Refresh of {self.url} failed ({e}); using stale copy")
                 return self._data

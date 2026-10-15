@@ -15,7 +15,13 @@ import pytest
 from mcp_pypi.core import PyPIClient
 from mcp_pypi.core.http import RawResponse
 from mcp_pypi.core.models import PyPIClientConfig
-from mcp_pypi.core.search_index import NameIndex, Popularity, normalize, rank_candidates
+from mcp_pypi.core.search_index import (
+    IndexUnavailable,
+    NameIndex,
+    Popularity,
+    normalize,
+    rank_candidates,
+)
 
 NAMES = [
     "httpx", "http-client", "requests", "django", "zope-interface", "typing-extensions",
@@ -221,3 +227,72 @@ def test_cache_files_are_gzip(tmp_path):
     asyncio.run(NameIndex(FakeHTTP(), tmp_path).names())
     text = gzip.decompress(Path(tmp_path, "simple-index.txt.gz").read_bytes()).decode()
     assert text.startswith("\n") and "\nhttpx\n" in text
+
+
+async def test_all_enrichment_failures_return_the_error(tmp_path):
+    client = make_client(tmp_path, FakeHTTP())
+    err = {"error": {"code": "network_error", "message": "boom"}}
+    client.get_package_info = AsyncMock(return_value=err)
+    assert await client.search_packages("jwt") == err
+
+
+async def test_partial_enrichment_failure_drops_candidates(tmp_path):
+    client = make_client(tmp_path, FakeHTTP())
+
+    async def info(name):
+        if name == "jwt":
+            return {"error": {"code": "network_error", "message": "boom"}}
+        return {"info": {"name": name, "version": "1", "summary": ""}}
+
+    client.get_package_info = AsyncMock(side_effect=info)
+    result = await client.search_packages("jwt")
+    assert [r["name"] for r in result["results"]] == ["pyjwt"]
+
+
+def test_search_result_accepts_new_item_shape():
+    from mcp_pypi.core.models import SearchResult
+
+    hints = SearchResult.__annotations__
+    assert "total_candidates" in hints and "note" in hints
+    assert "dict[str, str]" not in str(hints["results"])
+
+
+async def test_corrupt_disk_copy_is_replaced(tmp_path):
+    (tmp_path / "simple-index.txt.gz").write_bytes(b"\x1f\x8b garbage")
+    fresh = datetime.now(UTC).isoformat()
+    (tmp_path / "simple-index.meta.json").write_text(
+        json.dumps({"etag": None, "fetched_at": fresh})
+    )
+    http = FakeHTTP()
+    assert "\nhttpx\n" in await NameIndex(http, tmp_path).names()
+    assert len(http.calls) == 1
+    assert gzip.decompress((tmp_path / "simple-index.txt.gz").read_bytes())
+
+
+async def test_concurrent_failures_fetch_once(tmp_path):
+    http = FakeHTTP(error=aiohttp.ClientError("down"))
+    index = NameIndex(http, tmp_path)
+    results = await asyncio.gather(*(index.names() for _ in range(5)), return_exceptions=True)
+    assert len(http.calls) == 1
+    assert all(isinstance(r, IndexUnavailable) for r in results)
+
+
+async def test_concurrent_failures_with_stale_copy_fetch_once(tmp_path):
+    await NameIndex(FakeHTTP(), tmp_path).names()
+    old = (datetime.now(UTC) - timedelta(days=3)).isoformat()
+    (tmp_path / "simple-index.meta.json").write_text(
+        json.dumps({"etag": '"v1"', "fetched_at": old})
+    )
+    http = FakeHTTP(error=aiohttp.ClientError("down"))
+    index = NameIndex(http, tmp_path)
+    results = await asyncio.gather(*(index.names() for _ in range(5)))
+    assert len(http.calls) == 1
+    assert all("\nhttpx\n" in r for r in results)
+
+
+async def test_popularity_failure_backs_off(tmp_path):
+    http = FakeHTTP(error=aiohttp.ClientError("down"))
+    pop = Popularity(http, tmp_path)
+    assert await pop.downloads() == {}
+    assert await pop.downloads() == {}
+    assert len(http.calls) == 1

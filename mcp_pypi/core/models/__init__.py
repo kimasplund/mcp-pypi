@@ -142,9 +142,11 @@ class ReleasesFeed(TypedDict):
 class SearchResult(TypedDict):
     error: NotRequired[ErrorDict]
     search_url: NotRequired[str]
-    results: NotRequired[list[dict[str, str]]]
+    results: NotRequired[list[dict[str, Any]]]
     message: NotRequired[str]
     total: NotRequired[int]
+    total_candidates: NotRequired[int]
+    note: NotRequired[str | None]
     query: NotRequired[str]
     packages: NotRequired[list[Any]]
     # Pagination fields

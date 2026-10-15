@@ -508,8 +508,8 @@ async def test_search_packages_clamps_limit(client):
         side_effect=lambda n: {"info": {"name": n, "version": "1", "summary": ""}}
     )
 
-    # limit clamps to 50, but enrichment looks at min(3 * limit, 30) candidates
-    assert len((await client.search_packages("pkg", limit=500))["results"]) == 30
+    # limit clamps to 50; the enrichment pool is max(limit, min(3 * limit, 30))
+    assert len((await client.search_packages("pkg", limit=500))["results"]) == 50
     assert len((await client.search_packages("pkg", limit=0))["results"]) == 1
 
 

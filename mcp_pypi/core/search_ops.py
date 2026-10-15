@@ -63,17 +63,21 @@ class SearchOpsMixin:
         try:
             downloads = await self.popularity.downloads()
             candidates = await asyncio.to_thread(rank_candidates, query, names, downloads)
-            top = candidates[: min(3 * limit, 30)]
+            top = candidates[: max(limit, min(3 * limit, 30))]
 
             by_downloads = sorted(downloads, key=downloads.__getitem__, reverse=True)
             ranks = {name: rank for rank, name in enumerate(by_downloads, 1)}
             semaphore = asyncio.Semaphore(10)
+
+            errors: list[dict[str, Any]] = []
 
             async def enrich(candidate: Candidate) -> tuple[float, dict[str, Any]] | None:
                 async with semaphore:
                     data = await self.get_package_info(candidate.name)
                 info = data.get("info") if isinstance(data, dict) else None
                 if "error" in data or not isinstance(info, dict):
+                    if "error" in data:
+                        errors.append(data)
                     return None
                 summary = info.get("summary") or ""
                 boost = 40 * sum(t in summary.lower() for t in tokens)
@@ -89,6 +93,8 @@ class SearchOpsMixin:
             enriched = [r for r in await asyncio.gather(*(enrich(c) for c in top)) if r]
             enriched.sort(key=lambda r: r[0], reverse=True)
             results = [item for _, item in enriched[:limit]]
+            if top and not enriched and errors:
+                return errors[0]
 
             response: dict[str, Any] = {
                 "query": query,
