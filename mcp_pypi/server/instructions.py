@@ -6,7 +6,7 @@ PyPI package intelligence: search, inspect, vet and audit Python dependencies.
 Choosing a tool:
 - Finding a package: search_packages, then get_package for details.
 - Before suggesting or adding dependencies: check_packages (existence,
-  latest versions, maintenance) on every candidate.
+  latest version, summary) on every candidate.
 - Known vulnerabilities for specific versions: check_vulnerabilities.
 - Auditing a repository: audit_project (reads its dependency files).
 - Auditing a virtual environment: scan_installed_packages.

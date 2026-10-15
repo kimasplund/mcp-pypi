@@ -63,3 +63,24 @@ def test_instructions_cover_file_authority():
     assert len(INSTRUCTIONS.splitlines()) <= 40
     for tool in ("search_packages", "check_packages", "audit_project", "scan_installed_packages"):
         assert tool in INSTRUCTIONS
+
+
+async def test_analyze_dependencies_prompt_follows_spec(mcp_client):
+    result = await mcp_client.get_prompt("analyze_dependencies", {"package_name": "flask"})
+    text = result.messages[0].content.text
+    assert "get_dependencies" in text
+    assert "include_transitive=True" in text
+    assert "outdated" in text and "vulnerable" in text
+    assert "get_package" not in text.replace("get_package_", "")
+
+
+async def test_compare_packages_prompt_follows_spec(mcp_client):
+    result = await mcp_client.get_prompt("compare_packages", {"packages": "httpx, requests"})
+    text = result.messages[0].content.text
+    for tool in ("get_package", "get_download_stats", "check_vulnerabilities"):
+        assert tool in text
+    assert "httpx, requests" in text
+
+
+def test_instructions_do_not_promise_maintenance_data():
+    assert "maintenance" not in INSTRUCTIONS.lower()

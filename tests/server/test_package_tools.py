@@ -328,3 +328,36 @@ async def test_get_package_unknown_package_with_version_keeps_package_message(
     assert res.is_error
     assert res.content[0].text.startswith("Package 'reqests' not found on PyPI.")
     assert "Did you mean 'requests'?" in res.content[0].text
+
+
+async def test_versions_and_download_stats_use_the_canonical_name(fake_client, mcp_client):
+    doc = versions_doc(2)
+    doc["info"]["name"] = "PyYAML"
+    fake_client.get_package_info.return_value = doc
+    res = await mcp_client.call_tool("get_package_versions", {"package_name": "pyyaml"})
+    assert res.structured_content["package_name"] == "PyYAML"
+
+    fake_client.get_package_stats.return_value = {"last_day": 1, "last_week": 2, "last_month": 3}
+    res = await mcp_client.call_tool("get_download_stats", {"package_name": "pyyaml"})
+    assert res.structured_content["package_name"] == "PyYAML"
+
+
+async def test_download_stats_keeps_spelling_when_metadata_unavailable(fake_client, mcp_client):
+    fake_client.get_package_stats.return_value = {"last_day": 1, "last_week": 2, "last_month": 3}
+    fake_client.get_package_info.return_value = NETWORK_ERROR
+    res = await mcp_client.call_tool("get_download_stats", {"package_name": "pyyaml"})
+    assert res.structured_content["package_name"] == "pyyaml"
+
+
+async def test_changelog_does_not_echo_an_unused_version(fake_client, mcp_client):
+    fake_client.get_package_changelog.return_value = {
+        "package_name": "demo",
+        "version": None,
+        "changelog": "# Changes",
+    }
+    res = await mcp_client.call_tool(
+        "get_package_changelog", {"package_name": "demo", "version": "1.0"}
+    )
+    assert res.structured_content["version"] is None
+    tools = {t.name: t for t in await mcp_client.list_tools()}
+    assert "not filtered by version" in tools["get_package_changelog"].description

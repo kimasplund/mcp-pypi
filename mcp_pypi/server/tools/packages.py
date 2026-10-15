@@ -61,6 +61,17 @@ def _version_entry(version: str, files: list[dict[str, Any]]) -> VersionEntry:
     )
 
 
+async def _canonical_name(client: PyPIClient, package_name: str) -> str:
+    """The project's own spelling from PyPI metadata (cached), else the caller's."""
+    try:
+        data = await client.get_package_info(package_name)
+    except Exception:  # best effort; the caller's spelling is still correct
+        return package_name
+    info = data.get("info") if isinstance(data, dict) and not data.get("error") else None
+    name = info.get("name") if isinstance(info, dict) else None
+    return name if isinstance(name, str) and name else package_name
+
+
 def register_package_tools(mcp: FastMCP, client: PyPIClient) -> None:
     """Register the package lookup tools."""
 
@@ -156,7 +167,7 @@ def register_package_tools(mcp: FastMCP, client: PyPIClient) -> None:
         limit = max(1, min(limit, 100))
         offset = max(0, offset)
         return PackageVersions(
-            package_name=package_name,
+            package_name=(data.get("info") or {}).get("name") or package_name,
             versions=ordered[offset : offset + limit],
             total=len(ordered),
             offset=offset,
@@ -195,7 +206,8 @@ def register_package_tools(mcp: FastMCP, client: PyPIClient) -> None:
 
         Uses the changelog link in the package metadata when present and falls back to
         the repository's releases page. When nothing is found it returns a short note
-        listing the project URLs that are available.
+        listing the project URLs that are available. The text is not filtered by version:
+        `version` is accepted for compatibility and the result's `version` is null.
         """
         data = await checked(
             await client.get_package_changelog(package_name, version),
@@ -219,7 +231,7 @@ def register_package_tools(mcp: FastMCP, client: PyPIClient) -> None:
             await client.get_package_stats(package_name), client=client, package=package_name
         )
         return DownloadStats(
-            package_name=package_name,
+            package_name=await _canonical_name(client, package_name),
             last_day=data.get("last_day"),
             last_week=data.get("last_week"),
             last_month=data.get("last_month"),

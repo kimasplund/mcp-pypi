@@ -205,7 +205,8 @@ class SearchOpsMixin:
         """Get changelog for a package.
 
         Returns {"package_name", "version", "changelog"} on success, or an error dict
-        (not_found, network_error, ...) when the package cannot be looked up.
+        (not_found, network_error, ...) when the package cannot be looked up. The text
+        covers the package as a whole; `version` does not filter it and is returned as None.
         """
         try:
             sanitized_name = sanitize_package_name(package_name)
@@ -213,7 +214,8 @@ class SearchOpsMixin:
             if "error" in info_result:
                 return cast(ChangelogResult, info_result)
             text = await self._changelog_text(package_name, info_result)
-            return {"package_name": package_name, "version": version, "changelog": text}
+            # `version` is not used to filter the changelog, so it is not echoed back.
+            return {"package_name": package_name, "version": None, "changelog": text}
         except ValueError as e:
             return cast(ChangelogResult, format_error(ErrorCode.INVALID_INPUT, str(e)))
         except Exception as e:

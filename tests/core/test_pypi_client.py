@@ -422,7 +422,7 @@ async def test_get_package_changelog_returns_dict(client):
     result = await client.get_package_changelog("pkg", "1.0")
 
     assert result["package_name"] == "pkg"
-    assert result["version"] == "1.0"
+    assert result["version"] is None  # the changelog is not filtered by version
     assert "https://github.com/o/r/releases" in result["changelog"]
 
 
