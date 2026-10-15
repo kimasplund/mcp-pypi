@@ -282,7 +282,6 @@ def compare_versions(
 @stats_app.command("downloads")
 def package_stats(
     package_name: str = typer.Argument(..., help="Name of the package"),
-    version: str | None = typer.Option(None, help="Package version (optional)"),
     color: bool = typer.Option(True, help="Colorize output"),
 ):
     """Get package download statistics."""
@@ -292,16 +291,14 @@ def package_stats(
         client = PyPIClient(config)
 
         try:
-            result = await client.get_package_stats(package_name, version)
+            result = await client.get_package_stats(package_name)
 
             if "error" in result:
                 print_error(result["error"]["message"])
                 return
 
-            if color and "downloads" in result:
-                table = Table(
-                    title=f"Download Stats for {package_name}" + (f" {version}" if version else "")
-                )
+            if color:
+                table = Table(title=f"Download Stats for {package_name}")
                 table.add_column("Period")
                 table.add_column("Downloads")
 
@@ -310,15 +307,6 @@ def package_stats(
                 table.add_row("Last month", f"{result.get('last_month', 0):,}")
 
                 console.print(table)
-
-                monthly_table = Table(title="Monthly Downloads")
-                monthly_table.add_column("Month")
-                monthly_table.add_column("Downloads")
-
-                for month, count in result["downloads"].items():
-                    monthly_table.add_row(month, f"{count:,}")
-
-                console.print(monthly_table)
             else:
                 output_json(result, color)
         finally:

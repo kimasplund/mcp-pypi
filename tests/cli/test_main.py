@@ -645,7 +645,6 @@ def test_package_metadata_with_error(runner):
 def test_package_stats(runner):
     """Test package stats command."""
     mock_data = {
-        "downloads": {"2023-01": 1000, "2023-02": 2000},
         "last_day": 100,
         "last_week": 500,
         "last_month": 3000,
@@ -662,31 +661,7 @@ def test_package_stats(runner):
         result = runner.invoke(app, ["stats", "downloads", "test-package"])
         assert result.exit_code == 0
 
-    mock_client.get_package_stats.assert_called_once_with("test-package", None)
-    mock_client.close.assert_called_once()
-
-
-def test_package_stats_with_version(runner):
-    """Test package stats command with version."""
-    mock_data = {
-        "downloads": {"2023-01": 1000, "2023-02": 2000},
-        "last_day": 100,
-        "last_week": 500,
-        "last_month": 3000,
-    }
-
-    mock_client = MagicMock()
-    mock_client.get_package_stats = AsyncMock(return_value=mock_data)
-    mock_client.close = AsyncMock()
-
-    with (
-        patch("mcp_pypi.cli.commands.package_commands.PyPIClient", return_value=mock_client),
-        mock_asyncio_run(mock_client, mock_data),
-    ):
-        result = runner.invoke(app, ["stats", "downloads", "test-package", "--version", "1.0.0"])
-        assert result.exit_code == 0
-
-    mock_client.get_package_stats.assert_called_once_with("test-package", "1.0.0")
+    mock_client.get_package_stats.assert_called_once_with("test-package")
     mock_client.close.assert_called_once()
 
 
@@ -707,7 +682,7 @@ def test_package_stats_with_error(runner):
         assert result.exit_code == 0
         mock_print_error.assert_called_once_with("Package not found")
 
-    mock_client.get_package_stats.assert_called_once_with("nonexistent-package", None)
+    mock_client.get_package_stats.assert_called_once_with("nonexistent-package")
     mock_client.close.assert_called_once()
 
 

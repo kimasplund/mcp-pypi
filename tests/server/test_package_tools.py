@@ -262,7 +262,6 @@ async def test_changelog_passthrough(fake_client, mcp_client):
 
 async def test_download_stats_fields(fake_client, mcp_client):
     fake_client.get_package_stats.return_value = {
-        "downloads": {"2026-09": 5},
         "last_day": 10,
         "last_week": 70,
         "last_month": 300,
@@ -284,3 +283,14 @@ async def test_download_stats_network_error(fake_client, mcp_client):
     )
     assert res.is_error
     assert "network_error" in res.content[0].text
+
+
+async def test_download_stats_parse_error_is_tool_error(fake_client, mcp_client):
+    fake_client.get_package_stats.return_value = {
+        "error": {"code": "parse_error", "message": "pypistats response is missing download counts"}
+    }
+    res = await mcp_client.call_tool(
+        "get_download_stats", {"package_name": "demo"}, raise_on_error=False
+    )
+    assert res.is_error
+    assert "parse_error" in res.content[0].text or "Unexpected error" in res.content[0].text

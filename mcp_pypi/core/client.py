@@ -18,7 +18,7 @@ from mcp_pypi.core.search_index import NameIndex, Popularity, normalize
 from mcp_pypi.core.search_ops import SearchOpsMixin
 from mcp_pypi.core.stats import PackageStatsService
 from mcp_pypi.core.vulnerability_ops import VulnerabilityOpsMixin
-from mcp_pypi.utils.sanitize import sanitize_package_name, sanitize_version
+from mcp_pypi.utils.sanitize import sanitize_package_name
 
 logger = logging.getLogger("mcp-pypi.client")
 
@@ -101,11 +101,10 @@ class PyPIClient(
         """Close the client and release resources."""
         await self.http.close()
 
-    async def get_package_stats(self, package_name: str, version: str | None = None) -> StatsResult:
+    async def get_package_stats(self, package_name: str) -> StatsResult:
         """Get download statistics for a package."""
         try:
             sanitized_name = sanitize_package_name(package_name)
-            sanitized_version = sanitize_version(version) if version else None
 
             # Check if package exists first
             exists_result = await self.check_package_exists(sanitized_name)
@@ -119,7 +118,7 @@ class PyPIClient(
                 )
 
             # Use the stats service to get real download stats
-            return await self.stats.get_package_stats(sanitized_name, sanitized_version)
+            return await self.stats.get_package_stats(sanitized_name)
 
         except ValueError as e:
             return cast(StatsResult, format_error(ErrorCode.INVALID_INPUT, str(e)))

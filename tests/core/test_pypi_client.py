@@ -909,7 +909,6 @@ async def test_get_package_stats_with_mock(client, mock_stats_service):
     """Test getting package stats via the stats service."""
     # Setup mock response
     mock_stats_result = {
-        "downloads": {"2023-01": 10000, "2022-12": 9000},
         "last_month": 10000,
         "last_week": 2500,
         "last_day": 350,
@@ -920,32 +919,8 @@ async def test_get_package_stats_with_mock(client, mock_stats_service):
     result = await client.get_package_stats("test-package")
 
     # Verify
-    assert "downloads" in result
-    assert "last_month" in result
     assert result["last_month"] == 10000
-    mock_stats_service.get_package_stats.assert_called_once_with("test-package", None)
-
-
-@pytest.mark.asyncio
-async def test_get_package_stats_with_version(client, mock_stats_service):
-    """Test getting package stats for a specific version."""
-    # Setup mock response
-    mock_stats_result = {
-        "downloads": {"2023-01": 5000, "2022-12": 4500},
-        "last_month": 5000,
-        "last_week": 1250,
-        "last_day": 175,
-    }
-    mock_stats_service.get_package_stats.return_value = mock_stats_result
-
-    # Execute
-    result = await client.get_package_stats("test-package", "1.0.0")
-
-    # Verify
-    assert "downloads" in result
-    assert "last_month" in result
-    assert result["last_month"] == 5000
-    mock_stats_service.get_package_stats.assert_called_once_with("test-package", "1.0.0")
+    mock_stats_service.get_package_stats.assert_called_once_with("test-package")
 
 
 @pytest.mark.asyncio

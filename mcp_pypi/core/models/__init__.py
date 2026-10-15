@@ -212,7 +212,6 @@ class MetadataResult(TypedDict):
 
 class StatsResult(TypedDict):
     error: NotRequired[ErrorDict]
-    downloads: NotRequired[dict[str, int]]
     last_month: NotRequired[int]
     last_week: NotRequired[int]
     last_day: NotRequired[int]
