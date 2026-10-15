@@ -92,11 +92,11 @@ class PyPIMCPServer:
 
     def _register_resources(self) -> None:
         """Register PyPI resources with the MCP server."""
-        register_resources(self)
+        register_resources(self.mcp_server, self.client)
 
     def _register_prompts(self) -> None:
         """Register prompts with the MCP server."""
-        register_prompts(self)
+        register_prompts(self.mcp_server)
 
     async def _check_setup_py(
         self, setup_file: Path, results: Dict[str, Any]

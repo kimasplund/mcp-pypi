@@ -11,7 +11,15 @@ from mcp_pypi.server.tools.package_tools import register_package_tools
 from mcp_pypi.server.tools.search_tools import register_search_tools
 from mcp_pypi.server.tools.vulnerability_tools import register_vulnerability_tools
 
+# Shared MCP tool annotations: every tool is a read-only PyPI/OSV lookup.
+TOOL_ANNOTATIONS: dict[str, bool] = {
+    "readOnlyHint": True,
+    "idempotentHint": True,
+    "openWorldHint": True,
+}
+
 __all__ = [
+    "TOOL_ANNOTATIONS",
     "register_package_tools",
     "register_search_tools",
     "register_dependency_tools",
