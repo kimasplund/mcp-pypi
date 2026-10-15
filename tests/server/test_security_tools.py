@@ -1,6 +1,8 @@
 """Tests for check_vulnerabilities and scan_installed_packages."""
 
 import json
+import shlex
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -187,15 +189,19 @@ async def test_progress_reported(fake_client, mcp_client):
 
 @pytest.fixture
 def pip_list(monkeypatch):
-    seen: list[str] = []
+    seen: list[list] = []
 
-    async def fake(python_exe):
-        seen.append(python_exe)
+    def fake(site_dirs):
+        seen.append(site_dirs)
         return [("django", "3.0"), ("flask", "3.0")]
 
     monkeypatch.setattr(security, "_list_installed", fake)
-    monkeypatch.setattr(security, "_find_environment", lambda p: (p or "/env", "/env/bin/python"))
+    monkeypatch.setattr(security, "_find_environment", fake_env)
     return seen
+
+
+def fake_env(path=None):
+    return security.Environment(path or "/env", [], Path("/env/bin/python"), has_pip=True)
 
 
 async def test_scan_installed_has_no_ansi(fake_client, mcp_client, pip_list):
@@ -221,19 +227,6 @@ async def test_scan_installed_rejects_traversal(mcp_client, pip_list):
     )
     assert res.is_error
     assert pip_list == []
-
-
-async def test_list_installed_failure_and_timeout(monkeypatch, tmp_path):
-    from fastmcp.exceptions import ToolError
-
-    monkeypatch.setattr(security, "PIP_TIMEOUT", 0.2)
-    slow = tmp_path / "slow-python"
-    slow.write_text("#!/bin/sh\nexec sleep 5\n")
-    slow.chmod(0o755)
-    with pytest.raises(ToolError, match="Cannot run"):
-        await security._list_installed("/nonexistent/python-xyz")
-    with pytest.raises(ToolError, match="timed out"):
-        await security._list_installed(str(slow))
 
 
 # --- fix round 1 -----------------------------------------------------------------------
@@ -355,11 +348,11 @@ async def test_scan_handles_mixed_case_installed_names(real, monkeypatch):
     db["django"] = [osv("D-1", "Django")]
     db["pyyaml"] = [osv("Y-1", "PyYAML")]
 
-    async def fake(python_exe):
+    def fake(site_dirs):
         return [("Django", "3.0"), ("PyYAML", "5.1"), ("flask", "3.0")]
 
     monkeypatch.setattr(security, "_list_installed", fake)
-    monkeypatch.setattr(security, "_find_environment", lambda p: ("/env", "/env/bin/python"))
+    monkeypatch.setattr(security, "_find_environment", fake_env)
     d = (await c.call_tool("scan_installed_packages", {})).structured_content
     assert sorted(v["package"] for v in d["vulnerable"]) == ["Django", "PyYAML"]
     assert d["unchecked"] == []
@@ -384,11 +377,11 @@ async def test_scan_epoch_package_is_unchecked_not_fatal(real, monkeypatch):
     _client, c, db = real
     db["django"] = [osv("D-1", "Django")]
 
-    async def fake(python_exe):
+    def fake(site_dirs):
         return [("Django", "3.0"), ("weird", "1!2.0")]
 
     monkeypatch.setattr(security, "_list_installed", fake)
-    monkeypatch.setattr(security, "_find_environment", lambda p: ("/env", "/env/bin/python"))
+    monkeypatch.setattr(security, "_find_environment", fake_env)
     d = (await c.call_tool("scan_installed_packages", {})).structured_content
     assert d["unchecked"] == ["weird"]
     assert d["all_clear"] is False
@@ -478,33 +471,141 @@ def _make_venv(path):
     sites = list(path.glob("lib/python*/site-packages")) or list(path.glob("Lib/site-packages"))
     if not sites:
         pytest.skip("unexpected venv layout")
-    dist = sites[0] / "Foo_Bar-1.0.dist-info"
+    _add_dist(sites[0], "Foo_Bar", "1.0")
+    return sites[0]
+
+
+def _add_dist(site, name, version):
+    dist = site / f"{name}-{version}.dist-info"
     dist.mkdir()
-    (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: Foo_Bar\nVersion: 1.0\n")
+    (dist / "METADATA").write_text(f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
 
 
-async def test_scan_uses_env_interpreter_without_pip(real, tmp_path):
+@pytest.fixture
+def no_subprocess(monkeypatch):
+    """Call the returned function (after test setup) to fail on any process start."""
+    import asyncio
+    import subprocess
+
+    def boom(*args, **kwargs):
+        raise AssertionError("scan_installed_packages must not start a process")
+
+    def arm():
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", boom)
+        monkeypatch.setattr(asyncio, "create_subprocess_shell", boom)
+        monkeypatch.setattr(subprocess, "Popen", boom)
+
+    return arm
+
+
+async def test_scan_reads_env_metadata_without_running_it(real, tmp_path, no_subprocess):
     _client, c, db = real
     venv = tmp_path / "env1"
-    _make_venv(venv)
+    site = _make_venv(venv)
+    _add_dist(site, "nameless", "1.0")
+    (site / "nameless-1.0.dist-info" / "METADATA").write_text("Metadata-Version: 2.1\n")
+    marker = tmp_path / "pth-ran"
+    (site / "evil.pth").write_text(
+        f"import pathlib; pathlib.Path({str(marker)!r}).write_text('x')\n"
+    )
     db["foo-bar"] = [osv("F-1", "foo-bar")]
+    no_subprocess()
     d = (
         await c.call_tool("scan_installed_packages", {"environment_path": str(venv)})
     ).structured_content
     assert d["environment_path"] == str(venv)
+    assert d["packages_scanned"] == 1  # the entry without a Name is skipped
     assert [(v["package"], v["version"]) for v in d["vulnerable"]] == [("Foo_Bar", "1.0")]
-    assert (
-        "python" in d["update_commands"][0] and "pip install --upgrade" in d["update_commands"][0]
+    python = shlex.quote(
+        str(
+            next(
+                p for p in (venv / "bin" / "python", venv / "Scripts" / "python.exe") if p.exists()
+            )
+        )
     )
+    assert d["update_commands"] == [f"uv pip install --python {python} --upgrade Foo_Bar"]
+    assert not marker.exists()
 
 
-async def test_scan_autodetects_venv_in_cwd(real, tmp_path, monkeypatch):
+async def test_scan_suggests_pip_when_the_env_has_pip(real, tmp_path, no_subprocess):
+    _client, c, db = real
+    venv = tmp_path / "with pip"
+    site = _make_venv(venv)
+    (site / "pip").mkdir()
+    db["foo-bar"] = [osv("F-1", "foo-bar")]
+    no_subprocess()
+    d = (
+        await c.call_tool("scan_installed_packages", {"environment_path": str(venv)})
+    ).structured_content
+    (command,) = d["update_commands"]
+    assert command.endswith(" -m pip install --upgrade Foo_Bar")
+    assert command.startswith("'") and "with pip" in command  # shell-quoted path
+
+
+async def test_scan_first_distribution_per_name_wins(real, tmp_path, no_subprocess):
+    _client, c, _db = real
+    venv = tmp_path / "env2"
+    site = _make_venv(venv)
+    _add_dist(site, "foo_bar", "0.5")  # a stale duplicate of Foo_Bar 1.0
+    no_subprocess()
+    d = (
+        await c.call_tool("scan_installed_packages", {"environment_path": str(venv)})
+    ).structured_content
+    assert d["packages_scanned"] == 1
+
+
+async def test_scan_rejects_directory_that_is_not_an_environment(real, tmp_path, no_subprocess):
+    _client, c, _db = real
+    fake = tmp_path / "not-a-venv"
+    site = fake / "lib" / "python3.12" / "site-packages"
+    site.mkdir(parents=True)
+    (fake / "bin").mkdir()
+    (fake / "bin" / "python").write_text("#!/bin/sh\n")
+    _add_dist(site, "Foo_Bar", "1.0")
+    no_subprocess()
+    res = await c.call_tool(
+        "scan_installed_packages", {"environment_path": str(fake)}, raise_on_error=False
+    )
+    assert res.is_error
+    assert "not a Python environment" in res.content[0].text
+
+
+async def test_scan_accepts_conda_environment(real, tmp_path, no_subprocess):
+    _client, c, db = real
+    env = tmp_path / "conda-env"
+    (env / "conda-meta").mkdir(parents=True)
+    site = env / "lib" / "python3.12" / "site-packages"
+    site.mkdir(parents=True)
+    _add_dist(site, "Foo_Bar", "1.0")
+    db["foo-bar"] = [osv("F-1", "foo-bar")]
+    no_subprocess()
+    d = (
+        await c.call_tool("scan_installed_packages", {"environment_path": str(env)})
+    ).structured_content
+    assert [v["package"] for v in d["vulnerable"]] == ["Foo_Bar"]
+
+
+async def test_scan_autodetects_venv_in_cwd(real, tmp_path, monkeypatch, no_subprocess):
     _client, c, _db = real
     _make_venv(tmp_path / ".venv")
     monkeypatch.chdir(tmp_path)
+    no_subprocess()
     d = (await c.call_tool("scan_installed_packages", {})).structured_content
     assert d["environment_path"] == str(tmp_path / ".venv")
     assert d["packages_scanned"] == 1
+
+
+async def test_scan_ignores_cwd_dir_named_venv_without_pyvenv_cfg(
+    fake_client, mcp_client, tmp_path, monkeypatch
+):
+    (tmp_path / ".venv" / "lib" / "python3.12" / "site-packages").mkdir(parents=True)
+    (tmp_path / ".venv" / "bin").mkdir()
+    (tmp_path / ".venv" / "bin" / "python").write_text("#!/bin/sh\necho '[]'\n")
+    (tmp_path / ".venv" / "bin" / "python").chmod(0o755)
+    monkeypatch.chdir(tmp_path)
+    res = await mcp_client.call_tool("scan_installed_packages", {}, raise_on_error=False)
+    assert res.is_error
+    assert "environment_path" in res.content[0].text
 
 
 async def test_scan_without_environment_requires_path(

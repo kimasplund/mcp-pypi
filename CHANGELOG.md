@@ -58,7 +58,7 @@ Removed without replacement: ANSI-colour report formatting and the `output_forma
 - **Search works again.** PyPI's HTML search page is behind a JavaScript challenge. `search_packages` now searches the PyPI Simple index of package names locally and ranks by name match and download popularity. It matches package names, not full descriptions. The index is cached on disk (see `docs/caching.md`).
 - Download stats no longer fabricate numbers when pypistats is unavailable; the call fails instead.
 - Vulnerability checks match mixed-case and underscore names (`Django`, `PyYAML`, `typing_extensions`) and count GitHub advisory `MODERATE` severity as medium.
-- Installed-package scans work in uv-created virtualenvs that have no pip, and never silently scan an unrelated environment.
+- Installed-package scans read the environment's package metadata directly instead of running its interpreter, so they work in uv-created virtualenvs that have no pip, never execute code from the scanned environment, and never silently scan an unrelated environment. The path must be a venv (`pyvenv.cfg`) or conda environment (`conda-meta/`).
 - Audits never report unchecked dependencies or unreadable files as clean.
 - Upper-bound-only constraints (for example `urllib3<2`) are checked at the highest allowed release instead of an arbitrary one.
 

@@ -129,7 +129,7 @@ Scan a Python environment's installed packages for known vulnerabilities.
 |-----------|------|---------|
 | `environment_path` | string | a `.venv`, `venv`, `env`, `.env` or `virtualenv` directory in the working directory |
 
-If no environment path is given and none of those directories exists, the call fails and asks for a path; it never scans an unrelated environment. Packages are listed with the environment's own interpreter (no `pip` needed, so uv-created venvs work; 60 second limit) and checked against OSV in batches. Result: `environment_path`, `packages_scanned`, `vulnerable`, `all_clear`, `unchecked`, `update_commands` and `recommendation`. Packages that could not be checked are listed in `unchecked` and prevent `all_clear`.
+The path must be a venv (it has a `pyvenv.cfg`) or a conda environment (it has `conda-meta/`). If no environment path is given and none of those directories is such an environment, the call fails and asks for a path; it never scans an unrelated environment. Installed packages are read from the environment's `site-packages` metadata, so nothing from the scanned environment runs (no interpreter, no `.pth` files) and `pip` is not needed; they are then checked against OSV. `update_commands` use `<env python> -m pip install --upgrade` when the environment has pip, otherwise `uv pip install --python <env python> --upgrade`. Result: `environment_path`, `packages_scanned`, `vulnerable`, `all_clear`, `unchecked`, `update_commands` and `recommendation`. Packages that could not be checked are listed in `unchecked` and prevent `all_clear`.
 
 ## Project tool
 

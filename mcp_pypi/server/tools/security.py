@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import json
+import importlib.metadata
 import shlex
 from collections import deque
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
@@ -34,7 +33,6 @@ from mcp_pypi.server.tools.osv import (
 from mcp_pypi.utils.validation import validate_file_path
 
 MAX_PACKAGES = 100
-PIP_TIMEOUT = 60
 BAD_SPEC = "Only 'name' or 'name==version' is supported"
 
 
@@ -76,69 +74,88 @@ def _dedupe_installed(installed: list[tuple[str, str]]) -> list[Key]:
     return list(first.values())
 
 
-_LIST_SCRIPT = (
-    "import importlib.metadata as m, json\n"
-    "print(json.dumps([[d.metadata.get('Name'), d.version] for d in m.distributions()"
-    " if d.metadata.get('Name') and d.version]))"
-)
+ENV_DIR_NAMES = (".venv", "venv", "env", ".env", "virtualenv")
 
 
-async def _list_installed(python_exe: str) -> list[tuple[str, str]]:
-    """List (name, version) of an environment's distributions using its own interpreter."""
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            python_exe,
-            "-I",
-            "-c",
-            _LIST_SCRIPT,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-    except OSError as exc:
-        raise ToolError(f"Cannot run Python at '{python_exe}': {exc}") from exc
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), PIP_TIMEOUT)
-    except TimeoutError as exc:
-        with contextlib.suppress(ProcessLookupError):
-            proc.kill()
-        await proc.wait()
-        raise ToolError(
-            f"Listing installed packages timed out after {PIP_TIMEOUT} seconds"
-        ) from exc
-    if proc.returncode != 0:
-        detail = stderr.decode(errors="replace").strip()[:300]
-        raise ToolError(f"Failed to list installed packages (exit {proc.returncode}). {detail}")
-    try:
-        rows = json.loads(stdout)
-        return [(str(n), str(v)) for n, v in rows]
-    except (json.JSONDecodeError, TypeError, ValueError) as exc:
-        raise ToolError("Failed to list installed packages: invalid output") from exc
+class Environment(NamedTuple):
+    path: str  # as given, or the auto-detected directory
+    site_packages: list[Path]
+    python: Path  # only shown in update commands; never executed
+    has_pip: bool
 
 
-def _python_in(env: str) -> Path | None:
-    for rel in (("bin", "python"), ("Scripts", "python.exe")):
-        candidate = Path(env, *rel)
-        if candidate.exists():
-            return candidate
-    return None
+def _is_environment(root: Path) -> bool:
+    """A venv (pyvenv.cfg) or conda env (conda-meta/) root."""
+    return (root / "pyvenv.cfg").is_file() or (root / "conda-meta").is_dir()
 
 
-def _find_environment(environment_path: str | None) -> tuple[str, str]:
-    """Return (environment path, its Python executable); never the server's own environment."""
+def _site_packages(root: Path) -> list[Path]:
+    found = sorted(root.glob("lib/python3*/site-packages")) + [root / "Lib" / "site-packages"]
+    unique: dict[Path, Path] = {}
+    for site in found:
+        if site.is_dir():
+            unique.setdefault(site.resolve(), site)
+    return list(unique.values())
+
+
+def _environment(root: Path, shown: str) -> Environment | None:
+    if not _is_environment(root):
+        return None
+    sites = _site_packages(root)
+    if not sites:
+        return None
+    pythons = (root / "bin" / "python", root / "Scripts" / "python.exe", root / "python.exe")
+    python = next((p for p in pythons if p.exists()), pythons[0])
+    has_pip = any((site / "pip").is_dir() for site in sites)
+    return Environment(shown, sites, python, has_pip)
+
+
+def _find_environment(environment_path: str | None) -> Environment:
+    """The environment to scan; never the server's own environment."""
     if environment_path:
-        python = _python_in(environment_path)
-        if python is None:
-            raise ToolError(f"No Python interpreter found in environment '{environment_path}'.")
-        return environment_path, str(python)
-    for venv_name in (".venv", "venv", "env", ".env", "virtualenv"):
-        venv = Path.cwd() / venv_name
-        python = _python_in(str(venv))
-        if python is not None:
-            return str(venv), str(python)
+        root = Path(environment_path).expanduser()
+        if not _is_environment(root):
+            raise ToolError(
+                f"'{environment_path}' is not a Python environment "
+                "(no pyvenv.cfg or conda-meta found)."
+            )
+        env = _environment(root, environment_path)
+        if env is None:
+            raise ToolError(f"No site-packages directory found in '{environment_path}'.")
+        return env
+    for name in ENV_DIR_NAMES:
+        env = _environment(Path.cwd() / name, str(Path.cwd() / name))
+        if env is not None:
+            return env
     raise ToolError(
         "No virtual environment found in the working directory; "
         "pass environment_path to say which environment to scan."
     )
+
+
+def _list_installed(site_dirs: list[Path]) -> list[tuple[str, str]]:
+    """(name, version) of every distribution in `site_dirs`, read from metadata files.
+
+    Nothing from the environment is imported or executed (no interpreter, no .pth files).
+    """
+    found: list[tuple[str, str]] = []
+    for dist in importlib.metadata.distributions(path=[str(d) for d in site_dirs]):
+        try:
+            meta = dist.metadata
+            name = meta["Name"] if meta is not None and "Name" in meta else None
+            version = meta["Version"] if meta is not None and "Version" in meta else None
+        except (OSError, UnicodeDecodeError, ValueError):  # unreadable metadata: skip it
+            continue
+        if name and version:
+            found.append((name, version))
+    return found
+
+
+def _update_command(env: Environment, package: str) -> str:
+    python = shlex.quote(str(env.python))
+    if env.has_pip:
+        return f"{python} -m pip install --upgrade {shlex.quote(package)}"
+    return f"uv pip install --python {python} --upgrade {shlex.quote(package)}"
 
 
 def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
@@ -292,18 +309,19 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
     ) -> InstalledScan:
         """Scan a Python environment's installed packages for known vulnerabilities.
 
-        Without `environment_path` a virtualenv (.venv, venv, env, .env or virtualenv) in
-        the working directory is used; if none exists the call fails and asks for a
-        path. Packages are listed with the environment's own interpreter (no pip needed,
-        60 second limit) and checked against OSV in batches. Packages that could not be
-        checked are listed in `unchecked` and prevent `all_clear`. No terminal colours.
+        `environment_path` must be a venv (has pyvenv.cfg) or conda environment (has
+        conda-meta/). Without it a .venv, venv, env, .env or virtualenv directory in the
+        working directory is used; if none exists the call fails and asks for a path.
+        Installed packages are read from the environment's site-packages metadata; nothing
+        in the environment is executed. Packages that could not be checked are listed in
+        `unchecked` and prevent `all_clear`. No terminal colours.
         """
         if environment_path:
             valid, message = validate_file_path(environment_path)
             if not valid:
                 raise ToolError(f"Cannot read file: {message or 'Invalid environment path'}")
-        env_path, python_exe = _find_environment(environment_path)
-        installed = await _list_installed(python_exe)
+        env = _find_environment(environment_path)
+        installed = await asyncio.to_thread(_list_installed, env.site_packages)
         pairs = _dedupe_installed(installed)
         await ctx.report_progress(0, max(1, len(pairs)))
 
@@ -331,10 +349,7 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
                 -p.total_vulnerabilities,
             )
         )
-        commands = [
-            f"{shlex.quote(python_exe)} -m pip install --upgrade {shlex.quote(p.package)}"
-            for p in vulnerable
-        ]
+        commands = [_update_command(env, p.package) for p in vulnerable]
         parts = []
         if vulnerable:
             parts.append(
@@ -347,7 +362,7 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
         if not parts:
             parts.append("No known vulnerabilities found in the installed packages.")
         return InstalledScan(
-            environment_path=env_path,
+            environment_path=env.path,
             packages_scanned=len(pairs),
             vulnerable=vulnerable,
             all_clear=not vulnerable and not unchecked,
