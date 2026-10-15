@@ -1,0 +1,9 @@
+name: demo
+dependencies:
+  - python=3.11
+  - numpy=1.26
+  - pip
+  - pip:
+    - requests==2.31.0
+    - flask>=3.0
+    - git+https://github.com/x/y.git
