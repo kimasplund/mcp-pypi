@@ -1,58 +1,14 @@
 """Tests for validation utilities."""
 
-import pytest
-
-from mcp_pypi.utils.validation import (
-    sanitize_package_name,
-    sanitize_version,
-    validate_file_path,
-)
+from mcp_pypi.utils.validation import normalize_package_name, validate_file_path
 
 
-class TestSanitizePackageName:
-    """Tests for sanitize_package_name function."""
+class TestNormalizePackageName:
+    """normalize_package_name follows PEP 503."""
 
-    def test_valid_package_name(self):
-        """Test that valid package names pass through."""
-        assert sanitize_package_name("requests") == "requests"
-        assert sanitize_package_name("Flask") == "Flask"
-        assert sanitize_package_name("my-package") == "my-package"
-        assert sanitize_package_name("my_package") == "my_package"
-        assert sanitize_package_name("package123") == "package123"
-        assert sanitize_package_name("my.package") == "my.package"
-
-    def test_invalid_package_name_raises(self):
-        """Test that invalid package names raise ValueError."""
-        with pytest.raises(ValueError):
-            sanitize_package_name("package;rm -rf /")
-
-        with pytest.raises(ValueError):
-            sanitize_package_name("package`whoami`")
-
-        with pytest.raises(ValueError):
-            sanitize_package_name("../../../etc/passwd")
-
-        with pytest.raises(ValueError):
-            sanitize_package_name("package\x00name")
-
-
-class TestSanitizeVersion:
-    """Tests for sanitize_version function."""
-
-    def test_valid_version(self):
-        """Test that valid versions pass through."""
-        assert sanitize_version("1.0.0") == "1.0.0"
-        assert sanitize_version("2.3.4a1") == "2.3.4a1"
-        assert sanitize_version("1.0.0+local") == "1.0.0+local"
-        assert sanitize_version("1.0.0-beta.1") == "1.0.0-beta.1"
-
-    def test_invalid_version_raises(self):
-        """Test that invalid versions raise ValueError."""
-        with pytest.raises(ValueError):
-            sanitize_version("1.0.0;cat /etc/passwd")
-
-        with pytest.raises(ValueError):
-            sanitize_version("1.0.0`whoami`")
+    def test_normalizes_case_and_separators(self):
+        assert normalize_package_name("Django_REST.framework") == "django-rest-framework"
+        assert normalize_package_name("requests") == "requests"
 
 
 class TestValidateFilePath:

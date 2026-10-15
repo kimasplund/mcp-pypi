@@ -66,18 +66,6 @@ class PyPIClient(
         self.name_index = NameIndex(self.http, Path(self.config.cache_dir))
         self.popularity = Popularity(self.http, Path(self.config.cache_dir))
 
-        # Check for optional dependencies
-        self._has_plotly = self._check_import("plotly.graph_objects", "go")
-
-    def _check_import(self, module: str, name: str) -> bool:
-        """Check if a module can be imported."""
-        try:
-            __import__(module)
-            return True
-        except ImportError:
-            logger.info(f"Optional dependency {module} not found; some features will be limited")
-            return False
-
     def set_user_agent(self, user_agent: str) -> None:
         """Set a custom User-Agent for all subsequent requests.
 

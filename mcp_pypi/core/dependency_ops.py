@@ -4,7 +4,6 @@ Dependency operations mixin for PyPI client.
 
 import json
 import logging
-import os
 from typing import TYPE_CHECKING, cast
 
 from packaging.requirements import Requirement
@@ -15,7 +14,6 @@ from mcp_pypi.core.models import (
     Dependency,
     DependencyTreeResult,
     ErrorCode,
-    PyPIClientConfig,
     TreeNode,
     VersionInfo,
     format_error,
@@ -30,8 +28,6 @@ class DependencyOpsMixin:
 
     # Provided by PyPIClient.
     http: AsyncHTTPClient
-    config: PyPIClientConfig
-    _has_plotly: bool
 
     if TYPE_CHECKING:
 
@@ -255,44 +251,7 @@ class DependencyOpsMixin:
             # Build the tree
             tree = await build_tree()
 
-            # Generate visualization if Plotly is available
-            visualization_url = None
-            if self._has_plotly:
-                try:
-                    # pyrefly: ignore[missing-import]  # optional dep, absent from the lock file
-                    import plotly.graph_objects as go
-
-                    # pyrefly: ignore[missing-import]  # optional dep, absent from the lock file
-                    import plotly.io as pio
-
-                    # Create a simple tree visualization
-                    labels = [f"{node.split(' ')[0]}" for node in flat_list]
-                    parents = [""] + ["Root"] * (len(flat_list) - 1)
-
-                    fig = go.Figure(
-                        go.Treemap(labels=labels, parents=parents, root_color="lightgrey")
-                    )
-
-                    fig.update_layout(
-                        title=f"Dependency Tree for {sanitized_name} {sanitized_version}",
-                        margin=dict(t=50, l=25, r=25, b=25),
-                    )
-
-                    # Save to temp file
-                    viz_file = os.path.join(
-                        self.config.cache_dir,
-                        f"deptree_{sanitized_name}_{sanitized_version}.html",
-                    )
-                    pio.write_html(fig, viz_file)
-                    visualization_url = f"file://{viz_file}"
-                except Exception as e:
-                    logger.warning(f"Failed to generate visualization: {e}")
-
             result: DependencyTreeResult = {"tree": tree, "flat_list": flat_list}
-
-            if visualization_url:
-                result["visualization_url"] = visualization_url
-
             return result
         except ValueError as e:
             return cast(DependencyTreeResult, format_error(ErrorCode.INVALID_INPUT, str(e)))

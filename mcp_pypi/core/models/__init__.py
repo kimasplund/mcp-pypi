@@ -238,7 +238,6 @@ class DependencyTreeResult(TypedDict):
     error: NotRequired[ErrorDict]
     tree: NotRequired[TreeNode]
     flat_list: NotRequired[list[str]]
-    visualization_url: NotRequired[str | None]
     package: NotRequired[str]
     version: NotRequired[str]
 
