@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Literal
 
@@ -191,6 +192,104 @@ def _resolve_targets(path: str) -> tuple[Path, list[Path]]:
     return root, files
 
 
+async def run_audit(
+    client: PyPIClient,
+    path: str,
+    detail: Literal["summary", "full"] = "summary",
+    progress: Callable[[float, float], Awaitable[None]] | None = None,
+) -> ProjectAudit:
+    """Audit the dependency files under `path`; shared by the MCP tool and the CLI."""
+
+    async def report(done: float, total: float) -> None:
+        if progress is not None:
+            await progress(done, total)
+
+    root, files = _resolve_targets(path)
+    steps = len(files) + 1
+    parsed: list[tuple[Path, str, list[DeclaredDependency]]] = []
+    audited: list[AuditedFile] = []
+    bad_files = 0
+    for i, file in enumerate(files):
+        kind = file_kind(file)
+        try:
+            parsed.append((file, kind, parse_dependency_file(file)))
+        except DependencyFileError as exc:
+            audited.append(AuditedFile(path=str(file), kind=kind, error=str(exc)))
+            bad_files += 1
+        await report(i + 1, steps)
+
+    names = {d.normalized_name for _, _, deps in parsed for d in deps}
+    infos = await _package_infos(client, names)
+    latest = {n: _latest_of(i) for n, i in infos.items()}
+    checked: dict[tuple[Path, int], str | None] = {}
+    choice_errors: dict[tuple[Path, int], str] = {}
+    pairs: dict[Key, Key] = {}
+    for file, _, deps in parsed:
+        for i, dep in enumerate(deps):
+            version, err = _choose_version(dep, infos[dep.normalized_name])
+            if err:
+                choice_errors[(file, i)] = err
+            checked[(file, i)] = version
+            if version:
+                pairs.setdefault((dep.normalized_name, version), (dep.normalized_name, version))
+    outcomes: dict[Key, dict[str, Any] | str] = {}
+    if pairs:
+        outcomes = await query_osv(client, list(pairs.values()))
+    await report(steps, steps)
+
+    totals = AuditTotals(files=len(files), files_with_errors=bad_files)
+    vulnerable: dict[str, tuple[AuditedDependency, int]] = {}
+    for file, kind, deps in parsed:
+        out: list[AuditedDependency] = []
+        for i, dep in enumerate(deps):
+            norm, version = dep.normalized_name, checked[(file, i)]
+            item = AuditedDependency(
+                name=dep.name,
+                specifier=dep.specifier,
+                group=dep.group,
+                checked_version=version,
+                latest_version=latest[norm],
+                outdated=_is_outdated(version, latest[norm]),
+            )
+            res = outcomes.get((norm, version)) if version else None
+            total = 0
+            if version is None:
+                item.error = choice_errors[(file, i)]
+            elif res is None or isinstance(res, str):
+                item.error = res or "No result returned from OSV"
+            else:
+                total, _ = vulnerability_totals(res)
+                item.vulnerable = total > 0
+                item.vulnerabilities = [
+                    VulnerabilityItem.from_core(v) for v in res.get("vulnerabilities", [])
+                ]
+            totals.dependencies += 1
+            totals.unchecked += 1 if item.error else 0
+            totals.outdated += 1 if item.outdated else 0
+            totals.vulnerable += 1 if item.vulnerable else 0
+            totals.vulnerabilities += total
+            if item.vulnerable:
+                vulnerable.setdefault(norm, (item, total))
+            if detail == "full" or item.vulnerable or item.outdated or item.error:
+                out.append(item)
+        audited.append(AuditedFile(path=str(file), kind=kind, dependencies=out))
+    if totals.dependencies and totals.unchecked == totals.dependencies:
+        raise ToolError(ALL_FAILED)
+
+    audited.sort(key=lambda f: f.path)
+    warnings = _consistency_warnings(parsed)
+    return ProjectAudit(
+        path=str(root),
+        files=audited,
+        consistency_warnings=warnings,
+        totals=totals,
+        recommendations=_recommendations(
+            vulnerable, parsed, warnings, totals.unchecked, bad_files
+        ),
+        summary=_summary(totals, vulnerable, warnings),
+    )
+
+
 def register_project_tools(mcp: FastMCP, client: PyPIClient) -> None:
     """Register the project tools."""
 
@@ -211,87 +310,4 @@ def register_project_tools(mcp: FastMCP, client: PyPIClient) -> None:
         reported as clean. `detail="summary"` lists only vulnerable, outdated or
         unchecked dependencies per file; totals always cover everything.
         """
-        root, files = _resolve_targets(path)
-        steps = len(files) + 1
-        parsed: list[tuple[Path, str, list[DeclaredDependency]]] = []
-        audited: list[AuditedFile] = []
-        bad_files = 0
-        for i, file in enumerate(files):
-            kind = file_kind(file)
-            try:
-                parsed.append((file, kind, parse_dependency_file(file)))
-            except DependencyFileError as exc:
-                audited.append(AuditedFile(path=str(file), kind=kind, error=str(exc)))
-                bad_files += 1
-            await ctx.report_progress(i + 1, steps)
-
-        names = {d.normalized_name for _, _, deps in parsed for d in deps}
-        infos = await _package_infos(client, names)
-        latest = {n: _latest_of(i) for n, i in infos.items()}
-        checked: dict[tuple[Path, int], str | None] = {}
-        choice_errors: dict[tuple[Path, int], str] = {}
-        pairs: dict[Key, Key] = {}
-        for file, _, deps in parsed:
-            for i, dep in enumerate(deps):
-                version, err = _choose_version(dep, infos[dep.normalized_name])
-                if err:
-                    choice_errors[(file, i)] = err
-                checked[(file, i)] = version
-                if version:
-                    pairs.setdefault((dep.normalized_name, version), (dep.normalized_name, version))
-        outcomes: dict[Key, dict[str, Any] | str] = {}
-        if pairs:
-            outcomes = await query_osv(client, list(pairs.values()))
-        await ctx.report_progress(steps, steps)
-
-        totals = AuditTotals(files=len(files), files_with_errors=bad_files)
-        vulnerable: dict[str, tuple[AuditedDependency, int]] = {}
-        for file, kind, deps in parsed:
-            out: list[AuditedDependency] = []
-            for i, dep in enumerate(deps):
-                norm, version = dep.normalized_name, checked[(file, i)]
-                item = AuditedDependency(
-                    name=dep.name,
-                    specifier=dep.specifier,
-                    group=dep.group,
-                    checked_version=version,
-                    latest_version=latest[norm],
-                    outdated=_is_outdated(version, latest[norm]),
-                )
-                res = outcomes.get((norm, version)) if version else None
-                total = 0
-                if version is None:
-                    item.error = choice_errors[(file, i)]
-                elif res is None or isinstance(res, str):
-                    item.error = res or "No result returned from OSV"
-                else:
-                    total, _ = vulnerability_totals(res)
-                    item.vulnerable = total > 0
-                    item.vulnerabilities = [
-                        VulnerabilityItem.from_core(v) for v in res.get("vulnerabilities", [])
-                    ]
-                totals.dependencies += 1
-                totals.unchecked += 1 if item.error else 0
-                totals.outdated += 1 if item.outdated else 0
-                totals.vulnerable += 1 if item.vulnerable else 0
-                totals.vulnerabilities += total
-                if item.vulnerable:
-                    vulnerable.setdefault(norm, (item, total))
-                if detail == "full" or item.vulnerable or item.outdated or item.error:
-                    out.append(item)
-            audited.append(AuditedFile(path=str(file), kind=kind, dependencies=out))
-        if totals.dependencies and totals.unchecked == totals.dependencies:
-            raise ToolError(ALL_FAILED)
-
-        audited.sort(key=lambda f: f.path)
-        warnings = _consistency_warnings(parsed)
-        return ProjectAudit(
-            path=str(root),
-            files=audited,
-            consistency_warnings=warnings,
-            totals=totals,
-            recommendations=_recommendations(
-                vulnerable, parsed, warnings, totals.unchecked, bad_files
-            ),
-            summary=_summary(totals, vulnerable, warnings),
-        )
+        return await run_audit(client, path, detail, ctx.report_progress)

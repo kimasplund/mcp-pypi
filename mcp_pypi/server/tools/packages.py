@@ -61,7 +61,7 @@ def _version_entry(version: str, files: list[dict[str, Any]]) -> VersionEntry:
     )
 
 
-def register_packages_tools(mcp: FastMCP, client: PyPIClient) -> None:
+def register_package_tools(mcp: FastMCP, client: PyPIClient) -> None:
     """Register the package lookup tools."""
 
     @mcp.tool(title="Search PyPI packages", annotations=TOOL_ANNOTATIONS, timeout=60)

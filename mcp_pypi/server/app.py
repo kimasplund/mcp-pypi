@@ -13,8 +13,8 @@ from mcp_pypi.core.models import PyPIClientConfig
 from mcp_pypi.server.instructions import INSTRUCTIONS
 from mcp_pypi.server.prompts import register_prompts
 from mcp_pypi.server.resources import register_resources
-from mcp_pypi.server.tools.dependencies import register_dependencies_tools
-from mcp_pypi.server.tools.packages import register_packages_tools
+from mcp_pypi.server.tools.dependencies import register_dependency_tools
+from mcp_pypi.server.tools.packages import register_package_tools
 from mcp_pypi.server.tools.project import register_project_tools
 from mcp_pypi.server.tools.security import register_security_tools
 
@@ -40,8 +40,8 @@ def build_server(
         mask_error_details=True,
         lifespan=_lifespan,
     )
-    register_packages_tools(mcp, client)
-    register_dependencies_tools(mcp, client)
+    register_package_tools(mcp, client)
+    register_dependency_tools(mcp, client)
     register_security_tools(mcp, client)
     register_project_tools(mcp, client)
     register_resources(mcp, client)

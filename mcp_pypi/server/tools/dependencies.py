@@ -32,7 +32,7 @@ def _node(raw: dict[str, Any]) -> DependencyNode:
     )
 
 
-def register_dependencies_tools(mcp: FastMCP, client: PyPIClient) -> None:
+def register_dependency_tools(mcp: FastMCP, client: PyPIClient) -> None:
     """Register the dependencies tools."""
 
     @mcp.tool(title="Get package dependencies", annotations=TOOL_ANNOTATIONS, timeout=60)
