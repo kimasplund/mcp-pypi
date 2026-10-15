@@ -153,7 +153,10 @@ class PackageVulnerabilities(BaseModel):
     version: str | None = None
     vulnerable: bool = False
     vulnerabilities: list[VulnerabilityItem] = Field(default_factory=list)
+    total_vulnerabilities: int = 0
+    vulnerabilities_truncated: bool = False
     introduced_via: list[str] = Field(default_factory=list)
+    note: str | None = None
     error: str | None = None
 
 
@@ -171,5 +174,6 @@ class InstalledScan(BaseModel):
     packages_scanned: int
     vulnerable: list[PackageVulnerabilities] = Field(default_factory=list)
     all_clear: bool
+    unchecked: list[str] = Field(default_factory=list)
     update_commands: list[str] = Field(default_factory=list)
     recommendation: str

@@ -20,12 +20,31 @@ def vuln(vid="PYSEC-1", severity="HIGH") -> dict[str, Any]:
     }
 
 
+def _counts(vulns: tuple) -> dict[str, Any]:
+    out: dict[str, Any] = {"total_vulnerabilities": len(vulns)}
+    for sev in ("critical", "high", "medium", "low"):
+        out[f"{sev}_count"] = sum(1 for v in vulns if str(v.get("severity")).lower() == sev)
+    return out
+
+
 def clean(name: str, version: str) -> dict[str, Any]:
-    return {"package": name, "version": version, "vulnerabilities": [], "vulnerable": False}
+    return {
+        "package": name,
+        "version": version,
+        "vulnerabilities": [],
+        "vulnerable": False,
+        "total_vulnerabilities": 0,
+    }
 
 
 def dirty(name: str, version: str, *vulns) -> dict[str, Any]:
-    return {"package": name, "version": version, "vulnerabilities": list(vulns), "vulnerable": True}
+    return {
+        "package": name,
+        "version": version,
+        "vulnerabilities": list(vulns),
+        "vulnerable": True,
+        **_counts(vulns),
+    }
 
 
 def latest(version="9.9"):
@@ -170,11 +189,12 @@ async def test_progress_reported(fake_client, mcp_client):
 def pip_list(monkeypatch):
     seen: list[str] = []
 
-    async def fake(pip_cmd):
-        seen.append(pip_cmd)
-        return [{"name": "django", "version": "3.0"}, {"name": "flask", "version": "3.0"}]
+    async def fake(python_exe):
+        seen.append(python_exe)
+        return [("django", "3.0"), ("flask", "3.0")]
 
-    monkeypatch.setattr(security, "_pip_list", fake)
+    monkeypatch.setattr(security, "_list_installed", fake)
+    monkeypatch.setattr(security, "_find_environment", lambda p: (p or "/env", "/env/bin/python"))
     return seen
 
 
@@ -203,14 +223,283 @@ async def test_scan_installed_rejects_traversal(mcp_client, pip_list):
     assert pip_list == []
 
 
-async def test_pip_list_failure_and_timeout(monkeypatch, tmp_path):
+async def test_list_installed_failure_and_timeout(monkeypatch, tmp_path):
     from fastmcp.exceptions import ToolError
 
     monkeypatch.setattr(security, "PIP_TIMEOUT", 0.2)
-    slow = tmp_path / "slow-pip"
+    slow = tmp_path / "slow-python"
     slow.write_text("#!/bin/sh\nexec sleep 5\n")
     slow.chmod(0o755)
-    with pytest.raises(ToolError, match="Cannot run pip"):
-        await security._pip_list("/nonexistent/pip-xyz")
+    with pytest.raises(ToolError, match="Cannot run"):
+        await security._list_installed("/nonexistent/python-xyz")
     with pytest.raises(ToolError, match="timed out"):
-        await security._pip_list(str(slow))
+        await security._list_installed(str(slow))
+
+
+# --- fix round 1 -----------------------------------------------------------------------
+
+
+def osv(vid: str, name: str, severity: str = "HIGH") -> dict[str, Any]:
+    return {
+        "id": vid,
+        "summary": "bad",
+        "database_specific": {"severity": severity},
+        "aliases": ["CVE-2024-1"],
+        "affected": [
+            {
+                "package": {"name": name, "ecosystem": "PyPI"},
+                "ranges": [{"events": [{"introduced": "0"}, {"fixed": "99"}]}],
+            }
+        ],
+    }
+
+
+@pytest.fixture
+async def real(request):
+    """A server over the REAL PyPIClient batch code with a fake OSV http layer."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from fastmcp import Client
+
+    from mcp_pypi.core import PyPIClient
+    from mcp_pypi.core.cache import AsyncCacheManager
+    from mcp_pypi.core.http import AsyncHTTPClient
+    from mcp_pypi.core.models import PyPIClientConfig
+    from mcp_pypi.core.stats import PackageStatsService
+    from mcp_pypi.server.app import build_server
+
+    osv_db: dict[str, list] = {}  # normalized OSV name -> vulns
+
+    async def fetch(url, method="GET", headers=None, data=None, **kw):
+        if data is None:  # package-exists GET made by the single-package path
+            return {"info": {"name": "x", "version": "1"}}
+        payload = json.loads(data)
+        if "queries" not in payload:  # single-package OSV query
+            return {"vulns": osv_db.get(payload["package"]["name"], [])}
+        queries = payload["queries"]
+        return {"results": [{"vulns": osv_db.get(q["package"]["name"], [])} for q in queries]}
+
+    http = AsyncMock(spec=AsyncHTTPClient)
+    http.fetch = AsyncMock(side_effect=fetch)
+    cache = MagicMock(spec=AsyncCacheManager)
+    cache.get = AsyncMock(return_value=None)
+    cache.set = AsyncMock()
+    client = PyPIClient(
+        config=PyPIClientConfig(),
+        http_client=http,
+        cache_manager=cache,
+        stats_service=AsyncMock(spec=PackageStatsService),
+    )
+    async with Client(build_server(client=client)) as c:
+        yield client, c, osv_db
+
+
+async def test_batch_lookup_handles_mixed_case_and_underscores(real):
+    _client, c, db = real
+    db["django"] = [osv("D-1", "Django")]
+    db["pyyaml"] = [osv("Y-1", "PyYAML", "CRITICAL")]
+    db["typing-extensions"] = [osv("T-1", "typing-extensions", "LOW")]
+    specs = ["Django==4.2", "flask==3.0", "typing_extensions==4.0", "PyYAML==5.1", "Jinja2==3.0"]
+    d = (await c.call_tool("check_vulnerabilities", {"packages": specs})).structured_content
+    assert [r["error"] for r in d["results"]] == [None] * 5
+    assert [r["vulnerable"] for r in d["results"]] == [True, False, True, True, False]
+    assert d["vulnerable_packages"] == 3
+    assert d["severity_counts"]["critical"] == 1
+    assert [r["package"] for r in d["results"]][0] == "Django"
+
+
+async def test_transitive_handles_requires_dist_spelling(real):
+    client, c, db = real
+    client.get_dependency_tree = _tree_mock(
+        {
+            "name": "flask",
+            "version": "3.0",
+            "dependencies": [
+                {"name": "Werkzeug", "version": "2.0", "dependencies": []},
+                {"name": "Jinja2", "version": "3.0", "dependencies": []},
+            ],
+        }
+    )
+    db["werkzeug"] = [osv("W-1", "Werkzeug")]
+    d = (
+        await c.call_tool(
+            "check_vulnerabilities", {"packages": ["flask==3.0"], "include_transitive": True}
+        )
+    ).structured_content
+    hit = [r for r in d["results"] if r["vulnerable"]]
+    assert [(r["package"], r["introduced_via"]) for r in hit] == [
+        ("Werkzeug", ["flask", "Werkzeug"])
+    ]
+    assert d["transitive_checked"] is True
+
+
+def _tree_mock(tree):
+    from unittest.mock import AsyncMock
+
+    return AsyncMock(return_value={"tree": tree})
+
+
+async def test_scan_handles_mixed_case_installed_names(real, monkeypatch):
+    _client, c, db = real
+    db["django"] = [osv("D-1", "Django")]
+    db["pyyaml"] = [osv("Y-1", "PyYAML")]
+
+    async def fake(python_exe):
+        return [("Django", "3.0"), ("PyYAML", "5.1"), ("flask", "3.0")]
+
+    monkeypatch.setattr(security, "_list_installed", fake)
+    monkeypatch.setattr(security, "_find_environment", lambda p: ("/env", "/env/bin/python"))
+    d = (await c.call_tool("scan_installed_packages", {})).structured_content
+    assert sorted(v["package"] for v in d["vulnerable"]) == ["Django", "PyYAML"]
+    assert d["unchecked"] == []
+
+
+async def test_epoch_item_is_per_item_error(real):
+    _client, c, db = real
+    db["django"] = [osv("D-1", "Django")]
+    res = await c.call_tool(
+        "check_vulnerabilities",
+        {"packages": ["Django==4.2", "x==1!2.0", "flask==3.0"]},
+        raise_on_error=False,
+    )
+    assert not res.is_error
+    r = res.structured_content["results"]
+    assert r[0]["vulnerable"] is True
+    assert "Invalid version" in r[1]["error"]
+    assert r[2]["error"] is None
+
+
+async def test_scan_epoch_package_is_unchecked_not_fatal(real, monkeypatch):
+    _client, c, db = real
+    db["django"] = [osv("D-1", "Django")]
+
+    async def fake(python_exe):
+        return [("Django", "3.0"), ("weird", "1!2.0")]
+
+    monkeypatch.setattr(security, "_list_installed", fake)
+    monkeypatch.setattr(security, "_find_environment", lambda p: ("/env", "/env/bin/python"))
+    d = (await c.call_tool("scan_installed_packages", {})).structured_content
+    assert d["unchecked"] == ["weird"]
+    assert d["all_clear"] is False
+    assert "1 package" in d["recommendation"]
+
+
+async def test_totals_use_core_counts_and_flag_truncation(fake_client, mcp_client):
+    listed = [vuln(f"V-{i}", "HIGH") for i in range(20)]
+    res = dirty("django", "4.2", *listed)
+    res.update(
+        total_vulnerabilities=25, critical_count=5, high_count=10, medium_count=5, low_count=3
+    )
+    fake_client.check_vulnerabilities.return_value = res
+    d = (
+        await mcp_client.call_tool("check_vulnerabilities", {"packages": ["django==4.2"]})
+    ).structured_content
+    assert d["total_vulnerabilities"] == 25
+    assert d["severity_counts"] == {"critical": 5, "high": 10, "medium": 5, "low": 3, "unknown": 2}
+    item = d["results"][0]
+    assert item["vulnerabilities_truncated"] is True
+    assert item["total_vulnerabilities"] == 25
+    assert len(item["vulnerabilities"]) == 20
+
+
+async def test_failed_tree_is_reported_and_not_claimed(fake_client, mcp_client):
+    fake_client.check_vulnerabilities.return_value = clean("flask", "3.0")
+    fake_client.get_dependency_tree.return_value = NOT_FOUND
+    d = (
+        await mcp_client.call_tool(
+            "check_vulnerabilities", {"packages": ["flask==3.0"], "include_transitive": True}
+        )
+    ).structured_content
+    assert d["transitive_checked"] is False
+    assert "dependency tree could not be resolved" in d["results"][0]["note"]
+
+
+async def test_unresolvable_versions_are_never_queried_as_all(fake_client, mcp_client):
+    fake_client.get_package_info.return_value = {"info": {}}
+    fake_client.get_dependency_tree.return_value = {
+        "tree": {
+            "name": "flask",
+            "version": "3.0",
+            "dependencies": [{"name": "mystery", "version": None, "dependencies": []}],
+        }
+    }
+    fake_client.check_vulnerabilities.return_value = clean("flask", "3.0")
+    d = (
+        await mcp_client.call_tool(
+            "check_vulnerabilities",
+            {"packages": ["flask==3.0", "unpinned"], "include_transitive": True},
+        )
+    ).structured_content
+    by = {r["package"]: r for r in d["results"]}
+    assert "could not resolve version" in by["unpinned"]["error"].lower()
+    assert "could not resolve version" in by["mystery"]["error"].lower()
+    for call in fake_client.check_vulnerabilities.await_args_list:
+        assert call.args[1] is not None
+    fake_client.check_vulnerabilities_batch.assert_not_called()
+
+
+async def test_scan_all_lookups_failed_raises(fake_client, mcp_client, pip_list):
+    fake_client.check_vulnerabilities_batch.return_value = {"results": {}, "errors": []}
+    res = await mcp_client.call_tool("scan_installed_packages", {}, raise_on_error=False)
+    assert res.is_error
+    assert "Could not check" in res.content[0].text
+
+
+async def test_scan_partial_failure_is_not_all_clear(fake_client, mcp_client, pip_list):
+    fake_client.check_vulnerabilities_batch.return_value = {
+        "results": {"django:3.0": clean("django", "3.0")},
+        "errors": [{"package": "flask:3.0", "error": "boom"}],
+    }
+    d = (await mcp_client.call_tool("scan_installed_packages", {})).structured_content
+    assert d["unchecked"] == ["flask"]
+    assert d["all_clear"] is False
+    assert "1 package" in d["recommendation"]
+
+
+def _make_venv(path):
+    import subprocess
+    import sys
+
+    try:
+        subprocess.run([sys.executable, "-m", "venv", "--without-pip", str(path)], check=True)
+    except (subprocess.CalledProcessError, OSError):
+        pytest.skip("cannot create a venv here")
+    sites = list(path.glob("lib/python*/site-packages")) or list(path.glob("Lib/site-packages"))
+    if not sites:
+        pytest.skip("unexpected venv layout")
+    dist = sites[0] / "Foo_Bar-1.0.dist-info"
+    dist.mkdir()
+    (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: Foo_Bar\nVersion: 1.0\n")
+
+
+async def test_scan_uses_env_interpreter_without_pip(real, tmp_path):
+    _client, c, db = real
+    venv = tmp_path / "env1"
+    _make_venv(venv)
+    db["foo-bar"] = [osv("F-1", "foo-bar")]
+    d = (
+        await c.call_tool("scan_installed_packages", {"environment_path": str(venv)})
+    ).structured_content
+    assert d["environment_path"] == str(venv)
+    assert [(v["package"], v["version"]) for v in d["vulnerable"]] == [("Foo_Bar", "1.0")]
+    assert (
+        "python" in d["update_commands"][0] and "pip install --upgrade" in d["update_commands"][0]
+    )
+
+
+async def test_scan_autodetects_venv_in_cwd(real, tmp_path, monkeypatch):
+    _client, c, _db = real
+    _make_venv(tmp_path / ".venv")
+    monkeypatch.chdir(tmp_path)
+    d = (await c.call_tool("scan_installed_packages", {})).structured_content
+    assert d["environment_path"] == str(tmp_path / ".venv")
+    assert d["packages_scanned"] == 1
+
+
+async def test_scan_without_environment_requires_path(
+    fake_client, mcp_client, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    res = await mcp_client.call_tool("scan_installed_packages", {}, raise_on_error=False)
+    assert res.is_error
+    assert "environment_path" in res.content[0].text
