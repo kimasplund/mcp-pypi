@@ -12,6 +12,7 @@ from packaging.version import Version
 
 from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import (
+    ChangelogResult,
     DocumentationResult,
     ErrorCode,
     VersionComparisonResult,
@@ -192,27 +193,34 @@ class SearchOpsMixin:
             logger.exception(f"Error getting documentation URL: {e}")
             return cast(DocumentationResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
-    async def get_package_changelog(self, package_name: str, version: str | None = None) -> str:
+    async def get_package_changelog(
+        self, package_name: str, version: str | None = None
+    ) -> ChangelogResult:
         """Get changelog for a package.
 
-        This method attempts to retrieve changelog information from:
-        1. Package metadata project_urls for changelog link
-        2. GitHub releases if the package has a GitHub repository
-        3. Common changelog file names in the package distribution
-
-        Args:
-            package_name: Name of the package
-            version: Specific version (optional, defaults to latest)
-
-        Returns:
-            Changelog text or appropriate message
+        Returns {"package_name", "version", "changelog"} on success, or an error dict
+        (not_found, network_error, ...) when the package cannot be looked up.
         """
         try:
-            # Get package info to find changelog URL
-            info_result = await self.get_package_info(package_name)
+            sanitized_name = sanitize_package_name(package_name)
+            info_result = await self.get_package_info(sanitized_name)
             if "error" in info_result:
-                return f"Package {package_name} not found"
+                return cast(ChangelogResult, info_result)
+            text = await self._changelog_text(package_name, info_result)
+            return {"package_name": package_name, "version": version, "changelog": text}
+        except ValueError as e:
+            return cast(ChangelogResult, format_error(ErrorCode.INVALID_INPUT, str(e)))
+        except Exception as e:
+            logger.error(f"Error getting changelog for {package_name}: {e}")
+            return cast(ChangelogResult, format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
+    async def _changelog_text(self, package_name: str, info_result: Any) -> str:
+        """Find changelog text from package metadata, GitHub releases or project URLs.
+
+        Tries project_urls for a changelog link, GitHub releases for that link,
+        then a GitHub repository hint, then lists the available URLs.
+        """
+        try:
             info = info_result.get("info", {})
             project_urls = info.get("project_urls") or {}
 
@@ -327,5 +335,5 @@ class SearchOpsMixin:
                 return f"No changelog information available for {package_name}"
 
         except Exception as e:
-            logger.error(f"Error getting changelog for {package_name}: {e}")
-            return f"Error retrieving changelog: {str(e)}"
+            logger.error(f"Error building changelog for {package_name}: {e}")
+            raise

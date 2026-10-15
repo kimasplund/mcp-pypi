@@ -176,7 +176,9 @@ def register_file_tools(server: "PyPIMCPServer") -> None:
         """
         try:
             result = await server.client.get_package_changelog(package_name, version)
-            return result if isinstance(result, str) else "No changelog available"
+            if "error" in result:
+                return f"Error getting changelog: {result['error'].get('message', 'unknown error')}"
+            return result.get("changelog") or "No changelog available"
         except Exception as e:
             logger.error(f"Error getting package changelog: {e}")
             return f"Error getting changelog: {str(e)}"

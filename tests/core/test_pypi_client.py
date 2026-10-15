@@ -602,6 +602,58 @@ async def test_get_package_info_error(client, mock_http_client):
 
 
 @pytest.mark.asyncio
+async def test_get_package_info_pinned_version_url(client, mock_http_client):
+    mock_http_client.fetch.return_value = {"info": {"name": "pkg", "version": "1.2.3"}}
+
+    result = await client.get_package_info("pkg", "1.2.3")
+
+    assert result["info"]["version"] == "1.2.3"
+    mock_http_client.fetch.assert_called_once_with("https://pypi.org/pypi/pkg/1.2.3/json")
+
+
+@pytest.mark.asyncio
+async def test_get_package_info_pinned_version_not_found(client, mock_http_client):
+    mock_http_client.fetch.return_value = {"error": {"code": "not_found", "message": "gone"}}
+
+    result = await client.get_package_info("pkg", "9.9.9")
+
+    assert result["error"]["code"] == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_get_package_info_rejects_bad_version(client, mock_http_client):
+    result = await client.get_package_info("pkg", "1.0/../x")
+
+    assert result["error"]["code"] == "invalid_input"
+    mock_http_client.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_package_changelog_returns_dict(client):
+    client.get_package_info = AsyncMock(
+        return_value={"info": {"project_urls": {"Source": "https://github.com/o/r"}}}
+    )
+
+    result = await client.get_package_changelog("pkg", "1.0")
+
+    assert result["package_name"] == "pkg"
+    assert result["version"] == "1.0"
+    assert "https://github.com/o/r/releases" in result["changelog"]
+
+
+@pytest.mark.asyncio
+async def test_get_package_changelog_error_dict(client):
+    client.get_package_info = AsyncMock(
+        return_value={"error": {"code": "not_found", "message": "nope"}}
+    )
+
+    result = await client.get_package_changelog("pkg")
+
+    assert result["error"]["code"] == "not_found"
+    assert "changelog" not in result
+
+
+@pytest.mark.asyncio
 async def test_get_latest_version_success(client, mock_http_client):
     """Test getting latest version with successful response."""
     # Setup mock response

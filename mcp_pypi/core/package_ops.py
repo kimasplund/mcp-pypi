@@ -26,11 +26,14 @@ logger = logging.getLogger("mcp-pypi.client")
 class PackageOpsMixin:
     """Mixin providing package information operations."""
 
-    async def get_package_info(self, package_name: str) -> PackageInfo:
-        """Get detailed package information from PyPI."""
+    async def get_package_info(self, package_name: str, version: str | None = None) -> PackageInfo:
+        """Get detailed package information from PyPI (a pinned version if given)."""
         try:
             sanitized_name = sanitize_package_name(package_name)
-            url = f"https://pypi.org/pypi/{sanitized_name}/json"
+            if version:
+                url = f"https://pypi.org/pypi/{sanitized_name}/{sanitize_version(version)}/json"
+            else:
+                url = f"https://pypi.org/pypi/{sanitized_name}/json"
 
             result = await self.http.fetch(url)
 

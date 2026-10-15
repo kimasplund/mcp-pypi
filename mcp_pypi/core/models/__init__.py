@@ -219,6 +219,13 @@ class StatsResult(TypedDict):
     package_name: NotRequired[str]
 
 
+class ChangelogResult(TypedDict):
+    error: NotRequired[ErrorDict]
+    package_name: NotRequired[str]
+    version: NotRequired[str | None]
+    changelog: NotRequired[str]
+
+
 class TreeNode(TypedDict):
     name: str
     version: str | None

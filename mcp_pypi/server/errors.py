@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any, cast
 
 from fastmcp.exceptions import ToolError
 
@@ -34,15 +35,19 @@ def _message(error: dict, package: str | None, suggestions: Sequence[str]) -> st
     return f"Unexpected error ({code})"
 
 
-def unwrap(result: dict, *, package: str | None = None, suggestions: Sequence[str] = ()) -> dict:
+def unwrap(
+    result: Mapping[str, Any], *, package: str | None = None, suggestions: Sequence[str] = ()
+) -> dict[str, Any]:
     """Return `result` unchanged, or raise ToolError if it is a core error."""
     error = result.get("error")
     if not error:
-        return result
+        return cast(dict[str, Any], result)
     raise ToolError(_message(error, package, suggestions))
 
 
-async def checked(result: dict, *, client: PyPIClient, package: str | None = None) -> dict:
+async def checked(
+    result: Mapping[str, Any], *, client: PyPIClient, package: str | None = None
+) -> dict[str, Any]:
     """Like `unwrap`, adding "did you mean" suggestions for unknown packages."""
     error = result.get("error")
     suggestions: list[str] = []

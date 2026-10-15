@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -28,3 +30,79 @@ class VulnerabilityItem(BaseModel):
             affected_versions=list(v.get("affected_versions") or []),
             references=[r for r in refs if r],
         )
+
+
+class SearchHit(BaseModel):
+    name: str
+    version: str | None = None
+    summary: str | None = None
+    package_url: str
+    popularity_rank: int | None = None
+
+
+class SearchResults(BaseModel):
+    query: str
+    results: list[SearchHit] = Field(default_factory=list)
+    total_candidates: int
+    note: str | None = None
+
+
+class PackageDetails(BaseModel):
+    package_name: str
+    version: str
+    latest_version: str
+    summary: str | None = None
+    requires_python: str | None = None
+    license: str | None = None
+    author: str | None = None
+    maintainer: str | None = None
+    homepage_url: str | None = None
+    documentation_url: str | None = None
+    source_url: str | None = None
+    changelog_url: str | None = None
+    project_urls: dict[str, str] = Field(default_factory=dict)
+    classifiers: list[str] = Field(default_factory=list)
+    yanked: bool = False
+    yanked_reason: str | None = None
+    release_count: int
+    latest_upload_time: str | None = None
+    package_url: str
+
+
+class VersionEntry(BaseModel):
+    version: str
+    upload_time: str | None = None
+    yanked: bool = False
+    yanked_reason: str | None = None
+    file_types: list[str] = Field(default_factory=list)
+
+
+class PackageVersions(BaseModel):
+    package_name: str
+    versions: list[VersionEntry] = Field(default_factory=list)
+    total: int
+    offset: int
+    limit: int
+    has_more: bool
+
+
+class VersionComparison(BaseModel):
+    package_name: str
+    version1: str
+    version2: str
+    newer: Literal["version1", "version2", "equal"]
+    comparison: str
+
+
+class Changelog(BaseModel):
+    package_name: str
+    version: str | None = None
+    changelog: str
+
+
+class DownloadStats(BaseModel):
+    package_name: str
+    last_day: int | None = None
+    last_week: int | None = None
+    last_month: int | None = None
+    source: str = "pypistats.org"
