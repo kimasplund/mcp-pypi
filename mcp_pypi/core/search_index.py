@@ -36,6 +36,7 @@ POPULARITY_WEIGHT = 100  # points per tenfold downloads
 POPULARITY_FLOOR = 10_000  # monthly downloads worth 0 points
 POPULAR_POOL = 10  # most-downloaded matching names always enriched
 FAILURE_BACKOFF = timedelta(seconds=60)
+INDEX_TIMEOUT = 120.0  # seconds; the Simple index is a ~40 MB download
 _SCAN_CAP = 50_000  # max raw substring hits gathered per query term
 
 
@@ -59,6 +60,7 @@ class _DiskBacked:
 
     url: str
     headers: dict[str, str] = {}
+    timeout: float | None = None  # per-request override of PYPI_TIMEOUT
     data_file: str
     meta_file: str
 
@@ -121,7 +123,7 @@ class _DiskBacked:
         if self._data is not None and self._etag:
             headers["If-None-Match"] = self._etag
         try:
-            response = await self.http.fetch_raw(self.url, headers)
+            response = await self.http.fetch_raw(self.url, headers, total_timeout=self.timeout)
             if response.status == 200:
                 data, stored = await asyncio.to_thread(self._parse, response.body)
                 etag = response.headers.get("etag")
@@ -180,6 +182,7 @@ class NameIndex(_DiskBacked):
 
     url = INDEX_URL
     headers = {"Accept": INDEX_ACCEPT}
+    timeout = INDEX_TIMEOUT
     data_file = "simple-index.txt.gz"
     meta_file = "simple-index.meta.json"
 

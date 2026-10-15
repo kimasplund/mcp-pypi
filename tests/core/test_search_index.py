@@ -48,9 +48,11 @@ class FakeHTTP:
         self.etag = etag
         self.error = error
         self.calls: list[tuple[str, dict[str, str]]] = []
+        self.timeouts: list[float | None] = []
 
-    async def fetch_raw(self, url, headers=None):
+    async def fetch_raw(self, url, headers=None, total_timeout=None):
         self.calls.append((url, dict(headers or {})))
+        self.timeouts.append(total_timeout)
         await asyncio.sleep(0)
         if self.error:
             raise self.error
@@ -426,3 +428,13 @@ async def test_enrichment_always_includes_most_popular_token_matches(tmp_path):
         reverse=True,
     )[:10]
     assert set(popular) <= enriched
+
+
+async def test_index_download_has_its_own_long_timeout(tmp_path):
+    http = FakeHTTP()
+    await NameIndex(http, tmp_path).names()
+    assert http.timeouts == [120]
+    body = json.dumps({"rows": [{"project": "x", "download_count": 1}]}).encode()
+    pop_http = FakeHTTP(body=body)
+    await Popularity(pop_http, tmp_path).downloads()
+    assert pop_http.timeouts == [None]

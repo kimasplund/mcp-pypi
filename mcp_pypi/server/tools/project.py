@@ -35,6 +35,11 @@ from mcp_pypi.utils.validation import validate_file_path
 
 LOCK_KINDS = frozenset({"pipfile.lock", "poetry.lock"})
 MAX_SUMMARY_PACKAGES = 20
+MAX_FILES = 50
+DISCOVERY_CAPPED = (
+    f"Discovery stopped at {MAX_FILES} dependency files; audit a subdirectory or a specific "
+    "file for full coverage."
+)
 ALL_FAILED = "OSV request failed; no dependencies could be checked. Retry later."
 
 
@@ -175,7 +180,8 @@ def _summary(
     return "\n".join(lines)
 
 
-def _resolve_targets(path: str) -> tuple[Path, list[Path]]:
+def _resolve_targets(path: str) -> tuple[Path, list[Path], bool]:
+    """(root, files to audit, whether discovery hit the MAX_FILES cap)."""
     valid, message = validate_file_path(path)
     if not valid:
         raise ToolError(f"Invalid input: {message}")
@@ -185,11 +191,11 @@ def _resolve_targets(path: str) -> tuple[Path, list[Path]]:
             file_kind(root)
         except ValueError as exc:
             raise ToolError(f"Invalid input: {exc}") from exc
-        return root, [root]
-    files = discover_dependency_files(root) if root.is_dir() else []
+        return root, [root], False
+    files = discover_dependency_files(root, max_files=MAX_FILES + 1) if root.is_dir() else []
     if not files:
         raise ToolError(f"Invalid input: no dependency files found under '{path}'")
-    return root, files
+    return root, files[:MAX_FILES], len(files) > MAX_FILES
 
 
 async def run_audit(
@@ -204,7 +210,7 @@ async def run_audit(
         if progress is not None:
             await progress(done, total)
 
-    root, files = _resolve_targets(path)
+    root, files, capped = _resolve_targets(path)
     steps = len(files) + 1
     parsed: list[tuple[Path, str, list[DeclaredDependency]]] = []
     audited: list[AuditedFile] = []
@@ -280,13 +286,18 @@ async def run_audit(
 
     audited.sort(key=lambda f: f.path)
     warnings = _consistency_warnings(parsed)
+    recommendations = _recommendations(vulnerable, parsed, warnings, totals.unchecked, bad_files)
+    summary = _summary(totals, vulnerable, warnings)
+    if capped:
+        recommendations.append(DISCOVERY_CAPPED)
+        summary += f"\n\n{DISCOVERY_CAPPED}"
     return ProjectAudit(
         path=str(root),
         files=audited,
         consistency_warnings=warnings,
         totals=totals,
-        recommendations=_recommendations(vulnerable, parsed, warnings, totals.unchecked, bad_files),
-        summary=_summary(totals, vulnerable, warnings),
+        recommendations=recommendations,
+        summary=summary,
     )
 
 
@@ -299,7 +310,8 @@ def register_project_tools(mcp: FastMCP, client: PyPIClient) -> None:
     ) -> ProjectAudit:
         """Audit a project's dependency files for vulnerabilities, outdated pins and drift.
 
-        `path` is a directory (searched up to 4 levels deep, at most 50 files:
+        `path` is a directory (searched up to 4 levels deep, at most 50 files, and the
+        result says so when that cap is hit:
         pyproject.toml, requirements*.txt, setup.py/cfg, Pipfile(.lock), poetry.lock,
         conda environment files) or a single such file. Files are only parsed, never
         executed. Each dependency is checked at its pinned version, else its lowest

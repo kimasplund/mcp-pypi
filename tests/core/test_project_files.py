@@ -156,3 +156,61 @@ def test_wrong_typed_nested_entries_are_skipped(tmp_path):
     f = tmp_path / "pyproject.toml"
     f.write_text('[project]\ndependencies = ["requests>=2", 5, {a = 1}]\n')
     assert pairs(parse_dependency_file(f)) == [("requests", ">=2")]
+
+
+SETUP_NOT_STATIC = (
+    "install_requires is not a static list of strings; "
+    "cannot read dependencies without executing setup.py"
+)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "install_requires=REQUIREMENTS,",
+        'install_requires=["requests>=2"] + extra,',
+        'install_requires=["requests" + ">=2", "click"],',
+        'install_requires=["requests>=2", CLICK],',
+        'install_requires=[f"requests>={MIN}"],',
+        'install_requires=[x for x in open("requirements.txt")],',
+    ],
+)
+def test_setup_py_dynamic_install_requires_is_an_error(tmp_path, body):
+    f = tmp_path / "setup.py"
+    f.write_text(f"from setuptools import setup\nsetup(\n    name='x',\n    {body}\n)\n")
+    with pytest.raises(DependencyFileError) as exc:
+        parse_dependency_file(f)
+    assert exc.value.path == f
+    assert exc.value.message == SETUP_NOT_STATIC
+
+
+def test_setup_py_prefixed_literals_tuples_and_passthrough_are_read(tmp_path):
+    f = tmp_path / "setup.py"
+    f.write_text(
+        "install_requires = (\n"
+        "    r'requests>=2.31',  # comment\n"
+        '    u"click==8.1.7",\n'
+        "    'rich' '>=13',\n"
+        ")\n"
+        "setup(name='x', install_requires=install_requires)\n"
+    )
+    assert pairs(parse_dependency_file(f)) == [
+        ("requests", ">=2.31"),
+        ("click", "==8.1.7"),
+        ("rich", ">=13"),
+    ]
+
+
+def test_setup_py_without_install_requires_is_empty(tmp_path):
+    f = tmp_path / "setup.py"
+    f.write_text("from setuptools import setup\nsetup(name='x')\n")
+    assert parse_dependency_file(f) == []
+
+
+def test_setup_py_commented_install_requires_is_ignored(tmp_path):
+    f = tmp_path / "setup.py"
+    f.write_text(
+        "# install_requires=REQS  (old)\n"
+        "setup(name='x', install_requires=['requests>=2'])  # install_requires=x\n"
+    )
+    assert pairs(parse_dependency_file(f)) == [("requests", ">=2")]

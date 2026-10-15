@@ -259,3 +259,14 @@ async def test_close(http_client):
 
     # Verify session was closed
     mock_session.close.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fetch_raw_uses_its_own_timeout_when_given(http_client):
+    response = create_mock_response(200, text="body")
+    with patch.object(ClientSession, "get", return_value=response) as get:
+        await http_client.fetch_raw("https://pypi.org/simple/", total_timeout=120)
+        await http_client.fetch_raw("https://pypi.org/simple/")
+    first, second = get.call_args_list
+    assert first.kwargs["timeout"] == aiohttp.ClientTimeout(total=120)
+    assert "timeout" not in second.kwargs  # session default (PYPI_TIMEOUT)

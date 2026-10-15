@@ -229,21 +229,73 @@ def _parse_pyproject(text: str, source: str) -> list[DeclaredDependency]:
 
 # --- setup.py / setup.cfg ----------------------------------------------------
 
-_STRING_OR_SEP = re.compile(r"""\s*(?:\#[^\n]*|"((?:[^"\\\n]|\\.)*)"|'((?:[^'\\\n]|\\.)*)'|,)""")
+
+class _NotStatic(ValueError):
+    """A file needs to be executed to know its dependencies."""
+
+
+SETUP_NOT_STATIC = (
+    "install_requires is not a static list of strings; "
+    "cannot read dependencies without executing setup.py"
+)
+_INSTALL_REQUIRES = re.compile(
+    r"""(?:\binstall_requires|["']install_requires["'])\s*(?:=(?!=)|:)"""
+)
+_SKIP = re.compile(r"(?:\s+|\#[^\n]*)*")
+# A plain (optionally r/u/b-prefixed, never f-) single-line string literal.
+_LITERAL = re.compile(r"""(?i:rb|br|r|u|b)?(?:"((?:[^"\\\n]|\\.)*)"|'((?:[^'\\\n]|\\.)*)')""")
+_CLOSING = {"[": "]", "(": ")"}
+_PASSTHROUGH = re.compile(r"\s*install_requires\b(?!\s*[.\[(+*])")
+
+
+def _skip(text: str, pos: int) -> int:
+    """Position after any whitespace and comments at `pos`."""
+    m = _SKIP.match(text, pos)
+    return m.end() if m else pos
+
+
+def _static_list(text: str, pos: int) -> list[str]:
+    """The strings of the list/tuple literal at `pos`; raises _NotStatic otherwise."""
+    pos = _skip(text, pos)
+    if pos >= len(text) or text[pos] not in _CLOSING:
+        raise _NotStatic(SETUP_NOT_STATIC)
+    closing = _CLOSING[text[pos]]
+    items: list[str] = []
+    pos += 1
+    while True:
+        pos = _skip(text, pos)
+        if text.startswith(closing, pos):
+            after = _skip(text, pos + 1)
+            if after < len(text) and text[after] in "+*-/%|&@.[":  # e.g. [...] + extra
+                raise _NotStatic(SETUP_NOT_STATIC)
+            return items
+        parts: list[str] = []
+        while (lit := _LITERAL.match(text, pos)) is not None:  # "a" "b" concatenates
+            parts.append(lit.group(1) if lit.group(1) is not None else lit.group(2))
+            pos = _skip(text, lit.end())
+        if not parts:
+            raise _NotStatic(SETUP_NOT_STATIC)
+        items.append("".join(parts))
+        if text.startswith(",", pos):
+            pos += 1
+        elif not text.startswith(closing, pos):
+            raise _NotStatic(SETUP_NOT_STATIC)
 
 
 def _parse_setup_py(text: str, source: str) -> list[DeclaredDependency]:
-    m = re.search(r"install_requires\s*=\s*[\[(]", text)
-    if not m:
-        return []
+    """Read every `install_requires` literal; any non-literal value is an error.
+
+    `install_requires=install_requires` (passing a variable assigned a literal elsewhere
+    in the file) is allowed, and mentions in comments are ignored. Nothing is executed.
+    """
     items: list[str] = []
-    pos = m.end()
-    while (tok := _STRING_OR_SEP.match(text, pos)) is not None:
-        literal = tok.group(1) if tok.group(1) is not None else tok.group(2)
-        if literal is not None:
-            items.append(literal)
-        pos = tok.end()
-    return _requirement_list(items, source)
+    for m in _INSTALL_REQUIRES.finditer(text):
+        if "#" in text[text.rfind("\n", 0, m.start()) + 1 : m.start()]:
+            continue  # commented out
+        if _PASSTHROUGH.match(text, m.end()):
+            continue  # install_requires=install_requires
+        items += _static_list(text, m.end())
+    return _requirement_list(list(dict.fromkeys(items)), source)
 
 
 def _parse_setup_cfg(text: str, source: str) -> list[DeclaredDependency]:
@@ -351,6 +403,8 @@ def parse_dependency_file(path: Path) -> list[DeclaredDependency]:
         raise DependencyFileError(path, f"cannot read file: {exc}") from exc
     try:
         return _PARSERS[kind](text, str(path))
+    except _NotStatic as exc:
+        raise DependencyFileError(path, str(exc)) from exc
     except (
         tomllib.TOMLDecodeError,
         json.JSONDecodeError,

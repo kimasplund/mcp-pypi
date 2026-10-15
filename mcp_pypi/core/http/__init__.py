@@ -62,15 +62,24 @@ class AsyncHTTPClient:
 
         self.last_request_time = time.time()
 
-    async def fetch_raw(self, url: str, headers: dict[str, str] | None = None) -> RawResponse:
+    async def fetch_raw(
+        self,
+        url: str,
+        headers: dict[str, str] | None = None,
+        total_timeout: float | None = None,
+    ) -> RawResponse:
         """GET a URL without caching, parsing or retries (for large bodies).
 
+        `total_timeout` (seconds) replaces the session's PYPI_TIMEOUT for this request.
         Network failures raise ``aiohttp.ClientError`` or ``TimeoutError``.
         """
         await self._apply_rate_limit()
         session = await self._get_session()
         request_headers = {"User-Agent": self.config.user_agent, **(headers or {})}
-        async with session.get(url, headers=request_headers) as response:
+        extra: dict[str, Any] = {}
+        if total_timeout is not None:
+            extra["timeout"] = ClientTimeout(total=total_timeout)  # type: ignore[call-arg]
+        async with session.get(url, headers=request_headers, **extra) as response:
             body = await response.read()
             return RawResponse(
                 response.status, body, {k.lower(): v for k, v in response.headers.items()}

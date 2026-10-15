@@ -424,3 +424,29 @@ async def test_truncated_vulnerability_list_reports_true_total(setup_client, mcp
     assert dep["total_vulnerabilities"] == 120
     assert dep["vulnerabilities_truncated"] is True
     assert d["totals"]["vulnerabilities"] == 120
+
+
+DISCOVERY_CAP = (
+    "Discovery stopped at 50 dependency files; audit a subdirectory or a specific file "
+    "for full coverage."
+)
+
+
+async def test_discovery_cap_is_reported(setup_client, mcp_client, tmp_path):
+    setup_client[0].check_vulnerabilities.return_value = result("flask", "3.0")
+    for i in range(51):
+        (tmp_path / f"requirements-{i:02d}.txt").write_text("flask==3.0\n")
+    d = await audit(mcp_client, tmp_path)
+    assert d["totals"]["files"] == 50
+    assert DISCOVERY_CAP in d["recommendations"]
+    assert DISCOVERY_CAP in d["summary"]
+
+
+async def test_no_cap_message_below_the_cap(setup_client, mcp_client, tmp_path):
+    setup_client[0].check_vulnerabilities.return_value = result("flask", "3.0")
+    for i in range(50):
+        (tmp_path / f"requirements-{i:02d}.txt").write_text("flask==3.0\n")
+    d = await audit(mcp_client, tmp_path)
+    assert d["totals"]["files"] == 50
+    assert DISCOVERY_CAP not in d["recommendations"]
+    assert "Discovery stopped" not in d["summary"]
