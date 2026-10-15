@@ -7,7 +7,7 @@ mcp-pypi supports two MCP transports: **stdio** (the default) and **streamable H
 | stdio | The MCP client launches the server itself (Claude Desktop, Claude Code, Cursor) | none; the client talks over the process's stdin/stdout |
 | http | The server runs separately and clients connect over the network | `http://127.0.0.1:8143/mcp` |
 
-Coming from 3.x? Transport changes are listed in [Upgrading from 3.x](../CHANGELOG.md#400---unreleased).
+Coming from 3.x? Transport changes are listed in [Upgrading from 3.x](../CHANGELOG.md#400---2026-10-15).
 
 ## stdio
 

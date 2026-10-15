@@ -7,7 +7,7 @@
 
 A Model Context Protocol (MCP) server that gives AI assistants accurate PyPI data and vulnerability checks, so the dependencies they suggest exist, are current, and have no known security advisories.
 
-Upgrading from 3.x? The tool set changed. See [Upgrading from 3.x](CHANGELOG.md#400---unreleased).
+Upgrading from 3.x? The tool set changed. See [Upgrading from 3.x](CHANGELOG.md#400---2026-10-15).
 
 ## What it does
 
