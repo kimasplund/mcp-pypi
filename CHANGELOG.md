@@ -5,6 +5,14 @@ All notable changes to MCP-PyPI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] - 2026-10-15
+
+### Fixed
+- Links in the README now work on the PyPI project page (they were relative and returned 404 there).
+- `mcp-pypi --readme` and `mcp-pypi --changelog` work in installed packages; README and CHANGELOG are now bundled in the wheel.
+- The PyPI summary and the CLI help banner describe what v4 does (MCP server plus dependency vulnerability auditing).
+- The `get_package_changelog` documentation matches its behaviour: only GitHub release pages are fetched, other changelog links are returned without being requested.
+
 ## [4.0.0] - 2026-10-15
 
 mcp-pypi 4.0 is a rework of the server and tool set. If you only use it through an MCP client, update the client config to `uvx mcp-pypi serve` (see the README) and let your assistant discover the new tools. If you import `mcp_pypi` in Python or run the HTTP server, read the breaking changes below.

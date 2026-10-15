@@ -108,9 +108,14 @@ def changelog_callback(value: bool):
         raise typer.Exit()
 
 
+APP_HELP = (
+    "MCP-PyPI: an MCP server and CLI for searching PyPI and auditing Python "
+    "dependencies against OSV vulnerability data."
+)
+
 app = typer.Typer(
     name="mcp-pypi",
-    help="MCP-PyPI: A client for interacting with PyPI (Python Package Index)",
+    help=APP_HELP,
     add_completion=True,
 )
 
@@ -190,7 +195,7 @@ def main(
         help="Show CHANGELOG and exit",
     ),
 ):
-    """MCP-PyPI: A client for interacting with PyPI (Python Package Index)"""
+    """Global options for the mcp-pypi CLI."""
     global_options.cache_dir = cache_dir
     global_options.cache_ttl = cache_ttl
     global_options.verbose = verbose

@@ -69,7 +69,7 @@ Get changelog text for a package from its project links or GitHub releases.
 | `package_name` | string | required |
 | `version` | string | latest |
 
-Uses the changelog link in the package metadata when present and falls back to the repository's releases page. When nothing is found it returns a short note listing the available project URLs. The text is not filtered by version: `version` is accepted for compatibility and the result's `version` is `null`. Result: `package_name`, `version`, `changelog`.
+If the package metadata has a changelog link to a `github.com` releases page, the five most recent GitHub releases are returned (via the GitHub API). Any other changelog link is returned as a link and never fetched, because project URLs are untrusted package metadata. Without a changelog link it points to the releases page of a `github.com` repository URL, matched by hostname. When nothing is found it returns a short note listing the available project URLs. The text is not filtered by version: `version` is accepted for compatibility and the result's `version` is `null`. Result: `package_name`, `version`, `changelog`.
 
 ### get_download_stats
 

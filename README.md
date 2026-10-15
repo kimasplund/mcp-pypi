@@ -7,7 +7,7 @@
 
 A Model Context Protocol (MCP) server that gives AI assistants accurate PyPI data and vulnerability checks, so the dependencies they suggest exist, are current, and have no known security advisories.
 
-Upgrading from 3.x? The tool set changed. See [Upgrading from 3.x](CHANGELOG.md#400---2026-10-15).
+Upgrading from 3.x? The tool set changed. See [Upgrading from 3.x](https://github.com/kimasplund/mcp-pypi/blob/main/CHANGELOG.md#400---2026-10-15).
 
 ## What it does
 
@@ -136,7 +136,7 @@ For clients that connect over the network instead of launching the server:
 mcp-pypi serve --transport http
 ```
 
-The server listens on `http://127.0.0.1:8143/mcp` (streamable HTTP). Change the bind address with `--host` and `--port`. There is no authentication, so only bind to a non-loopback address on a network you trust. See [docs/transports.md](docs/transports.md).
+The server listens on `http://127.0.0.1:8143/mcp` (streamable HTTP). Change the bind address with `--host` and `--port`. There is no authentication, so only bind to a non-loopback address on a network you trust. See [docs/transports.md](https://github.com/kimasplund/mcp-pypi/blob/main/docs/transports.md).
 
 ## 🛠️ Available Tools
 
@@ -156,7 +156,7 @@ Eleven read-only tools. All of them return structured output with an output sche
 | `audit_project` | Audit a project's dependency files for vulnerabilities, outdated pins and drift. |
 | `scan_installed_packages` | Scan a Python environment's installed packages for known vulnerabilities. |
 
-Parameters and result fields are documented in [docs/pypi.md](docs/pypi.md). The server also provides two prompts (`analyze_dependencies`, `compare_packages`, both taking arguments) and three read-only resources (`pypi://recent-releases`, `pypi://new-packages`, `pypi://updated-packages`).
+Parameters and result fields are documented in [docs/pypi.md](https://github.com/kimasplund/mcp-pypi/blob/main/docs/pypi.md). The server also provides two prompts (`analyze_dependencies`, `compare_packages`, both taking arguments) and three read-only resources (`pypi://recent-releases`, `pypi://new-packages`, `pypi://updated-packages`).
 
 ### Notes on search
 
@@ -188,15 +188,17 @@ Once configured, you can ask your assistant:
 | `PYPI_TIMEOUT` | `30.0` | Request timeout in seconds |
 | `PYPI_USER_AGENT` | `mcp-pypi/<version> (+https://github.com/kimasplund/mcp-pypi)` | User-Agent sent to PyPI and OSV |
 
-`mcp-pypi serve` also accepts `--cache-dir`, `--cache-strategy`, `--cache-ttl`, `--user-agent`, `--log-level`, `--host`, `--port` and `--transport`; flags take precedence over the environment. See [docs/caching.md](docs/caching.md) for how caching works.
+`mcp-pypi serve` also accepts `--cache-dir`, `--cache-strategy`, `--cache-ttl`, `--user-agent`, `--log-level`, `--host`, `--port` and `--transport`; flags take precedence over the environment. See [docs/caching.md](https://github.com/kimasplund/mcp-pypi/blob/main/docs/caching.md) for how caching works.
 
 ### Programmatic Usage
 
 ```python
+from pathlib import Path
+
 from mcp_pypi.core.models import PyPIClientConfig
 from mcp_pypi.server import build_server
 
-config = PyPIClientConfig(cache_dir="/tmp/pypi-cache", cache_ttl=7200)
+config = PyPIClientConfig(cache_dir=str(Path.home() / ".cache" / "my-pypi-cache"), cache_ttl=7200)
 server = build_server(config)  # a fastmcp.FastMCP instance
 
 server.run()  # stdio
@@ -267,7 +269,7 @@ uv run pytest -m integration   # live network tests
 
 ## 📄 License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/kimasplund/mcp-pypi/blob/main/LICENSE).
 
 ## 🙏 Acknowledgments
 

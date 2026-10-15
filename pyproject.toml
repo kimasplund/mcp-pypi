@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "mcp-pypi"
 dynamic = ["version"]
-description = "AI-powered Python package intelligence - search, analyze, and understand PyPI packages through MCP"
+description = "MCP server for PyPI: search packages and audit dependency trees against OSV vulnerability data before an agent suggests them."
 readme = "README.md"
 authors = [{ name = "Kim Asplund", email = "kim.asplund@gmail.com" }]
 license = "MIT"
@@ -83,6 +83,11 @@ path = "mcp_pypi/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mcp_pypi"]
+
+# Shipped inside the package so `mcp-pypi --readme` / `--changelog` work when installed.
+[tool.hatch.build.targets.wheel.force-include]
+"README.md" = "mcp_pypi/README.md"
+"CHANGELOG.md" = "mcp_pypi/CHANGELOG.md"
 
 [tool.hatch.build.targets.sdist]
 include = ["mcp_pypi", "README.md", "CHANGELOG.md", "LICENSE*"]
