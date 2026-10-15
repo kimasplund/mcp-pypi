@@ -7,7 +7,6 @@ import contextlib
 import json
 import shlex
 from collections import deque
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
@@ -20,19 +19,23 @@ from mcp_pypi.core.search_index import normalize
 from mcp_pypi.server.schemas import (
     InstalledScan,
     PackageVulnerabilities,
-    VulnerabilityItem,
     VulnerabilityReport,
 )
 from mcp_pypi.server.tools import TOOL_ANNOTATIONS
-from mcp_pypi.utils.sanitize import sanitize_package_name, sanitize_version
+from mcp_pypi.server.tools.osv import (
+    SEVERITIES,
+    Key,
+    core_error,
+    query_osv,
+    severity_bucket,
+    to_item,
+    vulnerability_totals,
+)
 from mcp_pypi.utils.validation import validate_file_path
 
 MAX_PACKAGES = 100
 PIP_TIMEOUT = 60
 BAD_SPEC = "Only 'name' or 'name==version' is supported"
-SEVERITIES = ("critical", "high", "medium", "low", "unknown")
-
-Key = tuple[str, str | None]
 
 
 def _parse_requirement(spec: str) -> tuple[str, str | None] | str:
@@ -51,25 +54,6 @@ def _parse_requirement(spec: str) -> tuple[str, str | None] | str:
     return BAD_SPEC
 
 
-def _severity_bucket(raw: object) -> str:
-    text = str(raw or "").lower()
-    if text == "moderate":
-        return "medium"
-    return text if text in SEVERITIES else "unknown"
-
-
-def _core_error(res: Mapping[str, Any], name: str) -> str | None:
-    """Message for an error in a single-package core result, or None."""
-    error = res.get("error")
-    if not error:
-        return None
-    if isinstance(error, dict):
-        if error.get("code") == "not_found":
-            return f"Package '{name}' not found on PyPI."
-        return f"OSV request failed ({error.get('code', 'unknown_error')}); retry later."
-    return f"OSV request failed: {error}"
-
-
 def _walk_tree(root: dict[str, Any]) -> list[tuple[str, str | None, list[str]]]:
     """Breadth-first (name, version, path-from-root) for every node below the root."""
     found: list[tuple[str, str | None, list[str]]] = []
@@ -82,82 +66,6 @@ def _walk_tree(root: dict[str, Any]) -> list[tuple[str, str | None, list[str]]]:
             if not child.get("cycle"):
                 queue.append((child, child_path))
     return found
-
-
-async def _query_osv(client: PyPIClient, pairs: list[Key]) -> dict[Key, dict[str, Any] | str]:
-    """Check unique (name, version) pairs: one core call for a single pair, else one batch.
-
-    A pair without a resolvable version or with characters core rejects becomes a
-    per-pair error string; it is never queried as "all versions" and never fails the call.
-    """
-    out: dict[Key, dict[str, Any] | str] = {}
-    valid: list[Key] = []
-    for name, version in pairs:
-        if not version:
-            out[(name, version)] = f"Could not resolve version for '{name}'."
-            continue
-        try:
-            sanitize_package_name(name)
-            sanitize_version(version)
-        except ValueError as exc:
-            out[(name, version)] = str(exc)
-            continue
-        valid.append((name, version))
-    if not valid:
-        return out
-    try:
-        if len(valid) == 1:
-            name, version = valid[0]
-            res = await client.check_vulnerabilities(name, version)
-            out[valid[0]] = _core_error(res, name) or res
-            return out
-        batch = await client.check_vulnerabilities_batch(valid)
-    except Exception as exc:  # one bad item must not fail the whole call
-        for pair in valid:
-            out[pair] = f"OSV request failed: {exc}"
-        return out
-    errors = {e.get("package"): str(e.get("error")) for e in batch.get("errors", [])}
-    for name, version in valid:
-        key = f"{normalize(name)}:{version}"  # core keys results by the PEP 503 name
-        res = batch.get("results", {}).get(key)
-        out[(name, version)] = res if res is not None else errors.get(key, _NO_RESULT)
-    return out
-
-
-_NO_RESULT = "No result returned from OSV"
-
-
-def _totals(res: Mapping[str, Any]) -> tuple[int, dict[str, int]]:
-    """True vulnerability total and per-severity counts, as computed by core."""
-    listed = res.get("vulnerabilities", [])
-    total = int(res.get("total_vulnerabilities", len(listed)))
-    counts = dict.fromkeys(SEVERITIES, 0)
-    if "critical_count" in res or "high_count" in res:
-        for sev in SEVERITIES[:4]:
-            counts[sev] = int(res.get(f"{sev}_count", 0))
-        counts["unknown"] = max(0, total - sum(counts[s] for s in SEVERITIES[:4]))
-    else:
-        for v in listed:
-            counts[_severity_bucket(v.get("severity"))] += 1
-    return total, counts
-
-
-def _to_item(
-    name: str, version: str | None, res: dict[str, Any] | str, via: list[str]
-) -> PackageVulnerabilities:
-    if isinstance(res, str):
-        return PackageVulnerabilities(package=name, version=version, error=res, introduced_via=via)
-    vulns = [VulnerabilityItem.from_core(v) for v in res.get("vulnerabilities", [])]
-    total, _ = _totals(res)
-    return PackageVulnerabilities(
-        package=name,
-        version=version,
-        vulnerable=total > 0,
-        vulnerabilities=vulns,
-        total_vulnerabilities=total,
-        vulnerabilities_truncated=total > len(vulns),
-        introduced_via=via,
-    )
 
 
 def _dedupe_installed(installed: list[tuple[str, str]]) -> list[Key]:
@@ -276,7 +184,7 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
             if not isinstance(res, dict):
                 return None, unresolved
             if res.get("error"):
-                return None, _core_error(res, name) or unresolved
+                return None, core_error(res, name) or unresolved
             latest = (res.get("info") or {}).get("version")
             return (str(latest), None) if latest else (None, unresolved)
 
@@ -331,7 +239,7 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
 
         outcomes: dict[Key, dict[str, Any] | str] = {}
         if unique:
-            queried = await _query_osv(client, list(unique.values()))
+            queried = await query_osv(client, list(unique.values()))
             outcomes = {(normalize(n), v): r for (n, v), r in queried.items()}
 
         results: list[PackageVulnerabilities] = []
@@ -340,12 +248,12 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
             if err is not None:
                 results.append(PackageVulnerabilities(package=name, version=version, error=err))
             else:
-                item = _to_item(name, version, outcomes[key], [])
+                item = to_item(name, version, outcomes[key], [])
                 item.note = notes.get(key)
                 results.append(item)
         for key in extra_order:
             name, version = unique[key]
-            item = _to_item(name, version, outcomes[key], via[key])
+            item = to_item(name, version, outcomes[key], via[key])
             if item.vulnerable or item.error:
                 results.append(item)
         for name, path in unresolved_nodes.values():
@@ -363,7 +271,7 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
         for res in outcomes.values():
             if isinstance(res, str):
                 continue
-            total, counts = _totals(res)
+            total, counts = vulnerability_totals(res)
             vulnerable_packages += 1 if total else 0
             total_vulns += total
             for sev, n in counts.items():
@@ -404,9 +312,9 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
         first_error = ""
         for start in range(0, len(pairs), MAX_PACKAGES):
             chunk = pairs[start : start + MAX_PACKAGES]
-            outcomes = await _query_osv(client, chunk)
+            outcomes = await query_osv(client, chunk)
             for name, version in chunk:
-                item = _to_item(name, version, outcomes[(name, version)], [])
+                item = to_item(name, version, outcomes[(name, version)], [])
                 if item.error:
                     unchecked.append(name)
                     first_error = first_error or item.error
@@ -419,7 +327,7 @@ def register_security_tools(mcp: FastMCP, client: PyPIClient) -> None:
         rank = {s: i for i, s in enumerate(SEVERITIES)}
         vulnerable.sort(
             key=lambda p: (
-                min((rank[_severity_bucket(v.severity)] for v in p.vulnerabilities), default=9),
+                min((rank[severity_bucket(v.severity)] for v in p.vulnerabilities), default=9),
                 -p.total_vulnerabilities,
             )
         )
