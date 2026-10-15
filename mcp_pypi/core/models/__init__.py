@@ -122,6 +122,8 @@ class FeedItem(TypedDict):
     link: str
     description: str
     published_date: str
+    package_name: NotRequired[str]
+    version: NotRequired[str]
 
 
 class PackagesFeed(TypedDict):
@@ -247,21 +249,6 @@ class DocumentationResult(TypedDict):
     summary: NotRequired[str]
     package_name: NotRequired[str]
     documentation_url: NotRequired[str | None]
-
-
-class PackageRequirement(TypedDict):
-    package: str
-    current_version: str
-    latest_version: NotRequired[str]
-    constraint: NotRequired[str]
-
-
-class PackageRequirementsResult(TypedDict):
-    error: NotRequired[ErrorDict]
-    file_path: NotRequired[str]
-    requirements: NotRequired[list[PackageRequirement]]
-    outdated: NotRequired[list[PackageRequirement]]
-    up_to_date: NotRequired[list[PackageRequirement]]
 
 
 class BatchVulnerabilityResult(TypedDict):

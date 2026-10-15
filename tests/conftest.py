@@ -19,9 +19,10 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip integration tests unless --run-integration is specified."""
+    """Skip integration tests unless --run-integration or `-m integration` is given."""
     # Handle integration tests
-    if not config.getoption("--run-integration"):
+    selected = "integration" in (config.getoption("markexpr") or "").replace("not integration", "")
+    if not (config.getoption("--run-integration") or selected):
         skip_integration = pytest.mark.skip(reason="Needs --run-integration option to run")
         for item in items:
             if "integration" in item.keywords:

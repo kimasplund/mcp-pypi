@@ -283,9 +283,7 @@ async def run_audit(
         files=audited,
         consistency_warnings=warnings,
         totals=totals,
-        recommendations=_recommendations(
-            vulnerable, parsed, warnings, totals.unchecked, bad_files
-        ),
+        recommendations=_recommendations(vulnerable, parsed, warnings, totals.unchecked, bad_files),
         summary=_summary(totals, vulnerable, warnings),
     )
 

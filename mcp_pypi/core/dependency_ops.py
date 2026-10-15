@@ -5,15 +5,19 @@ Dependency operations mixin for PyPI client.
 import json
 import logging
 import os
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from packaging.requirements import Requirement
 
+from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import (
     DependenciesResult,
+    Dependency,
     DependencyTreeResult,
     ErrorCode,
+    PyPIClientConfig,
     TreeNode,
+    VersionInfo,
     format_error,
 )
 from mcp_pypi.utils.sanitize import sanitize_package_name, sanitize_version
@@ -23,6 +27,15 @@ logger = logging.getLogger("mcp-pypi.client")
 
 class DependencyOpsMixin:
     """Mixin providing dependency-related operations."""
+
+    # Provided by PyPIClient.
+    http: AsyncHTTPClient
+    config: PyPIClientConfig
+    _has_plotly: bool
+
+    if TYPE_CHECKING:
+
+        async def get_latest_version(self, package_name: str) -> VersionInfo: ...
 
     async def get_dependencies(
         self, package_name: str, version: str | None = None
@@ -73,13 +86,13 @@ class DependencyOpsMixin:
                 parsed_result = result
 
             requires_dist = parsed_result["info"].get("requires_dist", []) or []
-            dependencies = []
+            dependencies: list[Dependency] = []
 
             # Parse using packaging.requirements for better accuracy
             for req_str in requires_dist:
                 try:
                     req = Requirement(req_str)
-                    dep = {
+                    dep: Dependency = {
                         "name": req.name,
                         "version_spec": str(req.specifier) if req.specifier else "",
                         "extras": list(req.extras) if req.extras else [],
@@ -246,7 +259,10 @@ class DependencyOpsMixin:
             visualization_url = None
             if self._has_plotly:
                 try:
+                    # pyrefly: ignore[missing-import]  # optional dep, absent from the lock file
                     import plotly.graph_objects as go
+
+                    # pyrefly: ignore[missing-import]  # optional dep, absent from the lock file
                     import plotly.io as pio
 
                     # Create a simple tree visualization

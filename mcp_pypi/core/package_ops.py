@@ -6,6 +6,7 @@ import json
 import logging
 from typing import cast
 
+from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import (
     ErrorCode,
     ExistsResult,
@@ -25,6 +26,8 @@ logger = logging.getLogger("mcp-pypi.client")
 
 class PackageOpsMixin:
     """Mixin providing package information operations."""
+
+    http: AsyncHTTPClient  # provided by PyPIClient
 
     async def get_package_info(self, package_name: str, version: str | None = None) -> PackageInfo:
         """Get detailed package information from PyPI (a pinned version if given)."""

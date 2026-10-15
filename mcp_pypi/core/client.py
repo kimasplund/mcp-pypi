@@ -13,7 +13,6 @@ from mcp_pypi.core.feed_ops import FeedOpsMixin
 from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import ErrorCode, PyPIClientConfig, StatsResult, format_error
 from mcp_pypi.core.package_ops import PackageOpsMixin
-from mcp_pypi.core.requirements_ops import RequirementsOpsMixin
 from mcp_pypi.core.search_index import NameIndex, Popularity, normalize
 from mcp_pypi.core.search_ops import SearchOpsMixin
 from mcp_pypi.core.stats import PackageStatsService
@@ -28,7 +27,6 @@ class PyPIClient(
     DependencyOpsMixin,
     VulnerabilityOpsMixin,
     FeedOpsMixin,
-    RequirementsOpsMixin,
     SearchOpsMixin,
 ):
     """Client for interacting with PyPI.

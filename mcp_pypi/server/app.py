@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import contextlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from fastmcp import FastMCP
 
@@ -26,7 +26,7 @@ def build_server(
     client = client or PyPIClient(config or PyPIClientConfig())
 
     @contextlib.asynccontextmanager
-    async def _lifespan(server: FastMCP) -> AsyncIterator[dict]:
+    async def _lifespan(server: FastMCP) -> AsyncGenerator[dict]:
         try:
             yield {}
         finally:
