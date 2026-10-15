@@ -1,5 +1,6 @@
 """Tests for the fastmcp 4 server factory."""
 
+from mcp_pypi import __version__
 from mcp_pypi.server.app import build_server
 from mcp_pypi.server.instructions import INSTRUCTIONS
 
@@ -7,7 +8,7 @@ from mcp_pypi.server.instructions import INSTRUCTIONS
 def test_server_metadata(fake_client):
     server = build_server(client=fake_client)
     assert server.name == "mcp-pypi"
-    assert server.version == "4.0.0"
+    assert server.version == __version__
 
 
 async def test_resources_listed(mcp_client):
