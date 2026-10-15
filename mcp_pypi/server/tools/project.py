@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
 from mcp_pypi.core import PyPIClient
@@ -45,23 +46,64 @@ def _is_outdated(checked: str | None, latest: str | None) -> bool:
         return False
 
 
-async def _latest_versions(client: PyPIClient, names: set[str]) -> dict[str, str | None]:
-    """Latest version per normalized name (None when it cannot be resolved)."""
+async def _package_infos(client: PyPIClient, names: set[str]) -> dict[str, dict[str, Any]]:
+    """`get_package_info` data per normalized name ({} when it cannot be resolved)."""
     sem = asyncio.Semaphore(10)
 
-    async def one(name: str) -> str | None:
+    async def one(name: str) -> dict[str, Any]:
         try:
             async with sem:
                 res = await client.get_package_info(name)
         except Exception:
-            return None
+            return {}
         if not isinstance(res, dict) or res.get("error"):
-            return None
-        version = (res.get("info") or {}).get("version")
-        return str(version) if version else None
+            return {}
+        return dict(res)
 
     ordered = sorted(names)
     return dict(zip(ordered, await asyncio.gather(*(one(n) for n in ordered)), strict=True))
+
+
+def _latest_of(info: dict[str, Any]) -> str | None:
+    version = (info.get("info") or {}).get("version")
+    return str(version) if version else None
+
+
+def _highest_allowed(info: dict[str, Any], specifier: str) -> str | None:
+    """Highest non-yanked release satisfying the specifier; final releases first."""
+    spec = SpecifierSet(specifier)
+    finals: list[Version] = []
+    pres: list[Version] = []
+    for raw, files in (info.get("releases") or {}).items():
+        if files and all(f.get("yanked") for f in files if isinstance(f, dict)):
+            continue
+        try:
+            v = Version(str(raw))
+        except InvalidVersion:
+            continue
+        if spec.contains(v, prereleases=True):
+            (pres if v.is_prerelease else finals).append(v)
+    pool = finals or pres
+    return str(max(pool)) if pool else None
+
+
+def _choose_version(dep: DeclaredDependency, info: dict[str, Any]) -> tuple[str | None, str | None]:
+    """(version to check, error). Pinned, else floor, else highest allowed, else latest."""
+    version = dep.pinned_version or floor_version(dep.specifier)
+    if version:
+        return version, None
+    if dep.specifier.strip():
+        try:
+            allowed = _highest_allowed(info, dep.specifier)
+        except InvalidSpecifier:
+            return None, f"Cannot interpret specifier '{dep.specifier}' for '{dep.name}'."
+        if allowed is None:
+            return None, f"No release satisfies '{dep.specifier}'."
+        return allowed, None
+    latest = _latest_of(info)
+    if latest is None:
+        return None, f"Could not resolve the latest version of '{dep.name}'."
+    return latest, None
 
 
 def _consistency_warnings(parsed: list[tuple[Path, str, list[DeclaredDependency]]]):
@@ -84,6 +126,7 @@ def _recommendations(
     parsed: list[tuple[Path, str, list[DeclaredDependency]]],
     warnings: list[ConsistencyWarning],
     unchecked: int,
+    bad_files: int,
 ) -> list[str]:
     recs = [
         f"Upgrade {dep.name} (checked {dep.checked_version or 'latest'}) — {total} known "
@@ -99,6 +142,8 @@ def _recommendations(
     recs += [f"Align {w.package} constraints across files." for w in warnings]
     if unchecked:
         recs.append(f"{unchecked} dependencies could not be checked; see per-dependency errors.")
+    if bad_files:
+        recs.append(f"{bad_files} dependency files could not be read; see per-file errors.")
     return recs
 
 
@@ -115,6 +160,8 @@ def _summary(
         f"outdated, {totals.unchecked} unchecked.",
         "",
     ]
+    if totals.files_with_errors:
+        lines += [f"{totals.files_with_errors} files could not be read or parsed.", ""]
     shown = list(vulnerable.values())[:MAX_SUMMARY_PACKAGES]
     lines += [
         f"- {dep.name} {dep.checked_version}: {total} known vulnerabilities" for dep, total in shown
@@ -157,7 +204,9 @@ def register_project_tools(mcp: FastMCP, client: PyPIClient) -> None:
         pyproject.toml, requirements*.txt, setup.py/cfg, Pipfile(.lock), poetry.lock,
         conda environment files) or a single such file. Files are only parsed, never
         executed. Each dependency is checked at its pinned version, else its lowest
-        allowed version, else the latest release. A dependency that could not be
+        allowed version, else, for upper-bound-only
+        constraints (`<2`, `!=1.0`), the highest non-yanked allowed release; else the
+        latest release. A dependency that could not be
         checked carries an `error`, is counted in `totals.unchecked` and is never
         reported as clean. `detail="summary"` lists only vulnerable, outdated or
         unchecked dependencies per file; totals always cover everything.
@@ -166,22 +215,27 @@ def register_project_tools(mcp: FastMCP, client: PyPIClient) -> None:
         steps = len(files) + 1
         parsed: list[tuple[Path, str, list[DeclaredDependency]]] = []
         audited: list[AuditedFile] = []
+        bad_files = 0
         for i, file in enumerate(files):
             kind = file_kind(file)
             try:
                 parsed.append((file, kind, parse_dependency_file(file)))
             except DependencyFileError as exc:
                 audited.append(AuditedFile(path=str(file), kind=kind, error=str(exc)))
+                bad_files += 1
             await ctx.report_progress(i + 1, steps)
 
         names = {d.normalized_name for _, _, deps in parsed for d in deps}
-        latest = await _latest_versions(client, names)
+        infos = await _package_infos(client, names)
+        latest = {n: _latest_of(i) for n, i in infos.items()}
         checked: dict[tuple[Path, int], str | None] = {}
+        choice_errors: dict[tuple[Path, int], str] = {}
         pairs: dict[Key, Key] = {}
         for file, _, deps in parsed:
             for i, dep in enumerate(deps):
-                version = dep.pinned_version or floor_version(dep.specifier)
-                version = version or latest[dep.normalized_name]
+                version, err = _choose_version(dep, infos[dep.normalized_name])
+                if err:
+                    choice_errors[(file, i)] = err
                 checked[(file, i)] = version
                 if version:
                     pairs.setdefault((dep.normalized_name, version), (dep.normalized_name, version))
@@ -190,7 +244,7 @@ def register_project_tools(mcp: FastMCP, client: PyPIClient) -> None:
             outcomes = await query_osv(client, list(pairs.values()))
         await ctx.report_progress(steps, steps)
 
-        totals = AuditTotals(files=len(files))
+        totals = AuditTotals(files=len(files), files_with_errors=bad_files)
         vulnerable: dict[str, tuple[AuditedDependency, int]] = {}
         for file, kind, deps in parsed:
             out: list[AuditedDependency] = []
@@ -207,7 +261,7 @@ def register_project_tools(mcp: FastMCP, client: PyPIClient) -> None:
                 res = outcomes.get((norm, version)) if version else None
                 total = 0
                 if version is None:
-                    item.error = f"Could not resolve the latest version of '{dep.name}'."
+                    item.error = choice_errors[(file, i)]
                 elif res is None or isinstance(res, str):
                     item.error = res or "No result returned from OSV"
                 else:
@@ -236,6 +290,8 @@ def register_project_tools(mcp: FastMCP, client: PyPIClient) -> None:
             files=audited,
             consistency_warnings=warnings,
             totals=totals,
-            recommendations=_recommendations(vulnerable, parsed, warnings, totals.unchecked),
+            recommendations=_recommendations(
+                vulnerable, parsed, warnings, totals.unchecked, bad_files
+            ),
             summary=_summary(totals, vulnerable, warnings),
         )

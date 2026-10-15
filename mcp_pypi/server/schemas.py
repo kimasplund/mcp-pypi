@@ -210,6 +210,7 @@ class AuditTotals(BaseModel):
     outdated: int = 0
     vulnerabilities: int = 0
     unchecked: int = 0
+    files_with_errors: int = 0
 
 
 class ProjectAudit(BaseModel):

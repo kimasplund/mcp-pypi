@@ -1,6 +1,7 @@
 """Tests for audit_project."""
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -250,8 +251,16 @@ async def test_unresolvable_latest_for_unconstrained_is_unchecked(
     assert all(v is not None for _, v in pairs)
 
 
+INFOS: dict[str, dict[str, Any]] = {}
+
+
+def releases(*versions: str, yanked: tuple[str, ...] = ()) -> dict[str, list[dict]]:
+    return {v: [{"yanked": v in yanked}] for v in versions}
+
+
 @pytest.fixture
 async def real_osv():
+    INFOS.clear()
     """A server over the REAL PyPIClient batch code with a fake OSV http layer."""
     from unittest.mock import AsyncMock, MagicMock
 
@@ -268,6 +277,9 @@ async def real_osv():
 
     async def fetch(url, method="GET", headers=None, data=None, **kw):
         if data is None:
+            for pkg, info in INFOS.items():
+                if f"/{pkg}/" in url:
+                    return info
             return {"info": {"name": "x", "version": "9.0"}}
         payload = json.loads(data)
         queries = payload["queries"]
@@ -319,3 +331,80 @@ async def test_mixed_case_names_found_vulnerable_via_real_batch(real_osv, tmp_pa
         "PyYAML",
         "typing_extensions",
     ]
+
+
+async def test_upper_bound_only_checks_highest_allowed_release(real_osv, tmp_path):
+    c, db = real_osv
+    INFOS["urllib3"] = {
+        "info": {"name": "urllib3", "version": "2.2.0"},
+        "releases": releases("1.25.0", "1.26.18", "2.2.0", "1.27.0rc1"),
+    }
+    db["urllib3"] = [
+        {
+            "id": "U-1",
+            "summary": "bad",
+            "database_specific": {"severity": "HIGH"},
+            "affected": [
+                {
+                    "package": {"name": "urllib3", "ecosystem": "PyPI"},
+                    "ranges": [{"events": [{"introduced": "0"}, {"fixed": "99"}]}],
+                }
+            ],
+        }
+    ]
+    project(tmp_path, requirements__txt="urllib3<2\nflask==3.0\n")
+    d = await audit(c, tmp_path)
+    dep = next(x for x in d["files"][0]["dependencies"] if x["name"] == "urllib3")
+    assert dep["checked_version"] == "1.26.18"
+    assert dep["vulnerable"] is True and dep["error"] is None
+
+
+async def test_not_equal_specifier_skips_excluded_latest(setup_client, mcp_client, tmp_path):
+    client, _ = setup_client
+
+    async def info(name, *a, **kw):
+        return {"info": {"version": "2.0"}, "releases": releases("1.0", "2.0")}
+
+    client.get_package_info.side_effect = info
+    project(tmp_path, requirements__txt="pkg!=2.0\nflask==3.0\n")
+    d = await audit(mcp_client, tmp_path, detail="full")
+    pkg = next(x for x in d["files"][0]["dependencies"] if x["name"] == "pkg")
+    assert pkg["checked_version"] == "1.0"
+
+
+async def test_unsatisfiable_specifier_is_unchecked(setup_client, mcp_client, tmp_path):
+    client, _ = setup_client
+
+    async def info(name, *a, **kw):
+        return {"info": {"version": "2.0"}, "releases": releases("1.0", "2.0", yanked=("1.0",))}
+
+    client.get_package_info.side_effect = info
+    project(tmp_path, requirements__txt="pkg<1.0\nflask==3.0\nrequests==2.0\npkg2<2\n")
+    d = await audit(mcp_client, tmp_path)
+    pkg = next(x for x in d["files"][0]["dependencies"] if x["name"] == "pkg")
+    assert "No release satisfies '<1.0'" in pkg["error"]
+    pkg2 = next(x for x in d["files"][0]["dependencies"] if x["name"] == "pkg2")
+    assert pkg2["error"]  # only a yanked release matches, and pre/yanked fallback is not used
+    assert d["totals"]["unchecked"] == 2
+
+
+async def test_broken_only_directory_is_visible_in_totals(setup_client, mcp_client, tmp_path):
+    project(tmp_path, pyproject__toml="[project\nbroken")
+    d = await audit(mcp_client, tmp_path)
+    assert d["totals"]["files_with_errors"] == 1
+    assert "1 files could not be read or parsed" in d["summary"]
+    assert "1 dependency files could not be read; see per-file errors." in d["recommendations"]
+
+
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0, reason="root reads anything")
+async def test_unreadable_file_next_to_good_one(setup_client, mcp_client, tmp_path):
+    project(tmp_path, requirements__txt="requests==2.0\nflask==3.0\n")
+    bad = tmp_path / "requirements-dev.txt"
+    bad.write_text("pytest\n")
+    bad.chmod(0)
+    try:
+        d = await audit(mcp_client, tmp_path)
+    finally:
+        bad.chmod(0o600)
+    assert d["totals"]["files_with_errors"] == 1
+    assert "1 dependency files could not be read; see per-file errors." in d["recommendations"]
