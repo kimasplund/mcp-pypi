@@ -17,6 +17,7 @@ mcp-pypi 4.0 is a rework of the server and tool set. If you only use it through 
 - HTTP mode on a loopback address rejects requests whose `Host` header is not a loopback name (HTTP 421) or whose `Origin` is another site (HTTP 403), as DNS-rebinding protection.
 - The hardcoded MCP protocol version is removed; the SDK negotiates it.
 - Python 3.11 or newer is required (3.10 is no longer supported).
+- aiohttp 3.14.3 or newer is required; earlier releases have known OSV advisories.
 - Now built on fastmcp 4.1 (MCP Python SDK 2.x).
 - Removed Python modules: `mcp_pypi.client`, `mcp_pypi.cli.server` (`RPCServer`), `mcp_pypi.utils.cache`, `mcp_pypi.utils.common`, `mcp_pypi.core.requirements_ops`, and the `PyPIMCPServer` class. Use `mcp_pypi.server.build_server(config)`, which returns a `fastmcp.FastMCP` instance.
 - Extras `[all]`, `[viz]`, `[search]` and `[docs]` are removed. A plain `pip install mcp-pypi` has everything; `[http]` is not needed either.
