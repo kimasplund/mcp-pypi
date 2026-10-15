@@ -408,3 +408,21 @@ async def test_unreadable_file_next_to_good_one(setup_client, mcp_client, tmp_pa
         bad.chmod(0o600)
     assert d["totals"]["files_with_errors"] == 1
     assert "1 dependency files could not be read; see per-file errors." in d["recommendations"]
+
+
+async def test_truncated_vulnerability_list_reports_true_total(setup_client, mcp_client, tmp_path):
+    fake, _ = setup_client
+
+    async def big(name, version):
+        res = result(name, version, *[vuln(f"V-{i}") for i in range(20)])
+        res["total_vulnerabilities"] = 120
+        return res
+
+    fake.check_vulnerabilities.side_effect = big
+    project(tmp_path, requirements__txt="jinja2==2.4.1\n")
+    d = await audit(mcp_client, tmp_path)
+    dep = d["files"][0]["dependencies"][0]
+    assert len(dep["vulnerabilities"]) == 20
+    assert dep["total_vulnerabilities"] == 120
+    assert dep["vulnerabilities_truncated"] is True
+    assert d["totals"]["vulnerabilities"] == 120

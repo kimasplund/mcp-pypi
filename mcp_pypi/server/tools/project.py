@@ -263,6 +263,8 @@ async def run_audit(
                 item.vulnerabilities = [
                     VulnerabilityItem.from_core(v) for v in res.get("vulnerabilities", [])
                 ]
+                item.total_vulnerabilities = total
+                item.vulnerabilities_truncated = total > len(item.vulnerabilities)
             totals.dependencies += 1
             totals.unchecked += 1 if item.error else 0
             totals.outdated += 1 if item.outdated else 0

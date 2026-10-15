@@ -188,6 +188,8 @@ class AuditedDependency(BaseModel):
     outdated: bool = False
     vulnerable: bool = False
     vulnerabilities: list[VulnerabilityItem] = Field(default_factory=list)
+    total_vulnerabilities: int = 0
+    vulnerabilities_truncated: bool = False
     error: str | None = None
 
 

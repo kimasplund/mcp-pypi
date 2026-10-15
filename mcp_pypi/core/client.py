@@ -38,7 +38,6 @@ class PyPIClient(
     - Dependency operations (dependencies, dependency tree)
     - Vulnerability checking (OSV API integration)
     - RSS feed operations (newest packages, updates, releases)
-    - Requirements file checking (requirements.txt, pyproject.toml)
     - Search and comparison operations
     """
 

@@ -5,6 +5,7 @@ import asyncio
 import typer
 from fastmcp.exceptions import ToolError
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from mcp_pypi.cli.utils import get_config
@@ -21,7 +22,7 @@ def render_audit(audit: ProjectAudit) -> None:
     totals = audit.totals
     for file in audit.files:
         if file.error:
-            stderr_console.print(f"[red]{file.path}: {file.error}[/red]")
+            stderr_console.print(f"[red]{escape(file.path)}: {escape(file.error)}[/red]")
             continue
         if not file.dependencies:
             continue
@@ -31,33 +32,35 @@ def render_audit(audit: ProjectAudit) -> None:
             "Checked",
             "Latest",
             "Status",
-            title=f"{file.path} ({file.kind})",
+            title=escape(f"{file.path} ({file.kind})"),
             title_style="bold magenta",
             header_style="bold blue",
         )
         for dep in file.dependencies:
             if dep.error:
-                status = f"[yellow]unchecked: {dep.error}[/yellow]"
+                status = f"[yellow]unchecked: {escape(dep.error)}[/yellow]"
             elif dep.vulnerable:
-                status = f"[bold red]{len(dep.vulnerabilities)} vulnerabilities[/bold red]"
+                n = dep.total_vulnerabilities or len(dep.vulnerabilities)
+                noun = "vulnerability" if n == 1 else "vulnerabilities"
+                status = f"[bold red]{n} {noun}[/bold red]"
             elif dep.outdated:
                 status = "[yellow]outdated[/yellow]"
             else:
                 status = "[green]ok[/green]"
             table.add_row(
-                dep.name,
-                dep.specifier,
-                dep.checked_version or "-",
-                dep.latest_version or "-",
+                escape(dep.name),
+                escape(dep.specifier),
+                escape(dep.checked_version or "-"),
+                escape(dep.latest_version or "-"),
                 status,
             )
         console.print(table)
     for warning in audit.consistency_warnings:
-        console.print(f"[yellow]Inconsistent constraints for {warning.package}:[/yellow]")
+        console.print(f"[yellow]Inconsistent constraints for {escape(warning.package)}:[/yellow]")
         for path, spec in warning.specifiers.items():
-            console.print(f"  {path}: {spec}")
+            console.print(f"  {escape(path)}: {escape(spec)}")
     for rec in audit.recommendations:
-        console.print(f"* {rec}")
+        console.print(f"* {escape(rec)}")
     colour = "red" if totals.vulnerable else "green"
     console.print(
         f"\n[{colour}]{totals.files} files, {totals.dependencies} dependencies: "
