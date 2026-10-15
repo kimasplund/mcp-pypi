@@ -8,9 +8,9 @@ Everything lives in one directory:
 
 | Setting | Default |
 |---------|---------|
-| `--cache-dir` / `PYPI_CACHE_DIR` | `<system temp dir>/pypi_mcp_cache` (for example `/tmp/pypi_mcp_cache` on Linux) |
+| `--cache-dir` / `PYPI_CACHE_DIR` | the per-user cache directory (`~/.cache/mcp-pypi` on Linux, `~/Library/Caches/mcp-pypi` on macOS, `%LOCALAPPDATA%\mcp-pypi\Cache` on Windows) |
 
-The system temp directory may be cleared on reboot. Point the cache somewhere persistent (for example `~/.cache/mcp-pypi`) if you want the search index to survive restarts.
+The default is private to your user account and survives restarts. Earlier versions used a shared `<system temp dir>/pypi_mcp_cache`; it is no longer read and can be deleted.
 
 ## Response cache
 
@@ -26,7 +26,7 @@ Expired entries are ignored and refetched. When a cached entry has an ETag, the 
 
 `--cache-strategy` / `PYPI_CACHE_STRATEGY` (`memory`, `disk`, `hybrid`) is accepted for compatibility with earlier versions. In 4.x responses are always cached on disk, and the setting does not change behaviour.
 
-Network calls are retried with exponential backoff (`PYPI_MAX_RETRIES`, default 3; `PYPI_RETRY_DELAY`, default 1.0 s) and time out after `PYPI_TIMEOUT` seconds (default 30).
+Network calls are retried with exponential backoff (`PYPI_MAX_RETRIES`, default 3; `PYPI_RETRY_DELAY`, default 1.0 s) and time out after `PYPI_TIMEOUT` seconds (default 30). The Simple index download has its own 120 second limit.
 
 ## Search index files
 

@@ -30,7 +30,7 @@ See [transports.md](transports.md) for the two transports.
 
 | Variable | Default |
 |----------|---------|
-| `PYPI_CACHE_DIR` | `<system temp dir>/pypi_mcp_cache` |
+| `PYPI_CACHE_DIR` | per-user cache dir (`~/.cache/mcp-pypi` on Linux) |
 | `PYPI_CACHE_TTL` | `604800` (seconds) |
 | `PYPI_CACHE_MAX_SIZE` | `104857600` (bytes) |
 | `PYPI_CACHE_STRATEGY` | `hybrid` (accepted for compatibility; no effect) |
@@ -126,11 +126,14 @@ Exit codes: `1` if any dependency has a known vulnerability, `2` on an error, `0
   run: |
     pip install mcp-pypi
     mcp-pypi check-requirements . --format json > audit.json
+    jq -e '.totals.unchecked == 0' audit.json
 ```
+
+With the default `bash -e` shell, `check-requirements` fails the step when a dependency is vulnerable (exit 1) or on an error (exit 2), and `jq -e` fails it when any dependency could not be checked.
 
 ## Prompts and resources
 
-Prompts: `analyze_dependencies` (argument `package_name`) and `compare_packages` (argument `packages`). Resources: `pypi://recent-releases`, `pypi://new-packages`, `pypi://updated-packages`.
+Prompts: `analyze_dependencies` (argument `package_name`; walks through `get_dependencies` and `check_vulnerabilities` with `include_transitive=True`) and `compare_packages` (argument `packages`, comma-separated; uses `get_package`, `get_download_stats` and `check_vulnerabilities`). Resources: `pypi://recent-releases`, `pypi://new-packages`, `pypi://updated-packages`.
 
 ## Troubleshooting
 

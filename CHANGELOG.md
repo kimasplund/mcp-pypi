@@ -22,6 +22,7 @@ mcp-pypi 4.0 is a rework of the server and tool set. If you only use it through 
 - Extras `[all]`, `[viz]`, `[search]` and `[docs]` are removed. A plain `pip install mcp-pypi` has everything; `[http]` is not needed either.
 - License is now MIT only. The commercial license was dropped.
 - The User-Agent is now `mcp-pypi/<version> (+https://github.com/kimasplund/mcp-pypi)`.
+- The default cache directory is now the per-user cache directory (`~/.cache/mcp-pypi` on Linux, via `platformdirs`) instead of the shared `<system temp dir>/pypi_mcp_cache`. `PYPI_CACHE_DIR` and `--cache-dir` still override it.
 - CLI changes:
   - `search` takes `--limit` instead of `--page`.
   - `stats downloads` no longer has `--version` or the monthly table; it reports the pypistats last day, week and month.
@@ -60,7 +61,7 @@ Removed without replacement: ANSI-colour report formatting and the `output_forma
 - Download stats no longer fabricate numbers when pypistats is unavailable; the call fails instead.
 - Vulnerability checks match mixed-case and underscore names (`Django`, `PyYAML`, `typing_extensions`) and count GitHub advisory `MODERATE` severity as medium.
 - Installed-package scans read the environment's package metadata directly instead of running its interpreter, so they work in uv-created virtualenvs that have no pip, never execute code from the scanned environment, and never silently scan an unrelated environment. The path must be a venv (`pyvenv.cfg`) or conda environment (`conda-meta/`).
-- Audits never report unchecked dependencies or unreadable files as clean.
+- Audits never report unchecked dependencies or unreadable files as clean. `check_vulnerabilities` lists items it could not check in `unchecked` and fails only when none could be checked; `audit_project` says when it stopped discovering files at the 50-file cap; a `setup.py` whose `install_requires` is not a literal list of strings is reported as unreadable instead of as having no dependencies.
 - Upper-bound-only constraints (for example `urllib3<2`) are checked at the highest allowed release instead of an arbitrary one.
 
 ## [3.0.0] - 2026-01-26

@@ -178,7 +178,7 @@ Once configured, you can ask your assistant:
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `PYPI_CACHE_DIR` | `<system temp dir>/pypi_mcp_cache` | Cache directory |
+| `PYPI_CACHE_DIR` | per-user cache dir (`~/.cache/mcp-pypi` on Linux) | Cache directory |
 | `PYPI_CACHE_TTL` | `604800` (1 week) | Cache TTL in seconds |
 | `PYPI_CACHE_MAX_SIZE` | `104857600` (100 MB) | Maximum cache size in bytes |
 | `PYPI_CACHE_STRATEGY` | `hybrid` | Accepted for compatibility; responses are always cached as files on disk |

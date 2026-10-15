@@ -69,7 +69,7 @@ Get changelog text for a package from its project links or GitHub releases.
 | `package_name` | string | required |
 | `version` | string | latest |
 
-Uses the changelog link in the package metadata when present and falls back to the repository's releases page. When nothing is found it returns a short note listing the available project URLs. Result: `package_name`, `version`, `changelog`.
+Uses the changelog link in the package metadata when present and falls back to the repository's releases page. When nothing is found it returns a short note listing the available project URLs. The text is not filtered by version: `version` is accepted for compatibility and the result's `version` is `null`. Result: `package_name`, `version`, `changelog`.
 
 ### get_download_stats
 
@@ -119,7 +119,7 @@ Check up to 100 packages against [OSV](https://osv.dev/) for known vulnerabiliti
 
 Extras are ignored and any other specifier is rejected for that item only. With `include_transitive` the dependency tree is resolved to `max_depth` and every dependency is checked too; vulnerable dependencies are listed with `introduced_via`, the shortest root-to-dependency chain of names. Items whose version cannot be resolved are reported as errors, never checked across all versions. Each package and version is sent to OSV, which decides which advisories affect that version. Package names match OSV case- and separator-insensitively (`Django`, `PyYAML`, `typing_extensions`).
 
-Result: `results` (per package: `package`, `version`, `vulnerable`, `vulnerabilities`, `total_vulnerabilities`, `vulnerabilities_truncated`, `introduced_via`, `note`, `error`), `total_packages`, `vulnerable_packages`, `total_vulnerabilities`, `severity_counts` and `transitive_checked`. Each vulnerability has `id`, `summary`, `severity`, `aliases`, `affected_versions` and `references`. GitHub advisory severity `MODERATE` is counted as `medium`.
+Result: `results` (per package: `package`, `version`, `vulnerable`, `vulnerabilities`, `total_vulnerabilities`, `vulnerabilities_truncated`, `introduced_via`, `note`, `error`), `total_packages`, `vulnerable_packages`, `total_vulnerabilities`, `severity_counts`, `transitive_checked` and `unchecked` (items that could not be checked; they are never counted as clean, and the call fails only if no item could be checked). Each vulnerability has `id`, `summary`, `severity`, `aliases`, `affected_versions` and `references`. GitHub advisory severity `MODERATE` is counted as `medium`.
 
 ### scan_installed_packages
 
@@ -142,7 +142,7 @@ Audit a project's dependency files for vulnerabilities, outdated pins and drift.
 | `path` | string | required | A directory or a single dependency file |
 | `detail` | `"summary"` or `"full"` | `"summary"` | `summary` lists only vulnerable, outdated or unchecked dependencies per file |
 
-Supported files: `requirements*.txt`, `constraints*.txt`, `pyproject.toml` (PEP 621 and Poetry), `setup.py` (parsed statically, never executed), `setup.cfg`, `Pipfile`, `Pipfile.lock`, `poetry.lock` and conda `environment.yml` / `environment.yaml` (the `pip:` section). A directory is searched up to 4 levels deep, at most 50 files.
+Supported files: `requirements*.txt`, `constraints*.txt`, `pyproject.toml` (PEP 621 and Poetry), `setup.py` (parsed statically, never executed; if `install_requires` is not a literal list of strings the file is reported with an error instead of as having no dependencies), `setup.cfg`, `Pipfile`, `Pipfile.lock`, `poetry.lock` and conda `environment.yml` / `environment.yaml` (the `pip:` section). A directory is searched up to 4 levels deep, at most 50 files; when that cap is hit, `recommendations` and `summary` say so (audit a subdirectory or a single file for full coverage).
 
 Each dependency is checked at its pinned version; otherwise at its lowest allowed version; otherwise, for upper-bound-only constraints such as `urllib3<2`, at the highest non-yanked allowed release; otherwise at the latest release. A dependency that could not be checked carries an `error`, is counted in `totals.unchecked`, and is never reported as clean. Unreadable files appear in `files` with an `error` and are counted in `totals.files_with_errors`.
 
@@ -164,8 +164,8 @@ Batch tools (`check_packages`, `check_vulnerabilities`, `audit_project`) report 
 
 Prompts (both take arguments):
 
-- `analyze_dependencies(package_name)`: analyze a package's dependencies for security and freshness.
-- `compare_packages(packages)`: compare candidate packages and recommend one.
+- `analyze_dependencies(package_name)`: analyze a package's dependencies for security and freshness with `get_dependencies` and `check_vulnerabilities` (`include_transitive=True`), reporting vulnerable and outdated dependencies.
+- `compare_packages(packages)`: compare candidate packages (comma-separated) with `get_package`, `get_download_stats` and `check_vulnerabilities`, and recommend one.
 
 Resources (read-only PyPI feeds): `pypi://recent-releases`, `pypi://new-packages`, `pypi://updated-packages`.
 
