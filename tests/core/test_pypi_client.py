@@ -479,71 +479,38 @@ requires = ["pkge>=0.9.0"]
 
 
 @pytest.mark.asyncio
-async def test_search_packages_success(client, mock_http_client):
-    """Test search_packages with successful response."""
-    # Setup a simplified results structure
-    search_results = [
-        {"name": "package1", "version": "1.0.0", "description": "Test package 1"},
-        {"name": "package2", "version": "2.0.0", "description": "Test package 2"},
-    ]
+async def test_search_packages_uses_new_signature(client):
+    """search_packages(query, limit) ranks names then enriches from package metadata."""
+    client.name_index = MagicMock()
+    client.name_index.names = AsyncMock(return_value="\nrequests\nrequests-oauthlib\n")
+    client.popularity = MagicMock()
+    client.popularity.downloads = AsyncMock(return_value={"requests": 1_000_000})
+    client.get_package_info = AsyncMock(
+        return_value={"info": {"name": "requests", "version": "2.0", "summary": "HTTP for humans"}}
+    )
 
-    # Mock the HTTP response with raw HTML
-    mock_http_client.fetch.return_value = {
-        "raw_data": "<html>mock html</html>",
-        "content_type": "text/html",
-    }
+    result = await client.search_packages("requests", limit=1)
 
-    # Patch Beautiful Soup
-    with patch.object(client, "_has_bs4", True), patch("bs4.BeautifulSoup") as mock_bs:
-        # Set up mock BS4 behavior
-        mock_soup = MagicMock()
-        mock_bs.return_value = mock_soup
-
-        # Mock the find_all to return package elements
-        mock_items = [MagicMock(), MagicMock()]
-        mock_soup.select.return_value = mock_items
-
-        # Mock the package name, version and description extraction
-        for idx, item in enumerate(mock_items):
-            pkg_name = MagicMock()
-            pkg_name.get_text.return_value = search_results[idx]["name"]
-            item.select.side_effect = lambda selector, pkg_name=pkg_name: (
-                [pkg_name] if selector == "h3 a" else []
-            )
-
-            # Additionally mock any other methods the actual implementation might use
-            # Simplified example; may need adjustment to match the actual implementation
-            item.find.side_effect = lambda selector, idx=idx: (
-                MagicMock(get_text=MagicMock(return_value=search_results[idx]["description"]))
-                if selector == "p"
-                else MagicMock(get_text=MagicMock(return_value=search_results[idx]["version"]))
-            )
-
-        # Execute
-        result = await client.search_packages("test", page=1)
-
-    # Verify
-    assert "results" in result
-    assert len(result["results"]) == 2
-
-    # Test that the client called the HTTP service correctly
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/search/?q=test&page=1")
+    assert [r["name"] for r in result["results"]] == ["requests"]
+    assert result["results"][0]["popularity_rank"] == 1
+    assert result["total_candidates"] == 2
 
 
 @pytest.mark.asyncio
-async def test_search_packages_error(client, mock_http_client):
-    """Test search_packages with error response."""
-    # Setup mock error response
-    mock_http_client.fetch.side_effect = Exception("Network error")
+async def test_search_packages_clamps_limit(client):
+    client.name_index = MagicMock()
+    client.name_index.names = AsyncMock(
+        return_value="\n" + "\n".join(f"pkg{i}" for i in range(100)) + "\n"
+    )
+    client.popularity = MagicMock()
+    client.popularity.downloads = AsyncMock(return_value={})
+    client.get_package_info = AsyncMock(
+        side_effect=lambda n: {"info": {"name": n, "version": "1", "summary": ""}}
+    )
 
-    # Execute
-    result = await client.search_packages("test")
-
-    # Verify
-    assert "error" in result
-    assert result["error"]["code"] == "unknown_error"
-    assert "Network error" in result["error"]["message"]
-    mock_http_client.fetch.assert_called_once_with("https://pypi.org/search/?q=test&page=1")
+    # limit clamps to 50, but enrichment looks at min(3 * limit, 30) candidates
+    assert len((await client.search_packages("pkg", limit=500))["results"]) == 30
+    assert len((await client.search_packages("pkg", limit=0))["results"]) == 1
 
 
 @pytest.mark.asyncio

@@ -53,35 +53,6 @@ def client(mock_http_client, mock_cache_manager, mock_stats_service):
 
 
 @pytest.mark.asyncio
-async def test_search_packages_pagination(client, mock_http_client):
-    """Test search_packages with page parameter."""
-    # Mock HTML response with search results
-    html_content = """
-    <html>
-    <body>
-    <div class="package-snippet">
-        <span class="package-snippet__name">package-1</span>
-        <span class="package-snippet__version">1.0.0</span>
-        <span class="package-snippet__description">Description 1</span>
-    </div>
-    <div class="package-snippet">
-        <span class="package-snippet__name">package-2</span>
-        <span class="package-snippet__version">2.0.0</span>
-        <span class="package-snippet__description">Description 2</span>
-    </div>
-    </body>
-    </html>
-    """
-    mock_http_client.fetch.return_value = {"raw_data": html_content}
-
-    # Test page 1
-    result = await client.search_packages("test", page=1)
-
-    # Verify results returned
-    assert "results" in result or "search_url" in result
-
-
-@pytest.mark.asyncio
 async def test_dependency_tree_max_width(client, mock_http_client, mock_cache_manager):
     """Test get_dependency_tree respects max_width parameter."""
     # First call: get latest version

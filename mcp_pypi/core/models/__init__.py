@@ -13,11 +13,13 @@ from typing import (
     TypeVar,
 )
 
+from mcp_pypi import __version__
+
 # Type variables
 T = TypeVar("T")
 
 # Constants
-USER_AGENT = "Mozilla/5.0 (compatible; MCP-PyPI/2.0; +https://asplund.kim)"
+USER_AGENT = f"mcp-pypi/{__version__} (+https://github.com/kimasplund/mcp-pypi)"
 DEFAULT_CACHE_DIR = os.path.join(tempfile.gettempdir(), "pypi_mcp_cache")
 DEFAULT_CACHE_TTL = 604800  # 1 week
 DEFAULT_CACHE_MAX_SIZE = 100 * 1024 * 1024  # 100 MB

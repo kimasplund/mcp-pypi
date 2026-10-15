@@ -263,10 +263,13 @@ def test_package_dependencies(runner):
 def test_search_packages(runner):
     """Test search packages command."""
     mock_data = {
+        "query": "test",
         "results": [
-            {"name": "package1", "version": "1.0.0", "description": "Test package 1"},
-            {"name": "package2", "version": "2.0.0", "description": "Test package 2"},
-        ]
+            {"name": "package1", "version": "1.0.0", "summary": "Test package 1"},
+            {"name": "package2", "version": "2.0.0", "summary": "Test package 2"},
+        ],
+        "total_candidates": 2,
+        "note": None,
     }
 
     mock_client = MagicMock()
@@ -279,17 +282,19 @@ def test_search_packages(runner):
     ):
         result = runner.invoke(app, ["search", "test"])
         assert result.exit_code == 0
+        assert "package1" in result.output
 
-    # The CLI passes page=1 by default
-    mock_client.search_packages.assert_called_once_with("test", 1)
+    mock_client.search_packages.assert_called_once_with("test", 10)
     mock_client.close.assert_called_once()
 
 
-def test_search_packages_with_message(runner):
-    """Test search packages command with message response."""
+def test_search_packages_with_limit_and_note(runner):
+    """Test search command with --limit and a no-results note."""
     mock_data = {
-        "message": "Security check required",
-        "search_url": "https://pypi.org/search?q=test",
+        "query": "zzz",
+        "results": [],
+        "total_candidates": 0,
+        "note": "No package names matched.",
     }
 
     mock_client = MagicMock()
@@ -300,10 +305,11 @@ def test_search_packages_with_message(runner):
         patch("mcp_pypi.cli.commands.search_commands.PyPIClient", return_value=mock_client),
         mock_asyncio_run(mock_client, mock_data),
     ):
-        result = runner.invoke(app, ["search", "test"])
+        result = runner.invoke(app, ["search", "zzz", "--limit", "3"])
         assert result.exit_code == 0
+        assert "No package names matched." in result.output
 
-    mock_client.search_packages.assert_called_once_with("test", 1)
+    mock_client.search_packages.assert_called_once_with("zzz", 3)
     mock_client.close.assert_called_once()
 
 

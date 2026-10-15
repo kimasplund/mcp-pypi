@@ -71,24 +71,15 @@ def register_search_tools(server: "PyPIMCPServer") -> None:
             # Validate pagination parameters
             limit, offset = validate_pagination(limit, offset, max_limit=100)
 
-            page = (offset // 20) + 1 if offset > 0 else 1
-            result = await server.client.search_packages(query, page=page)
+            result = await server.client.search_packages(query, limit=limit + offset)
 
             if not result.get("error"):
                 results = result.get("results", [])
-                total_results = len(results)
-
-                page_offset = offset % 20
-                paginated_results = results[page_offset : page_offset + limit]
-
-                result["results"] = paginated_results
+                result["results"] = results[offset : offset + limit]
                 result["offset"] = offset
                 result["limit"] = limit
-                result["has_more"] = (
-                    page_offset + limit
-                ) < total_results or total_results >= 20
-                if "total" not in result:
-                    result["total"] = total_results
+                result["has_more"] = len(results) > offset + limit
+                result["total"] = len(results)
 
             return result
         except Exception as e:

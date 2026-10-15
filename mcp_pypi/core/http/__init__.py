@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import random
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 import aiohttp
 from aiohttp import ClientSession, ClientTimeout
@@ -15,6 +15,14 @@ from mcp_pypi.core.cache import AsyncCacheManager
 from mcp_pypi.core.models import ErrorCode, PyPIClientConfig, format_error
 
 logger = logging.getLogger("mcp-pypi.http")
+
+
+class RawResponse(NamedTuple):
+    """Status, body and lower-cased headers of an uncached response."""
+
+    status: int
+    body: bytes
+    headers: dict[str, str]
 
 
 class AsyncHTTPClient:
@@ -54,6 +62,20 @@ class AsyncHTTPClient:
 
         self.last_request_time = time.time()
 
+    async def fetch_raw(self, url: str, headers: dict[str, str] | None = None) -> RawResponse:
+        """GET a URL without caching, parsing or retries (for large bodies).
+
+        Network failures raise ``aiohttp.ClientError`` or ``TimeoutError``.
+        """
+        await self._apply_rate_limit()
+        session = await self._get_session()
+        request_headers = {"User-Agent": self.config.user_agent, **(headers or {})}
+        async with session.get(url, headers=request_headers) as response:
+            body = await response.read()
+            return RawResponse(
+                response.status, body, {k.lower(): v for k, v in response.headers.items()}
+            )
+
     async def fetch(
         self,
         url: str,
@@ -72,6 +94,7 @@ class AsyncHTTPClient:
         Returns:
             The parsed response as a dictionary
         """
+        cached_data = None
         # Check cache first (only for GET requests)
         if method == "GET" and data is None:
             cached_data = await self.cache.get(url)

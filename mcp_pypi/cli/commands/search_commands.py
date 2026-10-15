@@ -16,41 +16,38 @@ console = Console()
 
 def search_packages(
     query: str = typer.Argument(..., help="Search query"),
-    page: int = typer.Option(1, help="Result page number"),
+    limit: int = typer.Option(10, "--limit", "-l", help="Maximum number of results (1-50)"),
     color: bool = typer.Option(True, help="Colorize output"),
 ):
-    """Search for packages on PyPI."""
+    """Search PyPI package names (name-like keywords work best)."""
 
     async def run():
         config = get_config()
         client = PyPIClient(config)
 
         try:
-            result = await client.search_packages(query, page)
+            result = await client.search_packages(query, limit)
 
             if "error" in result:
                 print_error(result["error"]["message"])
                 return
 
-            if "message" in result:
-                console.print(f"[yellow]{result['message']}[/yellow]")
-                console.print(f"Search URL: {result['search_url']}")
-                return
-
             if color and "results" in result:
-                table = Table(title=f"Search Results for '{query}' (Page {page})")
+                table = Table(title=f"Search Results for '{query}'")
                 table.add_column("Package")
                 table.add_column("Version")
-                table.add_column("Description")
+                table.add_column("Summary")
 
                 for package in result["results"]:
-                    description = package.get("description", "")
-                    if len(description) > 60:
-                        description = description[:57] + "..."
+                    summary = package.get("summary") or ""
+                    if len(summary) > 60:
+                        summary = summary[:57] + "..."
 
-                    table.add_row(package["name"], package["version"], description)
+                    table.add_row(package["name"], package["version"], summary)
 
                 console.print(table)
+                if result.get("note"):
+                    console.print(f"[yellow]{result['note']}[/yellow]")
             else:
                 output_json(result, color)
         finally:

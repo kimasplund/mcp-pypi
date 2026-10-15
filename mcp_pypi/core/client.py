@@ -2,7 +2,9 @@
 Main PyPI client that composes all operation mixins.
 """
 
+import difflib
 import logging
+from pathlib import Path
 from typing import cast
 
 from mcp_pypi.core.cache import AsyncCacheManager
@@ -12,6 +14,7 @@ from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import ErrorCode, PyPIClientConfig, StatsResult, format_error
 from mcp_pypi.core.package_ops import PackageOpsMixin
 from mcp_pypi.core.requirements_ops import RequirementsOpsMixin
+from mcp_pypi.core.search_index import NameIndex, Popularity, normalize
 from mcp_pypi.core.search_ops import SearchOpsMixin
 from mcp_pypi.core.stats import PackageStatsService
 from mcp_pypi.core.vulnerability_ops import VulnerabilityOpsMixin
@@ -63,8 +66,10 @@ class PyPIClient(
         self.http = http_client or AsyncHTTPClient(self.config, self.cache)
         self.stats = stats_service or PackageStatsService(self.http)
 
+        self.name_index = NameIndex(self.http, Path(self.config.cache_dir))
+        self.popularity = Popularity(self.http, Path(self.config.cache_dir))
+
         # Check for optional dependencies
-        self._has_bs4 = self._check_import("bs4", "BeautifulSoup")
         self._has_plotly = self._check_import("plotly.graph_objects", "go")
 
     def _check_import(self, module: str, name: str) -> bool:
@@ -84,6 +89,13 @@ class PyPIClient(
         """
         self.config.user_agent = user_agent
         logger.info(f"User-Agent updated to: {user_agent}")
+
+    async def suggest_names(self, name: str, limit: int = 3) -> list[str]:
+        """Popular package names close to `name` (for "did you mean" hints)."""
+        popular = await self.popularity.downloads()
+        if not popular:
+            return []
+        return difflib.get_close_matches(normalize(name), list(popular), n=limit, cutoff=0.85)
 
     async def close(self) -> None:
         """Close the client and release resources."""

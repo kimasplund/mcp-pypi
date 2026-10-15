@@ -2,19 +2,29 @@
 Search and comparison operations mixin for PyPI client.
 """
 
+import asyncio
 import logging
 import re
-from typing import cast
-from urllib.parse import quote_plus
+from collections.abc import Awaitable, Callable
+from typing import Any, cast
 
 from packaging.version import Version
 
+from mcp_pypi.core.http import AsyncHTTPClient
 from mcp_pypi.core.models import (
     DocumentationResult,
     ErrorCode,
-    SearchResult,
     VersionComparisonResult,
     format_error,
+)
+from mcp_pypi.core.search_index import (
+    Candidate,
+    IndexUnavailable,
+    NameIndex,
+    Popularity,
+    normalize,
+    query_tokens,
+    rank_candidates,
 )
 from mcp_pypi.utils.sanitize import sanitize_package_name, sanitize_version
 
@@ -24,117 +34,77 @@ logger = logging.getLogger("mcp-pypi.client")
 class SearchOpsMixin:
     """Mixin providing search and comparison operations."""
 
-    async def search_packages(self, query: str, page: int = 1) -> SearchResult:
-        """Search for packages on PyPI."""
-        query_encoded = quote_plus(query)
-        url = f"https://pypi.org/search/?q={query_encoded}&page={page}"
+    http: AsyncHTTPClient
+    name_index: NameIndex
+    popularity: Popularity
+    get_package_info: Callable[[str], Awaitable[Any]]  # provided by PackageOpsMixin
+
+    async def search_packages(self, query: str, limit: int = 10) -> dict[str, Any]:
+        """Search package names (Simple index + popularity), enriched from package metadata."""
+        tokens = query_tokens(query)
+        if not tokens:
+            return cast(
+                dict[str, Any],
+                format_error(ErrorCode.INVALID_INPUT, "Search query must not be empty"),
+            )
+        limit = max(1, min(50, limit))
 
         try:
-            data = await self.http.fetch(url)
-
-            # Check for error in result
-            if isinstance(data, dict) and "error" in data:
-                return cast(SearchResult, data)
-
-            # Process the raw_data if in the new format
-            html_content = None
-            if isinstance(data, dict) and "raw_data" in data:
-                raw_data = data["raw_data"]
-
-                if isinstance(raw_data, bytes):
-                    html_content = raw_data.decode("utf-8", errors="ignore")
-                elif isinstance(raw_data, str):
-                    html_content = raw_data
-                else:
-                    return {
-                        "results": [],
-                        "error": {
-                            "code": ErrorCode.PARSE_ERROR,
-                            "message": f"Unexpected data type: {type(raw_data)}",
-                        },
-                    }
-            elif isinstance(data, (str, bytes)):
-                # Legacy format
-                if isinstance(data, bytes):
-                    html_content = data.decode("utf-8", errors="ignore")
-                else:
-                    html_content = data
-            else:
-                return {
-                    "results": [],
-                    "error": {
-                        "code": ErrorCode.PARSE_ERROR,
-                        "message": f"Unexpected data type: {type(data)}",
-                    },
-                }
-
-            # Handle case when we receive a Client Challenge page instead of search results
-            if "Client Challenge" in html_content:
-                logger.warning(
-                    "Received a security challenge page from PyPI instead of search results"
-                )
-                return {
-                    "search_url": url,
-                    "message": (
-                        "PyPI returned a security challenge page. Try using a web "
-                        "browser to search PyPI directly."
-                    ),
-                    "results": [],
-                }
-
-            # Check if BeautifulSoup is available for better parsing
-            if self._has_bs4:
-                from bs4 import BeautifulSoup
-
-                soup = BeautifulSoup(html_content, "html.parser")
-                results = []
-
-                # Extract packages from search results
-                for package in soup.select(".package-snippet"):
-                    name_elem = package.select_one(".package-snippet__name")
-                    version_elem = package.select_one(".package-snippet__version")
-                    desc_elem = package.select_one(".package-snippet__description")
-
-                    if name_elem and version_elem:
-                        name = name_elem.text.strip()
-                        version = version_elem.text.strip()
-                        description = desc_elem.text.strip() if desc_elem else ""
-
-                        results.append(
-                            {
-                                "name": name,
-                                "version": version,
-                                "description": description,
-                                "url": f"https://pypi.org/project/{name}/",
-                            }
-                        )
-
-                # Check if we found any results
-                if results:
-                    return {"search_url": url, "results": results}
-                else:
-                    # We have BeautifulSoup but couldn't find any packages
-                    # This could be a format change or we're not getting the expected HTML
-                    return {
-                        "search_url": url,
-                        "message": "No packages found or PyPI search page format has changed",
-                        "results": [],
-                    }
-
-            # Fallback if BeautifulSoup is not available
-            return {
-                "search_url": url,
-                "message": (
-                    "For better search results, install Beautiful Soup: pip install beautifulsoup4"
+            names = await self.name_index.names()
+        except IndexUnavailable as e:
+            logger.warning(f"Package index unavailable: {e}")
+            return cast(
+                dict[str, Any],
+                format_error(
+                    ErrorCode.NETWORK_ERROR, "PyPI package index unavailable; retry later"
                 ),
-                "results": [],  # Return empty results rather than raw HTML
+            )
+
+        try:
+            downloads = await self.popularity.downloads()
+            candidates = await asyncio.to_thread(rank_candidates, query, names, downloads)
+            top = candidates[: min(3 * limit, 30)]
+
+            by_downloads = sorted(downloads, key=downloads.__getitem__, reverse=True)
+            ranks = {name: rank for rank, name in enumerate(by_downloads, 1)}
+            semaphore = asyncio.Semaphore(10)
+
+            async def enrich(candidate: Candidate) -> tuple[float, dict[str, Any]] | None:
+                async with semaphore:
+                    data = await self.get_package_info(candidate.name)
+                info = data.get("info") if isinstance(data, dict) else None
+                if "error" in data or not isinstance(info, dict):
+                    return None
+                summary = info.get("summary") or ""
+                boost = 40 * sum(t in summary.lower() for t in tokens)
+                name = info.get("name") or candidate.name
+                return candidate.score + boost, {
+                    "name": name,
+                    "version": info.get("version") or "",
+                    "summary": summary,
+                    "package_url": f"https://pypi.org/project/{name}/",
+                    "popularity_rank": ranks.get(normalize(name)),
+                }
+
+            enriched = [r for r in await asyncio.gather(*(enrich(c) for c in top)) if r]
+            enriched.sort(key=lambda r: r[0], reverse=True)
+            results = [item for _, item in enriched[:limit]]
+
+            response: dict[str, Any] = {
+                "query": query,
+                "results": results,
+                "total_candidates": len(candidates),
+                "note": None,
             }
+            if not results:
+                response["note"] = (
+                    "No package names matched. "
+                    "Try name-like keywords (e.g. 'httpx', 'jwt', 'yaml')."
+                )
+            return response
         except Exception as e:
             logger.exception(f"Error searching packages: {e}")
-            return {
-                "results": [],
-                "error": {"code": ErrorCode.UNKNOWN_ERROR, "message": str(e)},
-            }
+            return cast(dict[str, Any], format_error(ErrorCode.UNKNOWN_ERROR, str(e)))
 
     async def compare_versions(
         self, package_name: str, version1: str, version2: str
