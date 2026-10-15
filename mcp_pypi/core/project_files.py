@@ -74,6 +74,18 @@ class DeclaredDependency:
         return None if "*" in version else version
 
 
+class _ShapeError(ValueError):
+    """A document has an unexpected structure."""
+
+
+def _dict_or_empty(value: Any, what: str) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise _ShapeError(f"expected {what} to be a table, got {type(value).__name__}")
+    return value
+
+
 class DependencyFileError(Exception):
     def __init__(self, path: Path, message: str) -> None:
         super().__init__(f"{path}: {message}")
@@ -154,7 +166,9 @@ def _requirement_list(
 
 
 def _parse_requirements(text: str, source: str) -> list[DeclaredDependency]:
-    return _requirement_list(text.splitlines(), source)
+    # Join pip-compile style backslash continuations (`pkg==1 \` + `--hash=...`).
+    joined = re.sub(r"\\[ \t]*\r?\n", " ", text)
+    return _requirement_list(joined.splitlines(), source)
 
 
 # --- pyproject.toml ----------------------------------------------------------
@@ -196,13 +210,14 @@ def _poetry_deps(table: Any, source: str, group: str | None) -> list[DeclaredDep
 def _parse_pyproject(text: str, source: str) -> list[DeclaredDependency]:
     data = tomllib.loads(text)
     deps: list[DeclaredDependency] = []
-    project = data.get("project", {})
+    project = _dict_or_empty(data.get("project"), "[project]")
     deps += _requirement_list(project.get("dependencies"), source)
     optional = project.get("optional-dependencies", {})
     if isinstance(optional, dict):
         for extra, items in optional.items():
             deps += _requirement_list(items, source, f"optional:{extra}")
-    poetry = data.get("tool", {}).get("poetry", {})
+    tool = _dict_or_empty(data.get("tool"), "[tool]")
+    poetry = _dict_or_empty(tool.get("poetry"), "[tool.poetry]")
     deps += _poetry_deps(poetry.get("dependencies"), source, None)
     groups = poetry.get("group", {})
     if isinstance(groups, dict):
@@ -242,7 +257,7 @@ def _parse_setup_cfg(text: str, source: str) -> list[DeclaredDependency]:
 
 
 def _parse_pipfile(text: str, source: str) -> list[DeclaredDependency]:
-    data = tomllib.loads(text)
+    data = _dict_or_empty(tomllib.loads(text), "Pipfile")
     deps: list[DeclaredDependency] = []
     for section, group in (("packages", None), ("dev-packages", "dev")):
         table = data.get(section, {})
@@ -262,6 +277,8 @@ def _parse_pipfile(text: str, source: str) -> list[DeclaredDependency]:
 
 def _parse_pipfile_lock(text: str, source: str) -> list[DeclaredDependency]:
     data = json.loads(text)
+    if not isinstance(data, dict):
+        raise _ShapeError("expected a JSON object at top level")
     deps: list[DeclaredDependency] = []
     for section, group in (("default", None), ("develop", "dev")):
         table = data.get(section, {})
@@ -334,5 +351,10 @@ def parse_dependency_file(path: Path) -> list[DeclaredDependency]:
         raise DependencyFileError(path, f"cannot read file: {exc}") from exc
     try:
         return _PARSERS[kind](text, str(path))
-    except (tomllib.TOMLDecodeError, json.JSONDecodeError, configparser.Error) as exc:
+    except (
+        tomllib.TOMLDecodeError,
+        json.JSONDecodeError,
+        configparser.Error,
+        _ShapeError,
+    ) as exc:
         raise DependencyFileError(path, f"invalid {kind} file: {exc}") from exc
