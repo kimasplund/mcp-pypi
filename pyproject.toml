@@ -55,6 +55,7 @@ dependencies = [
     "typer>=0.15",
     "rich>=13.0",
     "defusedxml>=0.7.1",
+    "platformdirs>=4.0",
 ]
 
 [project.urls]

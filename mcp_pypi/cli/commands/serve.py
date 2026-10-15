@@ -57,7 +57,7 @@ def show_stdio_connection_help() -> None:
     console.print("\n[bold]Tips:[/bold]")
     console.print("* The server starts automatically when the client connects")
     console.print("* Logs go to stderr; check them with: [dim]--log-level DEBUG[/dim]")
-    console.print("* Persist the cache with: [dim]--cache-dir ~/.pypi-cache[/dim]\n")
+    console.print("* Use another cache directory with: [dim]--cache-dir /path/to/cache[/dim]\n")
 
 
 def show_http_connection_help(host: str = "127.0.0.1", port: int = 8143) -> None:

@@ -3,7 +3,6 @@ Type definitions for the MCP-PyPI client.
 """
 
 import os
-import tempfile
 from dataclasses import dataclass, field
 from typing import (
     Any,
@@ -13,6 +12,8 @@ from typing import (
     TypeVar,
 )
 
+from platformdirs import user_cache_dir
+
 from mcp_pypi import __version__
 
 # Type variables
@@ -20,7 +21,8 @@ T = TypeVar("T")
 
 # Constants
 USER_AGENT = f"mcp-pypi/{__version__} (+https://github.com/kimasplund/mcp-pypi)"
-DEFAULT_CACHE_DIR = os.path.join(tempfile.gettempdir(), "pypi_mcp_cache")
+# Per-user (e.g. ~/.cache/mcp-pypi), not a world-writable shared temp directory.
+DEFAULT_CACHE_DIR = user_cache_dir("mcp-pypi", appauthor=False)
 DEFAULT_CACHE_TTL = 604800  # 1 week
 DEFAULT_CACHE_MAX_SIZE = 100 * 1024 * 1024  # 100 MB
 DEFAULT_MAX_RETRIES = 3

@@ -27,3 +27,12 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "integration" in item.keywords:
                 item.add_marker(skip_integration)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _isolated_cache_dir(tmp_path_factory):
+    """Keep test runs out of the user's real (per-user, persistent) cache directory."""
+    patch = pytest.MonkeyPatch()
+    patch.setenv("PYPI_CACHE_DIR", str(tmp_path_factory.mktemp("pypi-cache")))
+    yield
+    patch.undo()

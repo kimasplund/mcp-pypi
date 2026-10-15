@@ -9,6 +9,8 @@ import pytest
 from mcp_pypi.core import PyPIClient
 from mcp_pypi.core.models import PyPIClientConfig
 
+pytestmark = pytest.mark.integration  # talks to the live PyPI APIs
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
